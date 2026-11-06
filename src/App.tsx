@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Metronome } from './components/Metronome';
 import { ReadingTrainingSection } from './components/ReadingTrainingSection';
 import { DawsonOrchestrationSection } from './components/DawsonOrchestrationSection';
 import { ToneTransportScheduler } from './audio/ToneTransportScheduler';
+import { NotationViewMode } from './components/notation/DrumStaffView';
 
 export function App() {
   const scheduler = useMemo(() => new ToneTransportScheduler(), []);
+  const [viewMode, setViewMode] = useState<NotationViewMode>('reading');
 
   return (
     <main className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 md:p-8 selection:bg-teal-500 selection:text-white">
@@ -20,9 +22,13 @@ export function App() {
           <DawsonOrchestrationSection scheduler={scheduler} />
         </div>
 
-        {/* Single-Line Reading Training Section with Real-Time Playhead */}
+        {/* Dual-View Notation Section: Reading View (1-line) vs Drum Staff View (5-line) */}
         <div className="w-full">
-          <ReadingTrainingSection scheduler={scheduler} />
+          <ReadingTrainingSection
+            scheduler={scheduler}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
         </div>
 
         <footer className="text-center text-xs text-muted-foreground/80 space-y-1 pt-4 border-t border-border/40 w-full">

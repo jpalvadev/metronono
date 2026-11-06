@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
 
 describe('App', () => {
@@ -29,5 +29,26 @@ describe('App', () => {
     expect(screen.getByText(/Inverted Bop/i)).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-kick')).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-snare')).toBeInTheDocument();
+  });
+
+  it('switches between 1-line Reading View and 5-line Drum Staff View via View Mode toggle', () => {
+    render(<App />);
+
+    expect(screen.getByTestId('reading-view-root')).toBeInTheDocument();
+
+    // Click Drum Staff View toggle
+    const drumStaffToggle = screen.getByRole('button', { name: /drum staff/i });
+    expect(drumStaffToggle).toBeInTheDocument();
+    fireEvent.click(drumStaffToggle);
+
+    // 5-line drum staff view should be rendered
+    expect(screen.getByTestId('drum-staff-view-root')).toBeInTheDocument();
+    expect(screen.getByTestId('drum-score-container')).toBeInTheDocument();
+
+    // Click Reading View toggle back
+    const readingToggle = screen.getByRole('button', { name: /reading view/i });
+    fireEvent.click(readingToggle);
+
+    expect(screen.getByTestId('reading-view-root')).toBeInTheDocument();
   });
 });

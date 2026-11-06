@@ -114,6 +114,7 @@ export class ToneTransportScheduler {
   private scheduledEventId: number | null = null;
   private beatListeners: Set<(event: BeatEvent) => void> = new Set();
   private dropoutListeners: Set<(isDropout: boolean) => void> = new Set();
+  private playStateListeners: Set<(isPlaying: boolean) => void> = new Set();
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
 
@@ -294,6 +295,13 @@ export class ToneTransportScheduler {
     };
   }
 
+  public onPlayStateChange(listener: (isPlaying: boolean) => void): () => void {
+    this.playStateListeners.add(listener);
+    return () => {
+      this.playStateListeners.delete(listener);
+    };
+  }
+
   public async start(): Promise<void> {
     if (this.playing) return;
 
@@ -303,6 +311,7 @@ export class ToneTransportScheduler {
     this.scheduleTicks();
     transport.start();
     this.playing = true;
+    this.playStateListeners.forEach((listener) => listener(true));
   }
 
   public stop(): void {
@@ -318,6 +327,7 @@ export class ToneTransportScheduler {
 
     this.engine.reset();
     this.playing = false;
+    this.playStateListeners.forEach((listener) => listener(false));
 
     if (this.lastDropoutState) {
       this.lastDropoutState = false;

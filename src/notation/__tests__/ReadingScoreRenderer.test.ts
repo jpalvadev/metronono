@@ -1,0 +1,202 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { ReadingScoreRenderer } from '../ReadingScoreRenderer';
+import { Measure, ReadingLine, createRhythmicEvent } from '../../domain/rhythm/types';
+import { REED_PAGE_37_EXERCISE_ONE } from '../../domain/rhythm/ReedLibrary';
+
+function createTestMeasure(index: number, durations: number[], rests: boolean[] = []): Measure {
+  const events = durations.map((d, i) =>
+    createRhythmicEvent({
+      id: `m${index}-e${i}`,
+      durationBeats: d,
+      isRest: rests[i] ?? false,
+    })
+  );
+  return {
+    index,
+    timeSignature: [4, 4],
+    events,
+    totalBeats: 4.0,
+  };
+}
+
+describe('ReadingScoreRenderer', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  it('renders a single 4/4 measure of quarter notes onto a 1-line percussion stave', () => {
+    const measure = createTestMeasure(0, [1, 1, 1, 1]);
+    const readingLine: ReadingLine = {
+      id: 'test-1',
+      title: 'Four Quarters',
+      tier: 1,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 500 });
+
+    expect(container.querySelector('svg')).toBeTruthy();
+    expect(layout.measures).toHaveLength(1);
+    expect(layout.measures[0].eventCoordinates).toHaveLength(4);
+
+    // Verify coordinates are ascending in X
+    const coords = layout.measures[0].eventCoordinates;
+    expect(coords[0].x).toBeLessThan(coords[1].x);
+    expect(coords[1].x).toBeLessThan(coords[2].x);
+    expect(coords[2].x).toBeLessThan(coords[3].x);
+  });
+
+  it('renders rests on b/4/r properly without breaking layout', () => {
+    // Q, Q rest, 8th, 8th rest, Q
+    const measure = createTestMeasure(0, [1.0, 1.0, 0.5, 0.5, 1.0], [false, true, false, true, false]);
+    const readingLine: ReadingLine = {
+      id: 'test-rests',
+      title: 'Rests Test',
+      tier: 2,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 500 });
+
+    expect(layout.measures[0].eventCoordinates).toHaveLength(5);
+    expect(layout.measures[0].eventCoordinates[1].isRest).toBe(true);
+    expect(layout.measures[0].eventCoordinates[3].isRest).toBe(true);
+    expect(layout.measures[0].eventCoordinates[0].isRest).toBe(false);
+  });
+
+  it('renders beams for consecutive eighth notes', () => {
+    // 8 eighth notes in a measure
+    const measure = createTestMeasure(0, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+    const readingLine: ReadingLine = {
+      id: 'test-beams',
+      title: 'Continuous Eighths',
+      tier: 1,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    renderer.render(container, readingLine, { width: 600 });
+
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+    // Beams generate path or rect elements inside SVG
+    const paths = svg?.querySelectorAll('path, rect');
+    expect(paths && paths.length).toBeGreaterThan(0);
+  });
+
+  it('renders intra-measure and cross-bar ties', () => {
+    const m0Events = [
+      createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),
+      createRhythmicEvent({ id: 'm0-e1', durationBeats: 1.0 }),
+      createRhythmicEvent({ id: 'm0-e2', durationBeats: 1.0 }),
+      createRhythmicEvent({ id: 'm0-e3', durationBeats: 1.0, hasTieToNext: true }),
+    ];
+    const m1Events = [
+      createRhythmicEvent({ id: 'm1-e0', durationBeats: 1.0, hasTieFromPrev: true }),
+      createRhythmicEvent({ id: 'm1-e1', durationBeats: 1.0, hasTieToNext: true }),
+      createRhythmicEvent({ id: 'm1-e2', durationBeats: 1.0, hasTieFromPrev: true }),
+      createRhythmicEvent({ id: 'm1-e3', durationBeats: 1.0 }),
+    ];
+
+    const readingLine: ReadingLine = {
+      id: 'test-ties',
+      title: 'Tie Line',
+      tier: 3,
+      measures: [
+        { index: 0, timeSignature: [4, 4], events: m0Events, totalBeats: 4.0 },
+        { index: 1, timeSignature: [4, 4], events: m1Events, totalBeats: 4.0 },
+      ],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 800, measuresPerSystem: 2 });
+
+    expect(layout.measures).toHaveLength(2);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+  });
+
+  it('lays out multi-measure scores into systems (rows)', () => {
+    const measures = [
+      createTestMeasure(0, [1, 1, 1, 1]),
+      createTestMeasure(1, [1, 1, 1, 1]),
+      createTestMeasure(2, [1, 1, 1, 1]),
+      createTestMeasure(3, [1, 1, 1, 1]),
+    ];
+    const readingLine: ReadingLine = {
+      id: 'test-multi',
+      title: 'Four Measures Two Systems',
+      tier: 1,
+      measures,
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, {
+      width: 600,
+      measuresPerSystem: 2,
+      staveSpacing: 110,
+    });
+
+    expect(layout.systemCount).toBe(2);
+    expect(layout.measures[0].systemIndex).toBe(0);
+    expect(layout.measures[1].systemIndex).toBe(0);
+    expect(layout.measures[2].systemIndex).toBe(1);
+    expect(layout.measures[3].systemIndex).toBe(1);
+
+    // Staves on system 1 have higher Y coordinate than system 0
+    expect(layout.measures[2].y).toBeGreaterThan(layout.measures[0].y);
+    expect(layout.measures[3].y).toBe(layout.measures[2].y);
+  });
+
+  it('calculates playhead positions smoothly across measures and beats', () => {
+    const measure = createTestMeasure(0, [1, 1, 1, 1]);
+    const readingLine: ReadingLine = {
+      id: 'test-playhead',
+      title: 'Playhead Timing',
+      tier: 1,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 500 });
+
+    const pos0 = layout.getPlayheadPosition(0, 0.0);
+    const pos1 = layout.getPlayheadPosition(0, 1.0);
+    const pos2 = layout.getPlayheadPosition(0, 2.0);
+    const pos3 = layout.getPlayheadPosition(0, 3.0);
+    const pos4 = layout.getPlayheadPosition(0, 4.0);
+
+    expect(pos0).not.toBeNull();
+    expect(pos1).not.toBeNull();
+    expect(pos2).not.toBeNull();
+    expect(pos3).not.toBeNull();
+    expect(pos4).not.toBeNull();
+
+    expect(pos0!.x).toBeLessThan(pos1!.x);
+    expect(pos1!.x).toBeLessThan(pos2!.x);
+    expect(pos2!.x).toBeLessThan(pos3!.x);
+    expect(pos3!.x).toBeLessThan(pos4!.x);
+
+    // Looping measure index wraps around
+    const loopPos = layout.getPlayheadPosition(1, 0.0);
+    expect(loopPos).not.toBeNull();
+    expect(loopPos!.measureIndex).toBe(0);
+  });
+
+  it('renders Reed Page 37 Exercise One without errors', () => {
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, REED_PAGE_37_EXERCISE_ONE, {
+      width: 800,
+      measuresPerSystem: 4,
+    });
+
+    expect(layout.measures).toHaveLength(32);
+    expect(layout.systemCount).toBe(8);
+    expect(container.querySelector('svg')).toBeTruthy();
+  });
+});

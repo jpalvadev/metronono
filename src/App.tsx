@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Metronome } from './components/Metronome';
 import { ReadingTrainingSection } from './components/ReadingTrainingSection';
+import { DawsonOrchestrationSection } from './components/DawsonOrchestrationSection';
 import { ToneTransportScheduler } from './audio/ToneTransportScheduler';
 
 export function App() {
@@ -12,6 +13,11 @@ export function App() {
         {/* Metronome Engine & Click Controls */}
         <div className="w-full max-w-md">
           <Metronome scheduler={scheduler} />
+        </div>
+
+        {/* Alan Dawson Orchestration Engine, 3-Channel Mixer & Drum Monitor */}
+        <div className="w-full">
+          <DawsonOrchestrationSection scheduler={scheduler} />
         </div>
 
         {/* Single-Line Reading Training Section with Real-Time Playhead */}

@@ -24,7 +24,11 @@ export interface IAudioClockTransport {
 
 export interface IClickPlayer {
   play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void;
+  playSubdivision?(time: number, velocity?: number, pitch?: string): void;
   setClickConfig?(config: Partial<MetronomeClickConfig>): void;
+  loadSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void;
+  removeSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision'): void;
+  hasCustomSample?(voice: 'downbeat' | 'regular' | 'subdivision'): boolean;
   dispose?(): void;
 }
 
@@ -45,6 +49,7 @@ export interface ToneSchedulerOptions {
   drumKitPlayer?: IDrumKitPlayer;
   dawsonEngine?: DawsonEngine;
   readingLine?: ReadingLine;
+  storageManager?: any;
 }
 
 export type {

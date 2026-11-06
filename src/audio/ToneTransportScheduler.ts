@@ -51,8 +51,11 @@ export class ToneClickPlayer implements IClickPlayer {
   private regularSynth: Tone.Synth;
   private subdivisionSynth: Tone.Synth;
   private clickConfig: MetronomeClickConfig;
+  private outputNode?: Tone.ToneAudioNode;
+  private customBuffers: Map<'downbeat' | 'regular' | 'subdivision', any> = new Map();
 
   constructor(outputNode: Tone.ToneAudioNode, initialConfig?: MetronomeClickConfig) {
+    this.outputNode = outputNode;
     this.clickConfig = initialConfig ?? {
       downbeat: { pitch: 'A6', volume: 1.0 },
       regular: { pitch: 'E5', volume: 0.7 },
@@ -87,7 +90,44 @@ export class ToneClickPlayer implements IClickPlayer {
     }
   }
 
+  public loadSampleBuffer(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void {
+    this.customBuffers.set(voice, buffer);
+  }
+
+  public removeSampleBuffer(voice: 'downbeat' | 'regular' | 'subdivision'): void {
+    this.customBuffers.delete(voice);
+  }
+
+  public hasCustomSample(voice: 'downbeat' | 'regular' | 'subdivision'): boolean {
+    return this.customBuffers.has(voice);
+  }
+
+  private playCustomSample(buffer: any, time: number, velocity: number): void {
+    try {
+      const audioTime = time > 0 ? time : Tone.now();
+      const bufferSource = new Tone.ToneBufferSource(buffer);
+      const gainNode = new Tone.Gain(velocity);
+      bufferSource.connect(gainNode);
+      if (this.outputNode) {
+        gainNode.connect(this.outputNode);
+      } else {
+        gainNode.toDestination();
+      }
+      bufferSource.start(audioTime);
+    } catch {
+      // Safe isolation
+    }
+  }
+
   public play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void {
+    const key = isDownbeat ? 'downbeat' : 'regular';
+    const custom = this.customBuffers.get(key);
+    if (custom) {
+      const v = velocity ?? (isDownbeat ? this.clickConfig.downbeat.volume : this.clickConfig.regular.volume);
+      this.playCustomSample(custom, time, v);
+      return;
+    }
+
     if (isDownbeat) {
       const p = pitch ?? this.clickConfig.downbeat.pitch;
       const v = velocity ?? this.clickConfig.downbeat.volume;
@@ -100,12 +140,20 @@ export class ToneClickPlayer implements IClickPlayer {
   }
 
   public playSubdivision(time: number, velocity?: number, pitch?: string): void {
+    const custom = this.customBuffers.get('subdivision');
+    if (custom) {
+      const v = velocity ?? this.clickConfig.subdivision.volume;
+      this.playCustomSample(custom, time, v);
+      return;
+    }
+
     const p = pitch ?? this.clickConfig.subdivision.pitch;
     const v = velocity ?? this.clickConfig.subdivision.volume;
     this.subdivisionSynth.triggerAttackRelease(p, '32n', time, v);
   }
 
   public dispose(): void {
+    this.customBuffers.clear();
     this.downbeatSynth.dispose();
     this.regularSynth.dispose();
     this.subdivisionSynth.dispose();
@@ -129,6 +177,8 @@ export class ToneTransportScheduler {
   private drumHitListeners: Set<(event: ScheduledDrumEvent) => void> = new Set();
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
+  private storageManager?: any;
+  private unsubscribeStorage?: () => void;
 
   constructor(options?: ToneSchedulerOptions) {
     this.engine = options?.engine ?? new MetronomeEngine();
@@ -140,6 +190,10 @@ export class ToneTransportScheduler {
     this.drumKitPlayer = options?.drumKitPlayer;
     this.dawsonEngine = options?.dawsonEngine;
     this.readingLine = options?.readingLine ?? null;
+
+    if (options?.storageManager) {
+      this.setStorageManager(options.storageManager);
+    }
   }
 
   private async ensureInitialized(): Promise<{
@@ -373,6 +427,97 @@ export class ToneTransportScheduler {
 
   public setReadingLine(line: ReadingLine | null): void {
     this.readingLine = line;
+  }
+
+  // Storage Manager & Custom Audio Sample Integration
+  public getStorageManager(): any {
+    return this.storageManager;
+  }
+
+  public setStorageManager(manager: any): void {
+    if (this.unsubscribeStorage) {
+      this.unsubscribeStorage();
+      this.unsubscribeStorage = undefined;
+    }
+
+    this.storageManager = manager;
+    if (!manager) return;
+
+    this.syncStorageSamples(manager);
+
+    if (manager.onSampleChange) {
+      this.unsubscribeStorage = manager.onSampleChange(
+        (voice: any, stored: any) => {
+          if (stored) {
+            manager.decodeAudioData?.(stored.data)?.then((decoded: any) => {
+              if (decoded) {
+                this.applyCustomSampleBuffer(voice, decoded);
+              }
+            });
+          } else {
+            this.clearCustomSampleBuffer(voice);
+          }
+        }
+      );
+    }
+  }
+
+  public async syncStorageSamples(manager?: any): Promise<void> {
+    const mgr = manager ?? this.storageManager;
+    if (!mgr) return;
+
+    try {
+      const metas = await mgr.listSamples?.();
+      if (!Array.isArray(metas)) return;
+
+      for (const meta of metas) {
+        const stored = await mgr.loadSample?.(meta.voice);
+        if (stored) {
+          const decoded = await mgr.decodeAudioData?.(stored.data);
+          if (decoded) {
+            this.applyCustomSampleBuffer(meta.voice, decoded);
+          }
+        }
+      }
+    } catch {
+      // Safe error isolation
+    }
+  }
+
+  public applyCustomSampleBuffer(voice: string, buffer: any): void {
+    if (voice === 'click_downbeat') {
+      this.clickPlayer?.loadSampleBuffer?.('downbeat', buffer);
+    } else if (voice === 'click_regular') {
+      this.clickPlayer?.loadSampleBuffer?.('regular', buffer);
+    } else if (voice === 'click_subdivision') {
+      this.clickPlayer?.loadSampleBuffer?.('subdivision', buffer);
+    } else {
+      this.drumKitPlayer?.loadSampleBuffer?.(voice as any, buffer);
+    }
+  }
+
+  public clearCustomSampleBuffer(voice: string): void {
+    if (voice === 'click_downbeat') {
+      this.clickPlayer?.removeSampleBuffer?.('downbeat');
+    } else if (voice === 'click_regular') {
+      this.clickPlayer?.removeSampleBuffer?.('regular');
+    } else if (voice === 'click_subdivision') {
+      this.clickPlayer?.removeSampleBuffer?.('subdivision');
+    } else {
+      this.drumKitPlayer?.removeSampleBuffer?.(voice as any);
+    }
+  }
+
+  public auditionVoice(voice: string): void {
+    if (voice === 'click_downbeat') {
+      this.clickPlayer?.play(true, 0, 1.0);
+    } else if (voice === 'click_regular') {
+      this.clickPlayer?.play(false, 0, 1.0);
+    } else if (voice === 'click_subdivision') {
+      this.clickPlayer?.playSubdivision?.(0, 1.0);
+    } else {
+      this.drumKitPlayer?.triggerVoice(voice as any, 0, 1.0);
+    }
   }
 
   public onBeat(listener: (event: BeatEvent) => void): () => void {

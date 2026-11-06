@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Vite + React + TypeScript + Tailwind CSS and shadcn/ui application initializes cleanly with preset `b5dMVCPy4` (Lyra style, Teal theme, Mauve base, Montserrat font)
-- [ ] Tone.js audio context initializes with sample-accurate scheduling via hardware clock
-- [ ] Play and Stop button controls metronome playback state with visual feedback
-- [ ] BPM control allows adjusting tempo from 30 to 300 BPM via slider and numeric input
-- [ ] Tap tempo button computes and updates the BPM based on user tap intervals
-- [ ] Time signature selector supports common meters (4/4, 3/4) with distinctive downbeat click
-- [ ] Master volume slider controls metronome audio output level
-- [ ] Unit tests verify time signature metric calculations and tempo state management
+- [x] Vite + React + TypeScript + Tailwind CSS and shadcn/ui application initializes cleanly with preset `b5dMVCPy4` (Lyra style, Teal theme, Mauve base, Montserrat font)
+- [x] Tone.js audio context initializes with sample-accurate scheduling via hardware clock
+- [x] Play and Stop button controls metronome playback state with visual feedback
+- [x] BPM control allows adjusting tempo from 30 to 300 BPM via slider and numeric input
+- [x] Tap tempo button computes and updates the BPM based on user tap intervals
+- [x] Time signature selector supports common meters (4/4, 3/4) with distinctive downbeat click
+- [x] Master volume slider controls metronome audio output level
+- [x] Unit tests verify time signature metric calculations and tempo state management

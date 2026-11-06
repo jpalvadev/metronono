@@ -6,6 +6,11 @@ import {
   TempoRampConfig,
   DropoutConfig,
 } from '../domain/metronome/MetronomeEngine';
+import { IAudioMixer } from './AudioMixer';
+import { IDrumKitPlayer } from './DrumKitPlayer';
+import { DawsonEngine } from '../domain/dawson/DawsonEngine';
+import { ReadingLine } from '../domain/rhythm/types';
+import { ScheduledDrumEvent } from '../domain/dawson/types';
 
 export interface IAudioClockTransport {
   bpm: { value: number; rampTo?: (val: number, rampTime?: number) => void };
@@ -36,6 +41,10 @@ export interface ToneSchedulerOptions {
   clickPlayer?: IClickPlayer;
   volumeControl?: IMasterVolumeControl;
   drawSync?: DrawSyncFn;
+  audioMixer?: IAudioMixer;
+  drumKitPlayer?: IDrumKitPlayer;
+  dawsonEngine?: DawsonEngine;
+  readingLine?: ReadingLine;
 }
 
 export type {
@@ -45,4 +54,7 @@ export type {
   MetronomeClickConfig,
   TempoRampConfig,
   DropoutConfig,
+  IAudioMixer,
+  IDrumKitPlayer,
+  ScheduledDrumEvent,
 };

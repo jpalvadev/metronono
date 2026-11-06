@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { ReadingLine } from '../domain/rhythm/types';
 import { ProceduralGenerator } from '../domain/rhythm/ProceduralGenerator';
 import {
@@ -58,6 +58,12 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
   }, [selectedPage, selectedExerciseNum]);
 
   const activeLine = mode === 'generator' ? proceduralLine : libraryLine;
+
+  useEffect(() => {
+    if (scheduler?.setReadingLine) {
+      scheduler.setReadingLine(activeLine);
+    }
+  }, [scheduler, activeLine]);
 
   const handleRegenerate = useCallback(() => {
     setGenSeed(Math.floor(Math.random() * 1000000));

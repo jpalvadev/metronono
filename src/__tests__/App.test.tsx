@@ -22,5 +22,12 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /procedural generator/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ted reed library/i })).toBeInTheDocument();
     expect(screen.getByTestId('reading-view-root')).toBeInTheDocument();
+
+    // Alan Dawson Orchestration Section
+    expect(screen.getByText(/Alan Dawson Orchestration & Mixer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Classic Bop/i)).toBeInTheDocument();
+    expect(screen.getByText(/Inverted Bop/i)).toBeInTheDocument();
+    expect(screen.getByTestId('drum-pad-kick')).toBeInTheDocument();
+    expect(screen.getByTestId('drum-pad-snare')).toBeInTheDocument();
   });
 });

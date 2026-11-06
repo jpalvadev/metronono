@@ -218,5 +218,92 @@ describe('ToneTransportScheduler', () => {
       scheduledCallback!(1.5);
       expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.45, 'G4');
     });
+
+    it('schedules Dawson drum events in sync with beat ticks on audio clock', async () => {
+      const mockDrumPlayer = {
+        play: vi.fn(),
+        triggerVoice: vi.fn(),
+        onDrumHit: vi.fn(),
+      };
+
+      const { DawsonEngine } = await import('../../domain/dawson/DawsonEngine');
+      const { createRhythmicEvent } = await import('../../domain/rhythm/types');
+
+      const dawsonEngine = new DawsonEngine({ mode: 'classic_bop', ostinato: 'jazz_swing' });
+      scheduler.setDawsonEngine(dawsonEngine);
+      scheduler.setDrumKitPlayer(mockDrumPlayer);
+
+      // Reading line with M0: Quarter (Kick at 0), Two Eighths (Snare at 1.0, 1.5), Half (Kick at 2.0)
+      scheduler.setReadingLine({
+        id: 'test-line',
+        title: 'Test Line',
+        tier: 1,
+        measures: [
+          {
+            index: 0,
+            timeSignature: [4, 4],
+            totalBeats: 4,
+            events: [
+              createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
+              createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+              createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+              createRhythmicEvent({ durationBeats: 2.0, durationType: 'half' }),
+            ],
+          },
+        ],
+      });
+
+      const drumHitListener = vi.fn();
+      scheduler.onDrumHit(drumHitListener);
+
+      await scheduler.start();
+
+      // Trigger Beat 0 at time = 10.0s (tempo 120 bpm -> beatDuration = 0.5s)
+      scheduledCallback!(10.0);
+
+      // On beat 0: Ride (ostinato at time 10.0) and Kick (orchestration at time 10.0)
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'ride', source: 'ostinato' }),
+        10.0
+      );
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'kick', source: 'orchestration' }),
+        10.0
+      );
+      expect(drumHitListener).toHaveBeenCalledWith(expect.objectContaining({ voice: 'ride' }));
+      expect(drumHitListener).toHaveBeenCalledWith(expect.objectContaining({ voice: 'kick' }));
+
+      mockDrumPlayer.play.mockClear();
+
+      // Trigger Beat 1 at time = 10.5s (b = 1)
+      // Events in beat 1:
+      // - Ostinato Ride at 1.0 (subOffset 0 -> 10.5s)
+      // - Ostinato Hi-hat at 1.0 (subOffset 0 -> 10.5s)
+      // - Orchestration Snare at 1.0 (subOffset 0 -> 10.5s)
+      // - Orchestration Snare at 1.5 (subOffset 0.5 -> 10.5 + 0.5*0.5 = 10.75s)
+      // - Ostinato Ride swing offbeat at 1.667 (subOffset 0.667 -> 10.5 + 0.667*0.5 = 10.8335s)
+      scheduledCallback!(10.5);
+
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'ride', source: 'ostinato' }),
+        10.5
+      );
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'hihat_foot', source: 'ostinato' }),
+        10.5
+      );
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'snare', source: 'orchestration', timeInMeasure: 1.0 }),
+        10.5
+      );
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'snare', source: 'orchestration', timeInMeasure: 1.5 }),
+        10.75
+      );
+      expect(mockDrumPlayer.play).toHaveBeenCalledWith(
+        expect.objectContaining({ voice: 'ride', source: 'ostinato', timeInMeasure: 1.667 }),
+        expect.closeTo(10.8335, 3)
+      );
+    });
   });
 });

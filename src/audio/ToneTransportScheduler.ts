@@ -14,7 +14,14 @@ import {
   IMasterVolumeControl,
   DrawSyncFn,
   ToneSchedulerOptions,
+  IAudioMixer,
+  IDrumKitPlayer,
+  ScheduledDrumEvent,
 } from './types';
+import { AudioMixer } from './AudioMixer';
+import { DrumKitPlayer } from './DrumKitPlayer';
+import { DawsonEngine } from '../domain/dawson/DawsonEngine';
+import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
 
 export class ToneMasterVolume implements IMasterVolumeControl {
   private gainNode: Tone.Gain;
@@ -111,10 +118,15 @@ export class ToneTransportScheduler {
   private clickPlayer?: IClickPlayer;
   private volumeControl?: IMasterVolumeControl;
   private drawSync?: DrawSyncFn;
+  private audioMixer?: IAudioMixer;
+  private drumKitPlayer?: IDrumKitPlayer;
+  private dawsonEngine?: DawsonEngine;
+  private readingLine: ReadingLine | null = null;
   private scheduledEventId: number | null = null;
   private beatListeners: Set<(event: BeatEvent) => void> = new Set();
   private dropoutListeners: Set<(isDropout: boolean) => void> = new Set();
   private playStateListeners: Set<(isPlaying: boolean) => void> = new Set();
+  private drumHitListeners: Set<(event: ScheduledDrumEvent) => void> = new Set();
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
 
@@ -124,6 +136,10 @@ export class ToneTransportScheduler {
     this.clickPlayer = options?.clickPlayer;
     this.volumeControl = options?.volumeControl;
     this.drawSync = options?.drawSync;
+    this.audioMixer = options?.audioMixer;
+    this.drumKitPlayer = options?.drumKitPlayer;
+    this.dawsonEngine = options?.dawsonEngine;
+    this.readingLine = options?.readingLine ?? null;
   }
 
   private async ensureInitialized(): Promise<{
@@ -136,9 +152,36 @@ export class ToneTransportScheduler {
       this.volumeControl = new ToneMasterVolume();
     }
 
+    if (!this.audioMixer) {
+      this.audioMixer = new AudioMixer();
+      try {
+        const outputNode = (this.volumeControl as ToneMasterVolume).getNode();
+        (this.audioMixer as AudioMixer).initToneNodes(outputNode);
+      } catch {
+        // Safe initialization without Web Audio
+      }
+    }
+
     if (!this.clickPlayer) {
-      const outputNode = (this.volumeControl as ToneMasterVolume).getNode();
-      this.clickPlayer = new ToneClickPlayer(outputNode, this.engine.getClickConfig());
+      const clickNode =
+        this.audioMixer?.getChannelNode?.('click') ??
+        (this.volumeControl as ToneMasterVolume).getNode();
+      this.clickPlayer = new ToneClickPlayer(clickNode as any, this.engine.getClickConfig());
+    }
+
+    if (!this.drumKitPlayer) {
+      this.drumKitPlayer = new DrumKitPlayer();
+      try {
+        const ostNode = this.audioMixer?.getChannelNode?.('ostinato');
+        const orchNode = this.audioMixer?.getChannelNode?.('orchestration');
+        (this.drumKitPlayer as DrumKitPlayer).initSynths(ostNode, orchNode);
+      } catch {
+        // Safe initialization
+      }
+    }
+
+    if (!this.dawsonEngine) {
+      this.dawsonEngine = new DawsonEngine();
     }
 
     if (!this.transport) {
@@ -195,6 +238,9 @@ export class ToneTransportScheduler {
   }
 
   public getVolume(): number {
+    if (this.audioMixer) {
+      return this.audioMixer.getMasterVolume();
+    }
     if (this.volumeControl) {
       return this.volumeControl.getVolume();
     }
@@ -205,6 +251,9 @@ export class ToneTransportScheduler {
     const clamped = Math.max(0, Math.min(1, volume));
     if (this.volumeControl) {
       this.volumeControl.setVolume(clamped);
+    }
+    if (this.audioMixer) {
+      this.audioMixer.setMasterVolume(clamped);
     }
   }
 
@@ -281,6 +330,51 @@ export class ToneTransportScheduler {
     this.engine.setDropoutConfig(config);
   }
 
+  // Audio Mixer Access
+  public getAudioMixer(): IAudioMixer {
+    if (!this.audioMixer) {
+      this.audioMixer = new AudioMixer();
+    }
+    return this.audioMixer;
+  }
+
+  public setAudioMixer(mixer: IAudioMixer): void {
+    this.audioMixer = mixer;
+  }
+
+  // Drum Kit Player Access
+  public getDrumKitPlayer(): IDrumKitPlayer {
+    if (!this.drumKitPlayer) {
+      this.drumKitPlayer = new DrumKitPlayer();
+    }
+    return this.drumKitPlayer;
+  }
+
+  public setDrumKitPlayer(player: IDrumKitPlayer): void {
+    this.drumKitPlayer = player;
+  }
+
+  // Dawson Engine Access
+  public getDawsonEngine(): DawsonEngine {
+    if (!this.dawsonEngine) {
+      this.dawsonEngine = new DawsonEngine();
+    }
+    return this.dawsonEngine;
+  }
+
+  public setDawsonEngine(engine: DawsonEngine): void {
+    this.dawsonEngine = engine;
+  }
+
+  // Reading Line for Orchestration Playback
+  public getReadingLine(): ReadingLine | null {
+    return this.readingLine;
+  }
+
+  public setReadingLine(line: ReadingLine | null): void {
+    this.readingLine = line;
+  }
+
   public onBeat(listener: (event: BeatEvent) => void): () => void {
     this.beatListeners.add(listener);
     return () => {
@@ -299,6 +393,13 @@ export class ToneTransportScheduler {
     this.playStateListeners.add(listener);
     return () => {
       this.playStateListeners.delete(listener);
+    };
+  }
+
+  public onDrumHit(listener: (event: ScheduledDrumEvent) => void): () => void {
+    this.drumHitListeners.add(listener);
+    return () => {
+      this.drumHitListeners.delete(listener);
     };
   }
 
@@ -344,6 +445,20 @@ export class ToneTransportScheduler {
     this.scheduleTicks();
   }
 
+  private getMeasureForIndex(measureIndex: number): Measure | null {
+    if (this.readingLine && this.readingLine.measures.length > 0) {
+      return this.readingLine.measures[measureIndex % this.readingLine.measures.length];
+    }
+
+    // Default 4/4 measure with whole rest so ostinato patterns still sound!
+    return {
+      index: measureIndex,
+      timeSignature: [4, 4],
+      totalBeats: 4,
+      events: [createRhythmicEvent({ isRest: true, durationBeats: 4.0, durationType: 'whole' })],
+    };
+  }
+
   private scheduleTicks(): void {
     if (!this.transport) return;
 
@@ -362,6 +477,32 @@ export class ToneTransportScheduler {
           ? this.engine.getClickConfig().downbeat
           : this.engine.getClickConfig().regular;
         this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume, voiceConfig.pitch);
+      }
+
+      // Dawson Drum Kit Orchestration & Ostinato Playback
+      if (this.dawsonEngine && this.drumKitPlayer) {
+        const measure = this.getMeasureForIndex(beatEvent.measureIndex);
+        if (measure) {
+          const measureEvents = this.dawsonEngine.resolveMeasure(measure, beatEvent.measureIndex);
+          const b = beatEvent.beatIndex;
+          const beatEvents = measureEvents.filter(
+            (e) => e.timeInMeasure >= b && e.timeInMeasure < b + 1.0
+          );
+          const beatDuration = 60 / beatEvent.bpm;
+
+          for (const drumEvent of beatEvents) {
+            const subOffset = drumEvent.timeInMeasure - b;
+            const eventTime = time + subOffset * beatDuration;
+
+            this.drumKitPlayer.play(drumEvent, eventTime);
+
+            if (this.drawSync) {
+              this.drawSync(() => {
+                this.drumHitListeners.forEach((listener) => listener(drumEvent));
+              }, eventTime);
+            }
+          }
+        }
       }
 
       // Visual callbacks and playhead synchronization continue uninterrupted!

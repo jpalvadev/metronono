@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { Capacitor } from '@capacitor/core';
 import { ReadingLine } from '../domain/rhythm/types';
 import { DawsonSystem } from '../domain/dawson/types';
 import {
@@ -11,6 +12,7 @@ import {
 import { IndexedDBAdapter } from './IndexedDBAdapter';
 import { FileSystemAccessAdapter } from './FileSystemAccessAdapter';
 import { InMemoryStorageAdapter } from './InMemoryStorageAdapter';
+import { CapacitorFilesystemAdapter } from './CapacitorFilesystemAdapter';
 
 export interface StorageManagerOptions {
   defaultAdapter?: StorageAdapter;
@@ -22,6 +24,7 @@ export type StorageChangeListener = () => void;
 export class StorageManager {
   private activeAdapter: StorageAdapter;
   private fileSystemAdapter: FileSystemAccessAdapter;
+  private capacitorAdapter: CapacitorFilesystemAdapter;
   private indexedDBAdapter: IndexedDBAdapter;
   private memoryAdapter: InMemoryStorageAdapter;
 
@@ -32,11 +35,14 @@ export class StorageManager {
 
   constructor(options?: StorageManagerOptions) {
     this.fileSystemAdapter = new FileSystemAccessAdapter();
+    this.capacitorAdapter = new CapacitorFilesystemAdapter();
     this.indexedDBAdapter = new IndexedDBAdapter();
     this.memoryAdapter = new InMemoryStorageAdapter();
 
     if (options?.defaultAdapter) {
       this.activeAdapter = options.defaultAdapter;
+    } else if (Capacitor.isNativePlatform()) {
+      this.activeAdapter = this.capacitorAdapter;
     } else if (typeof indexedDB !== 'undefined') {
       this.activeAdapter = this.indexedDBAdapter;
     } else {
@@ -53,7 +59,8 @@ export class StorageManager {
     return this.activeAdapter;
   }
 
-  public getAdapterType(): 'filesystem' | 'indexeddb' | 'memory' {
+  public getAdapterType(): 'capacitor' | 'filesystem' | 'indexeddb' | 'memory' {
+    if (this.activeAdapter.id === 'capacitor') return 'capacitor';
     if (this.activeAdapter.id === 'filesystem') return 'filesystem';
     if (this.activeAdapter.id === 'indexeddb') return 'indexeddb';
     return 'memory';
@@ -84,7 +91,9 @@ export class StorageManager {
 
   public async unlinkLocalDirectory(): Promise<void> {
     this.fileSystemAdapter.setDirectoryHandle(null);
-    if (typeof indexedDB !== 'undefined') {
+    if (Capacitor.isNativePlatform()) {
+      this.activeAdapter = this.capacitorAdapter;
+    } else if (typeof indexedDB !== 'undefined') {
       this.activeAdapter = this.indexedDBAdapter;
     } else {
       this.activeAdapter = this.memoryAdapter;

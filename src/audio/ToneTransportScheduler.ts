@@ -22,6 +22,7 @@ import { AudioMixer } from './AudioMixer';
 import { DrumKitPlayer } from './DrumKitPlayer';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
+import { BackgroundAudioService } from './BackgroundAudioService';
 
 export class ToneMasterVolume implements IMasterVolumeControl {
   private gainNode: Tone.Gain;
@@ -179,6 +180,7 @@ export class ToneTransportScheduler {
   private playing: boolean = false;
   private storageManager?: any;
   private unsubscribeStorage?: () => void;
+  private backgroundAudioService?: BackgroundAudioService;
 
   constructor(options?: ToneSchedulerOptions) {
     this.engine = options?.engine ?? new MetronomeEngine();
@@ -190,6 +192,12 @@ export class ToneTransportScheduler {
     this.drumKitPlayer = options?.drumKitPlayer;
     this.dawsonEngine = options?.dawsonEngine;
     this.readingLine = options?.readingLine ?? null;
+
+    if (options?.backgroundAudioService) {
+      this.setBackgroundAudioService(options.backgroundAudioService);
+    } else {
+      this.setBackgroundAudioService(new BackgroundAudioService());
+    }
 
     if (options?.storageManager) {
       this.setStorageManager(options.storageManager);
@@ -420,6 +428,16 @@ export class ToneTransportScheduler {
     this.dawsonEngine = engine;
   }
 
+  // Background Audio Service Access
+  public getBackgroundAudioService(): BackgroundAudioService | undefined {
+    return this.backgroundAudioService;
+  }
+
+  public setBackgroundAudioService(service: BackgroundAudioService): void {
+    this.backgroundAudioService = service;
+    service.attach(this);
+  }
+
   // Reading Line for Orchestration Playback
   public getReadingLine(): ReadingLine | null {
     return this.readingLine;
@@ -558,6 +576,12 @@ export class ToneTransportScheduler {
     transport.start();
     this.playing = true;
     this.playStateListeners.forEach((listener) => listener(true));
+
+    const activeSystem = this.dawsonEngine?.getSystem?.();
+    await this.backgroundAudioService?.onPlaybackStart({
+      bpm: this.getTempo(),
+      systemName: activeSystem?.name,
+    });
   }
 
   public stop(): void {
@@ -574,6 +598,7 @@ export class ToneTransportScheduler {
     this.engine.reset();
     this.playing = false;
     this.playStateListeners.forEach((listener) => listener(false));
+    this.backgroundAudioService?.onPlaybackStop?.();
 
     if (this.lastDropoutState) {
       this.lastDropoutState = false;

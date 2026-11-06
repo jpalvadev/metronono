@@ -130,4 +130,49 @@ describe('DawsonOrchestrationSection', () => {
 
     vi.useRealTimers();
   });
+
+  it('selects Tony Williams and Linear Fusion systems', () => {
+    render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+    const tonyBtn = screen.getByTestId('system-btn-tony_williams_flr');
+    fireEvent.click(tonyBtn);
+
+    expect(engine.getShortFormula().id).toBe('flr_triplet');
+    expect(engine.getOstinato()).toBe('jazz_swing');
+
+    const linearBtn = screen.getByTestId('system-btn-linear_diddle_fusion');
+    fireEvent.click(linearBtn);
+
+    expect(engine.getLongFormula().id).toBe('linear_diddle');
+    expect(engine.getOstinato()).toBe('straight_rock');
+  });
+
+  it('opens and closes PresetManager modal', () => {
+    render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+    const manageBtn = screen.getByRole('button', { name: /Manage Systems & Formulas/i });
+    fireEvent.click(manageBtn);
+
+    expect(screen.getByText(/Dawson Systems & Formula Manager/i)).toBeInTheDocument();
+
+    const closeBtn = screen.getByRole('button', { name: /Close/i });
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByText(/Dawson Systems & Formula Manager/i)).not.toBeInTheDocument();
+  });
+
+  it('opens FormulaEditorDialog from customize button and auditions formula', () => {
+    render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+    // Short formula audition
+    const auditionBtns = screen.getAllByRole('button', { name: /Audition/i });
+    fireEvent.click(auditionBtns[0]);
+    expect(mockTriggerVoice).toHaveBeenCalled();
+
+    // Customize short formula
+    const customizeBtns = screen.getAllByRole('button', { name: /Customize/i });
+    fireEvent.click(customizeBtns[0]);
+
+    expect(screen.getByText(/Subdivision Formula Editor/i)).toBeInTheDocument();
+  });
 });

@@ -7,15 +7,47 @@ import {
   DawsonEngineOptions,
   Measure,
   ReadingLine,
+  SubdivisionFormula,
+  DawsonSystem,
 } from './types';
+import {
+  DEFAULT_SHORT_FORMULAS,
+  DEFAULT_LONG_FORMULAS,
+  DEFAULT_DAWSON_SYSTEMS,
+} from './SubdivisionFormula';
 
 export class DawsonEngine {
   private mode: DawsonMode;
   private ostinato: OstinatoType;
+  private shortFormula: SubdivisionFormula;
+  private longFormula: SubdivisionFormula;
+  private activeSystem?: DawsonSystem;
 
   constructor(options?: DawsonEngineOptions) {
     this.mode = options?.mode ?? 'classic_bop';
     this.ostinato = options?.ostinato ?? 'jazz_swing';
+
+    if (options?.system) {
+      this.activeSystem = options.system;
+      this.shortFormula = options.system.shortFormula;
+      this.longFormula = options.system.longFormula;
+      this.ostinato = options.system.ostinatoId;
+    } else {
+      this.shortFormula =
+        options?.shortFormula ??
+        (this.mode === 'inverted_bop'
+          ? DEFAULT_SHORT_FORMULAS.single_kick
+          : DEFAULT_SHORT_FORMULAS.single_snare);
+      this.longFormula =
+        options?.longFormula ??
+        (this.mode === 'inverted_bop'
+          ? DEFAULT_LONG_FORMULAS.single_snare
+          : DEFAULT_LONG_FORMULAS.single_kick);
+      this.activeSystem =
+        this.mode === 'inverted_bop'
+          ? DEFAULT_DAWSON_SYSTEMS.inverted_bop
+          : DEFAULT_DAWSON_SYSTEMS.classic_bop;
+    }
   }
 
   public getMode(): DawsonMode {
@@ -24,6 +56,19 @@ export class DawsonEngine {
 
   public setMode(mode: DawsonMode): void {
     this.mode = mode;
+    if (mode === 'inverted_bop') {
+      this.shortFormula = DEFAULT_SHORT_FORMULAS.single_kick;
+      this.longFormula = DEFAULT_LONG_FORMULAS.single_snare;
+      this.activeSystem = DEFAULT_DAWSON_SYSTEMS.inverted_bop;
+    } else if (mode === 'classic_bop') {
+      this.shortFormula = DEFAULT_SHORT_FORMULAS.single_snare;
+      this.longFormula = DEFAULT_LONG_FORMULAS.single_kick;
+      this.activeSystem = DEFAULT_DAWSON_SYSTEMS.classic_bop;
+    } else if (mode === 'straight_rock') {
+      this.shortFormula = DEFAULT_SHORT_FORMULAS.single_snare;
+      this.longFormula = DEFAULT_LONG_FORMULAS.single_kick;
+      this.ostinato = 'straight_rock';
+    }
   }
 
   public getOstinato(): OstinatoType {
@@ -32,6 +77,40 @@ export class DawsonEngine {
 
   public setOstinato(ostinato: OstinatoType): void {
     this.ostinato = ostinato;
+  }
+
+  public getSystem(): DawsonSystem | undefined {
+    return this.activeSystem;
+  }
+
+  public setSystem(system: DawsonSystem): void {
+    this.activeSystem = system;
+    this.shortFormula = system.shortFormula;
+    this.longFormula = system.longFormula;
+    this.ostinato = system.ostinatoId;
+    if (system.id === 'inverted_bop') {
+      this.mode = 'inverted_bop';
+    } else if (system.id === 'classic_bop') {
+      this.mode = 'classic_bop';
+    } else if (system.ostinatoId === 'straight_rock') {
+      this.mode = 'straight_rock';
+    }
+  }
+
+  public getShortFormula(): SubdivisionFormula {
+    return this.shortFormula;
+  }
+
+  public setShortFormula(formula: SubdivisionFormula): void {
+    this.shortFormula = formula;
+  }
+
+  public getLongFormula(): SubdivisionFormula {
+    return this.longFormula;
+  }
+
+  public setLongFormula(formula: SubdivisionFormula): void {
+    this.longFormula = formula;
   }
 
   public dynamicToVelocity(dynamic: Dynamic): number {
@@ -73,6 +152,7 @@ export class DawsonEngine {
             velocity: beat.velocity,
             dynamic: beat.dynamic,
             source: 'ostinato',
+            limb: 'R',
           });
         }
 
@@ -83,6 +163,7 @@ export class DawsonEngine {
           velocity: 0.85,
           dynamic: 'accent',
           source: 'ostinato',
+          limb: 'LF',
         });
         events.push({
           timeInMeasure: 3.0,
@@ -90,6 +171,7 @@ export class DawsonEngine {
           velocity: 0.85,
           dynamic: 'accent',
           source: 'ostinato',
+          limb: 'LF',
         });
         break;
 
@@ -104,6 +186,7 @@ export class DawsonEngine {
             velocity: isDownbeat ? 0.8 : 0.7,
             dynamic: isDownbeat ? 'accent' : 'normal',
             source: 'ostinato',
+            limb: 'R',
           });
         }
         break;
@@ -127,30 +210,49 @@ export class DawsonEngine {
       if (!event.isRest && !event.hasTieFromPrev) {
         // Long note: duration >= 1.0, tied to next, or explicitly marked isLong
         const isLong = event.durationBeats >= 1.0 || event.hasTieToNext || event.isLong;
-        const isShort = !isLong;
+        const formula = isLong ? this.longFormula : this.shortFormula;
 
-        let targetVoice: DrumVoice;
-        if (this.mode === 'inverted_bop') {
-          targetVoice = isShort ? 'kick' : 'snare';
+        if (formula && formula.strokes && formula.strokes.length > 0) {
+          let strokeOffset = 0;
+          for (const stroke of formula.strokes) {
+            const timeInMeasure = Math.round((currentOffsetBeats + strokeOffset) * 1000) / 1000;
+            if (timeInMeasure < measure.totalBeats) {
+              events.push({
+                timeInMeasure,
+                voice: stroke.voice,
+                velocity: this.dynamicToVelocity(stroke.dynamic),
+                dynamic: stroke.dynamic,
+                source: 'orchestration',
+                measureIndex,
+                durationBeats: stroke.durationRatio,
+                limb: stroke.limb,
+              });
+            }
+            strokeOffset += stroke.durationRatio;
+          }
         } else {
-          // classic_bop or straight_rock
-          targetVoice = isShort ? 'snare' : 'kick';
+          // Fallback if formula has no strokes
+          let targetVoice: DrumVoice;
+          if (this.mode === 'inverted_bop') {
+            targetVoice = isLong ? 'snare' : 'kick';
+          } else {
+            targetVoice = isLong ? 'kick' : 'snare';
+          }
+
+          const dynamic: Dynamic = 'normal';
+          const velocity = this.dynamicToVelocity(dynamic);
+          const roundedTime = Math.round(currentOffsetBeats * 1000) / 1000;
+
+          events.push({
+            timeInMeasure: roundedTime,
+            voice: targetVoice,
+            velocity,
+            dynamic,
+            source: 'orchestration',
+            measureIndex,
+            durationBeats: event.durationBeats,
+          });
         }
-
-        const dynamic: Dynamic = 'normal';
-        const velocity = this.dynamicToVelocity(dynamic);
-
-        const roundedTime = Math.round(currentOffsetBeats * 1000) / 1000;
-
-        events.push({
-          timeInMeasure: roundedTime,
-          voice: targetVoice,
-          velocity,
-          dynamic,
-          source: 'orchestration',
-          measureIndex,
-          durationBeats: event.durationBeats,
-        });
       }
 
       currentOffsetBeats += event.durationBeats;

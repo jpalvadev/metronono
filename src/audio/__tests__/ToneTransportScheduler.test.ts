@@ -86,12 +86,12 @@ describe('ToneTransportScheduler', () => {
 
     // Trigger first beat (time = 1.0)
     scheduledCallback!(1.0);
-    expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0);
+    expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 1.0, 'A6');
     expect(beatListener).toHaveBeenCalledWith(expect.objectContaining({ beatIndex: 0, isDownbeat: true }));
 
     // Trigger second beat (time = 1.5)
     scheduledCallback!(1.5);
-    expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5);
+    expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.7, 'E5');
     expect(beatListener).toHaveBeenCalledWith(expect.objectContaining({ beatIndex: 1, isDownbeat: false }));
   });
 
@@ -125,5 +125,98 @@ describe('ToneTransportScheduler', () => {
 
     scheduler.setVolume(-0.2);
     expect(mockVolume.setVolume).toHaveBeenCalledWith(0.0);
+  });
+
+  describe('Advanced Training Features', () => {
+    it('silences click playback when a beat is muted by beatMask while maintaining beat callbacks', async () => {
+      const beatListener = vi.fn();
+      scheduler.onBeat(beatListener);
+
+      // Mask: beats 0 and 2 muted, beats 1 and 3 active (jazz 2 & 4 feel)
+      scheduler.setBeatMask([false, true, false, true]);
+
+      await scheduler.start();
+      expect(scheduledCallback).not.toBeNull();
+
+      // Beat 0: muted
+      mockClickPlayer.play.mockClear();
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.play).not.toHaveBeenCalled();
+      expect(beatListener).toHaveBeenCalledWith(
+        expect.objectContaining({ beatIndex: 0, isMuted: true })
+      );
+
+      // Beat 1: active
+      mockClickPlayer.play.mockClear();
+      scheduledCallback!(1.5);
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, expect.any(Number), expect.any(String));
+      expect(beatListener).toHaveBeenCalledWith(
+        expect.objectContaining({ beatIndex: 1, isMuted: false })
+      );
+    });
+
+    it('silences click playback when a measure is in dropout mode while maintaining beat callbacks and playhead', async () => {
+      const beatListener = vi.fn();
+      const dropoutListener = vi.fn();
+      scheduler.onBeat(beatListener);
+      scheduler.onDropoutChange(dropoutListener);
+
+      // 100% dropout to ensure measure is silenced
+      scheduler.setDropoutConfig({ enabled: true, probability: 1.0 });
+
+      await scheduler.start();
+
+      // Beat 0 of Measure 0
+      mockClickPlayer.play.mockClear();
+      scheduledCallback!(1.0);
+
+      // Audio click must NOT be played
+      expect(mockClickPlayer.play).not.toHaveBeenCalled();
+
+      // But visual callbacks and playhead advance without interruption!
+      expect(beatListener).toHaveBeenCalledWith(
+        expect.objectContaining({ beatIndex: 0, isDropout: true, isMuted: true })
+      );
+      expect(dropoutListener).toHaveBeenCalledWith(true);
+    });
+
+    it('automates dynamic tempo changes to transport bpm during tempo ramp', async () => {
+      scheduler.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 4, // 16 beats total, +2.5 bpm per beat
+      });
+
+      await scheduler.start();
+
+      // Beat 0: 100 BPM
+      scheduledCallback!(1.0);
+      expect(mockTransport.bpm.value).toBe(100);
+
+      // Advance 4 beats (Bar 1, Beat 0 -> 25% through ramp)
+      scheduledCallback!(1.5);
+      scheduledCallback!(2.0);
+      scheduledCallback!(2.5);
+      scheduledCallback!(3.0);
+      expect(mockTransport.bpm.value).toBe(110);
+    });
+
+    it('passes customized click pitch and volume to click player', async () => {
+      scheduler.setClickConfig({
+        downbeat: { pitch: 'C7', volume: 0.95 },
+        regular: { pitch: 'G4', volume: 0.45 },
+      });
+
+      await scheduler.start();
+
+      // Downbeat (beat 0)
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 0.95, 'C7');
+
+      // Regular beat (beat 1)
+      scheduledCallback!(1.5);
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.45, 'G4');
+    });
   });
 });

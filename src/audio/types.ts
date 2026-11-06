@@ -1,4 +1,11 @@
-import { BeatEvent, TimeSignature } from '../domain/metronome/MetronomeEngine';
+import {
+  BeatEvent,
+  TimeSignature,
+  ClickVoiceConfig,
+  MetronomeClickConfig,
+  TempoRampConfig,
+  DropoutConfig,
+} from '../domain/metronome/MetronomeEngine';
 
 export interface IAudioClockTransport {
   bpm: { value: number; rampTo?: (val: number, rampTime?: number) => void };
@@ -11,7 +18,8 @@ export interface IAudioClockTransport {
 }
 
 export interface IClickPlayer {
-  play(isDownbeat: boolean, time: number): void;
+  play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void;
+  setClickConfig?(config: Partial<MetronomeClickConfig>): void;
   dispose?(): void;
 }
 
@@ -30,4 +38,11 @@ export interface ToneSchedulerOptions {
   drawSync?: DrawSyncFn;
 }
 
-export type { BeatEvent, TimeSignature };
+export type {
+  BeatEvent,
+  TimeSignature,
+  ClickVoiceConfig,
+  MetronomeClickConfig,
+  TempoRampConfig,
+  DropoutConfig,
+};

@@ -7,6 +7,34 @@ export interface BeatEvent {
   beatIndex: number;
   isDownbeat: boolean;
   beatsPerMeasure: number;
+  measureIndex: number;
+  isMuted: boolean;
+  isDropout: boolean;
+  bpm: number;
+}
+
+export interface ClickVoiceConfig {
+  pitch: string;
+  volume: number;
+}
+
+export interface MetronomeClickConfig {
+  downbeat: ClickVoiceConfig;
+  regular: ClickVoiceConfig;
+  subdivision: ClickVoiceConfig;
+}
+
+export interface TempoRampConfig {
+  enabled: boolean;
+  startBpm: number;
+  targetBpm: number;
+  durationBars: number;
+}
+
+export interface DropoutConfig {
+  enabled: boolean;
+  probability: number;
+  seed?: number;
 }
 
 export class MetronomeEngine {
@@ -19,7 +47,30 @@ export class MetronomeEngine {
   private tempo: number = MetronomeEngine.DEFAULT_BPM;
   private timeSignature: TimeSignature = { beats: 4, beatUnit: 4 };
   private currentBeatIndex: number = -1;
+  private currentMeasureIndex: number = -1;
   private tapTimestamps: number[] = [];
+
+  private beatMask: boolean[] = [true, true, true, true];
+
+  private clickConfig: MetronomeClickConfig = {
+    downbeat: { pitch: 'A6', volume: 1.0 },
+    regular: { pitch: 'E5', volume: 0.7 },
+    subdivision: { pitch: 'C5', volume: 0.5 },
+  };
+
+  private rampConfig: TempoRampConfig = {
+    enabled: false,
+    startBpm: 120,
+    targetBpm: 160,
+    durationBars: 4,
+  };
+
+  private dropoutConfig: DropoutConfig = {
+    enabled: false,
+    probability: 0.25,
+  };
+
+  private measureDropoutMap: Map<number, boolean> = new Map();
 
   constructor(
     initialTempo: number = MetronomeEngine.DEFAULT_BPM,
@@ -51,18 +102,195 @@ export class MetronomeEngine {
     } else if (ts && typeof ts.beats === 'number' && typeof ts.beatUnit === 'number') {
       this.timeSignature = { ...ts };
     }
+
+    const newBeats = this.timeSignature.beats;
+    if (this.beatMask.length !== newBeats) {
+      const newMask: boolean[] = [];
+      for (let i = 0; i < newBeats; i++) {
+        newMask.push(this.beatMask[i] ?? true);
+      }
+      this.beatMask = newMask;
+    }
+  }
+
+  // Beat Mask / Mute per beat
+  public getBeatMask(): boolean[] {
+    return [...this.beatMask];
+  }
+
+  public setBeatMask(mask: boolean[]): void {
+    this.beatMask = mask.slice(0, this.timeSignature.beats);
+    while (this.beatMask.length < this.timeSignature.beats) {
+      this.beatMask.push(true);
+    }
+  }
+
+  public toggleBeat(beatIndex: number): void {
+    if (beatIndex >= 0 && beatIndex < this.beatMask.length) {
+      this.beatMask[beatIndex] = !this.beatMask[beatIndex];
+    }
+  }
+
+  public isBeatActive(beatIndex: number): boolean {
+    return this.beatMask[beatIndex] ?? true;
+  }
+
+  // Click Sound & Accent Configuration
+  public getClickConfig(): MetronomeClickConfig {
+    return {
+      downbeat: { ...this.clickConfig.downbeat },
+      regular: { ...this.clickConfig.regular },
+      subdivision: { ...this.clickConfig.subdivision },
+    };
+  }
+
+  public setClickConfig(config: Partial<MetronomeClickConfig>): void {
+    if (config.downbeat) {
+      this.clickConfig.downbeat = { ...this.clickConfig.downbeat, ...config.downbeat };
+    }
+    if (config.regular) {
+      this.clickConfig.regular = { ...this.clickConfig.regular, ...config.regular };
+    }
+    if (config.subdivision) {
+      this.clickConfig.subdivision = { ...this.clickConfig.subdivision, ...config.subdivision };
+    }
+  }
+
+  public updateVoiceConfig(
+    type: 'downbeat' | 'regular' | 'subdivision',
+    config: Partial<ClickVoiceConfig>
+  ): void {
+    this.clickConfig[type] = {
+      ...this.clickConfig[type],
+      ...config,
+    };
+  }
+
+  // Tempo Ramp
+  public getTempoRampConfig(): TempoRampConfig {
+    return { ...this.rampConfig };
+  }
+
+  public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
+    this.rampConfig = {
+      ...this.rampConfig,
+      ...config,
+    };
+  }
+
+  public calculateRampBpm(measureIndex: number, beatIndex: number = 0): number {
+    if (!this.rampConfig.enabled || measureIndex < 0) {
+      return this.tempo;
+    }
+    const beatsPerBar = this.timeSignature.beats;
+    const totalBeats = this.rampConfig.durationBars * beatsPerBar;
+    if (totalBeats <= 0) {
+      return this.rampConfig.targetBpm;
+    }
+    const currentBeat = measureIndex * beatsPerBar + beatIndex;
+    if (currentBeat >= totalBeats) {
+      return this.rampConfig.targetBpm;
+    }
+    const progress = currentBeat / totalBeats;
+    const interpolated = this.rampConfig.startBpm + (this.rampConfig.targetBpm - this.rampConfig.startBpm) * progress;
+    return Math.round(Math.max(MetronomeEngine.MIN_BPM, Math.min(MetronomeEngine.MAX_BPM, interpolated)));
+  }
+
+  public getRampProgress(measureIndex: number, beatIndex: number = 0): {
+    progress: number;
+    currentBpm: number;
+    isComplete: boolean;
+  } {
+    const beatsPerBar = this.timeSignature.beats;
+    const totalBeats = Math.max(1, this.rampConfig.durationBars * beatsPerBar);
+    const currentBeat = Math.max(0, measureIndex * beatsPerBar + beatIndex);
+    const progress = Math.min(1, currentBeat / totalBeats);
+    const currentBpm = this.calculateRampBpm(measureIndex, beatIndex);
+    return {
+      progress,
+      currentBpm,
+      isComplete: currentBeat >= totalBeats,
+    };
+  }
+
+  // Stochastic Dropout
+  public getDropoutConfig(): DropoutConfig {
+    return { ...this.dropoutConfig };
+  }
+
+  public setDropoutConfig(config: Partial<DropoutConfig>): void {
+    this.dropoutConfig = {
+      ...this.dropoutConfig,
+      ...config,
+    };
+  }
+
+  public setDropoutSeed(seed: number | undefined): void {
+    this.dropoutConfig.seed = seed;
+  }
+
+  public shouldMuteMeasure(measureIndex: number, seed?: number): boolean {
+    if (!this.dropoutConfig.enabled || this.dropoutConfig.probability <= 0) {
+      return false;
+    }
+    if (this.dropoutConfig.probability >= 1) {
+      return true;
+    }
+    if (measureIndex < 0) {
+      return false;
+    }
+    const effectiveSeed = seed !== undefined ? seed : this.dropoutConfig.seed;
+    if (effectiveSeed !== undefined) {
+      let h = ((measureIndex + 1) * 0x45d9f3b ^ (effectiveSeed + 1) * 0x119de1f3) >>> 0;
+      h = ((h >>> 16) ^ h) * 0x45d9f3b;
+      h = ((h >>> 16) ^ h) * 0x45d9f3b;
+      h = (h >>> 16) ^ h;
+      const rand = (h >>> 0) / 4294967296;
+      return rand < this.dropoutConfig.probability;
+    }
+    if (this.measureDropoutMap.has(measureIndex)) {
+      return this.measureDropoutMap.get(measureIndex)!;
+    }
+    const muted = Math.random() < this.dropoutConfig.probability;
+    this.measureDropoutMap.set(measureIndex, muted);
+    return muted;
   }
 
   public reset(): void {
     this.currentBeatIndex = -1;
+    this.currentMeasureIndex = -1;
+    this.measureDropoutMap.clear();
   }
 
   public nextBeat(): BeatEvent {
-    this.currentBeatIndex = (this.currentBeatIndex + 1) % this.timeSignature.beats;
+    if (this.currentBeatIndex === -1) {
+      this.currentMeasureIndex = 0;
+      this.currentBeatIndex = 0;
+    } else {
+      this.currentBeatIndex++;
+      if (this.currentBeatIndex >= this.timeSignature.beats) {
+        this.currentBeatIndex = 0;
+        this.currentMeasureIndex++;
+      }
+    }
+
+    if (this.rampConfig.enabled) {
+      const rampBpm = this.calculateRampBpm(this.currentMeasureIndex, this.currentBeatIndex);
+      this.tempo = rampBpm;
+    }
+
+    const isDropout = this.shouldMuteMeasure(this.currentMeasureIndex);
+    const isBeatActive = this.beatMask[this.currentBeatIndex] ?? true;
+    const isMuted = !isBeatActive || isDropout;
+
     return {
       beatIndex: this.currentBeatIndex,
       isDownbeat: this.currentBeatIndex === 0,
       beatsPerMeasure: this.timeSignature.beats,
+      measureIndex: this.currentMeasureIndex,
+      isMuted,
+      isDropout,
+      bpm: this.tempo,
     };
   }
 

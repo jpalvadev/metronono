@@ -1,29 +1,67 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
-import { DawsonMode, OstinatoType, DrumVoice, ScheduledDrumEvent } from '../domain/dawson/types';
+import {
+  DawsonMode,
+  OstinatoType,
+  DrumVoice,
+  ScheduledDrumEvent,
+  SubdivisionFormula,
+  DawsonSystem,
+} from '../domain/dawson/types';
+import {
+  DawsonPresetManager,
+  resolveStrokeOffsets,
+} from '../domain/dawson/SubdivisionFormula';
 import { MixerChannelId, AudioMixerState } from '../audio/AudioMixer';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 import { Badge } from './ui/badge';
-import { Volume2, VolumeX, Disc, Sliders, Activity, Layers } from 'lucide-react';
+import {
+  Volume2,
+  VolumeX,
+  Disc,
+  Sliders,
+  Activity,
+  Layers,
+  Edit3,
+  Play,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
+import { FormulaEditorDialog } from './dawson/FormulaEditorDialog';
+import { PresetManager } from './dawson/PresetManager';
 
 export interface DawsonOrchestrationSectionProps {
   scheduler: ToneTransportScheduler;
+  presetManager?: DawsonPresetManager;
   className?: string;
 }
 
 export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProps> = ({
   scheduler,
+  presetManager: externalPresetManager,
   className,
 }) => {
   const engine = useMemo(() => scheduler.getDawsonEngine(), [scheduler]);
   const mixer = useMemo(() => scheduler.getAudioMixer(), [scheduler]);
   const player = useMemo(() => scheduler.getDrumKitPlayer(), [scheduler]);
 
+  const presetManager = useMemo(
+    () => externalPresetManager ?? new DawsonPresetManager(),
+    [externalPresetManager]
+  );
+
   const [mode, setMode] = useState<DawsonMode>(() => engine.getMode());
   const [ostinato, setOstinato] = useState<OstinatoType>(() => engine.getOstinato());
+  const [activeSystemId, setActiveSystemId] = useState<string>(() => engine.getSystem()?.id ?? 'classic_bop');
+  const [shortFormula, setShortFormula] = useState<SubdivisionFormula>(() => engine.getShortFormula());
+  const [longFormula, setLongFormula] = useState<SubdivisionFormula>(() => engine.getLongFormula());
   const [mixerState, setMixerState] = useState<AudioMixerState>(() => mixer.getState());
+
+  // Modal dialog states
+  const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
+  const [isFormulaDialogOpen, setIsFormulaDialogOpen] = useState(false);
+  const [editingFormula, setEditingFormula] = useState<SubdivisionFormula | null>(null);
+  const [formulaDefaultTrigger, setFormulaDefaultTrigger] = useState<'short' | 'long'>('short');
 
   // Pad illumination states
   const [activeKick, setActiveKick] = useState(false);
@@ -65,6 +103,10 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
     (newMode: DawsonMode) => {
       setMode(newMode);
       engine.setMode(newMode);
+      setActiveSystemId(newMode);
+      setShortFormula(engine.getShortFormula());
+      setLongFormula(engine.getLongFormula());
+
       if (newMode === 'straight_rock') {
         engine.setOstinato('straight_rock');
         setOstinato('straight_rock');
@@ -74,6 +116,19 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       }
     },
     [engine, ostinato]
+  );
+
+  const handleSelectSystem = useCallback(
+    (system: DawsonSystem) => {
+      engine.setSystem(system);
+      setActiveSystemId(system.id);
+      setShortFormula(system.shortFormula);
+      setLongFormula(system.longFormula);
+      setOstinato(system.ostinatoId);
+      setMode(engine.getMode());
+      setIsPresetManagerOpen(false);
+    },
+    [engine]
   );
 
   const handleOstinatoChange = useCallback(
@@ -116,6 +171,52 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       }
     },
     [player]
+  );
+
+  const handleAuditionFormula = useCallback(
+    (formula: SubdivisionFormula) => {
+      if (!player || formula.strokes.length === 0) return;
+      const tempoBpm = 100;
+      const beatDurationMs = (60 / tempoBpm) * 1000;
+      const resolved = resolveStrokeOffsets(formula.strokes, 0);
+
+      resolved.forEach(({ stroke, offset }) => {
+        const delayMs = offset * beatDurationMs;
+        const vel = engine.dynamicToVelocity(stroke.dynamic);
+        if (delayMs <= 0) {
+          player.triggerVoice(stroke.voice, 0, vel, 'orchestration');
+        } else {
+          setTimeout(() => {
+            player.triggerVoice(stroke.voice, 0, vel, 'orchestration');
+          }, delayMs);
+        }
+      });
+    },
+    [player, engine]
+  );
+
+  const handleOpenFormulaEditor = useCallback(
+    (formula: SubdivisionFormula, trigger: 'short' | 'long') => {
+      setEditingFormula(formula);
+      setFormulaDefaultTrigger(trigger);
+      setIsFormulaDialogOpen(true);
+    },
+    []
+  );
+
+  const handleSaveFormulaFromDialog = useCallback(
+    (updatedFormula: SubdivisionFormula) => {
+      presetManager.saveFormula(updatedFormula);
+      if (updatedFormula.trigger === 'short') {
+        engine.setShortFormula(updatedFormula);
+        setShortFormula(updatedFormula);
+      } else {
+        engine.setLongFormula(updatedFormula);
+        setLongFormula(updatedFormula);
+      }
+      setIsFormulaDialogOpen(false);
+    },
+    [engine, presetManager]
   );
 
   return (
@@ -178,32 +279,46 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
 
       {/* Dawson Interpretation System Selector */}
       <div className="flex flex-col gap-2.5">
-        <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
-          <Layers className="w-3.5 h-3.5 text-teal-400" />
-          Interpretation System
-        </label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-teal-400" />
+            Interpretation System
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPresetManagerOpen(true)}
+            className="h-7 text-xs border-teal-500/40 text-teal-400 hover:bg-teal-500/10 gap-1.5"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            Manage Systems & Formulas
+          </Button>
+        </div>
+
+        {/* System Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           {/* Classic Bop */}
           <button
             type="button"
             onClick={() => handleModeChange('classic_bop')}
             className={cn(
               'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
-              mode === 'classic_bop'
+              activeSystemId === 'classic_bop' || (mode === 'classic_bop' && activeSystemId === 'classic_bop')
                 ? 'bg-teal-500/15 border-teal-500/60 shadow-xs ring-1 ring-teal-500/30'
                 : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
               <span className="text-sm font-semibold text-foreground">Classic Bop</span>
-              {mode === 'classic_bop' && (
+              {activeSystemId === 'classic_bop' && (
                 <span className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
               )}
             </div>
             <p className="text-xs text-muted-foreground">
               Shorts (≤ 8th) → <strong className="text-teal-400">Snare</strong>
               <br />
-              Longs (≥ Qtr / Ties) → <strong className="text-rose-400">Kick</strong>
+              Longs (≥ Qtr) → <strong className="text-rose-400">Kick</strong>
             </p>
           </button>
 
@@ -213,21 +328,21 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             onClick={() => handleModeChange('inverted_bop')}
             className={cn(
               'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
-              mode === 'inverted_bop'
+              activeSystemId === 'inverted_bop' || (mode === 'inverted_bop' && activeSystemId === 'inverted_bop')
                 ? 'bg-teal-500/15 border-teal-500/60 shadow-xs ring-1 ring-teal-500/30'
                 : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
               <span className="text-sm font-semibold text-foreground">Inverted Bop</span>
-              {mode === 'inverted_bop' && (
+              {activeSystemId === 'inverted_bop' && (
                 <span className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
               )}
             </div>
             <p className="text-xs text-muted-foreground">
               Shorts (≤ 8th) → <strong className="text-rose-400">Kick</strong>
               <br />
-              Longs (≥ Qtr / Ties) → <strong className="text-teal-400">Snare</strong>
+              Longs (≥ Qtr) → <strong className="text-teal-400">Snare</strong>
             </p>
           </button>
 
@@ -237,24 +352,187 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             onClick={() => handleModeChange('straight_rock')}
             className={cn(
               'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
-              mode === 'straight_rock'
+              activeSystemId === 'straight_rock'
                 ? 'bg-teal-500/15 border-teal-500/60 shadow-xs ring-1 ring-teal-500/30'
                 : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
               <span className="text-sm font-semibold text-foreground">Straight Rock</span>
-              {mode === 'straight_rock' && (
+              {activeSystemId === 'straight_rock' && (
                 <span className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              8th-Note Hi-Hat Groove
+              8th Hi-Hat Groove
               <br />
               Shorts → <strong className="text-teal-400">Snare</strong>, Longs →{' '}
               <strong className="text-rose-400">Kick</strong>
             </p>
           </button>
+
+          {/* Tony Williams F-L-R Triplet */}
+          <button
+            type="button"
+            data-testid="system-btn-tony_williams_flr"
+            onClick={() => {
+              const sys = presetManager.getSystem('tony_williams_flr');
+              if (sys) handleSelectSystem(sys);
+            }}
+            className={cn(
+              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              activeSystemId === 'tony_williams_flr'
+                ? 'bg-teal-500/15 border-teal-500/60 shadow-xs ring-1 ring-teal-500/30'
+                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+            )}
+          >
+            <div className="flex items-center justify-between w-full mb-1">
+              <span className="text-sm font-semibold text-foreground">Tony Williams</span>
+              {activeSystemId === 'tony_williams_flr' && (
+                <span className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Shorts → <strong className="text-teal-400">F-L-R Triplet</strong>
+              <br />
+              Longs → <strong className="text-rose-400">Kick</strong>
+            </p>
+          </button>
+
+          {/* Linear Diddle Fusion */}
+          <button
+            type="button"
+            data-testid="system-btn-linear_diddle_fusion"
+            onClick={() => {
+              const sys = presetManager.getSystem('linear_diddle_fusion');
+              if (sys) handleSelectSystem(sys);
+            }}
+            className={cn(
+              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              activeSystemId === 'linear_diddle_fusion'
+                ? 'bg-teal-500/15 border-teal-500/60 shadow-xs ring-1 ring-teal-500/30'
+                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+            )}
+          >
+            <div className="flex items-center justify-between w-full mb-1">
+              <span className="text-sm font-semibold text-foreground">Linear Fusion</span>
+              {activeSystemId === 'linear_diddle_fusion' && (
+                <span className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Shorts → <strong className="text-teal-400">Snare</strong>
+              <br />
+              Longs → <strong className="text-amber-400">Linear Diddle</strong>
+            </p>
+          </button>
+        </div>
+      </div>
+
+      {/* Active Subdivision Formulas Display & Customization Strip */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-muted/20 p-3.5 rounded-xl border border-border/60">
+        {/* Short Note Formula Card */}
+        <div className="bg-card/70 border border-border/80 rounded-lg p-3 flex flex-col justify-between gap-2.5">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">
+                  Short Formula
+                </span>
+                <span className="text-xs font-semibold text-foreground">
+                  {shortFormula.name}
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-mono border-teal-500/30 text-teal-400">
+                {shortFormula.strokes.length} stroke{shortFormula.strokes.length === 1 ? '' : 's'}
+              </Badge>
+            </div>
+
+            {/* Strokes mini-summary */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {shortFormula.strokes.map((s, idx) => (
+                <span
+                  key={idx}
+                  className="px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-[10px] font-mono text-foreground"
+                >
+                  {s.voice} <strong className="text-teal-400">({s.limb || '?'})</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/40">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleAuditionFormula(shortFormula)}
+              className="h-7 px-2 text-xs text-teal-400 hover:bg-teal-500/10 gap-1"
+            >
+              <Play className="w-3 h-3 fill-current" /> Audition
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
+              className="h-7 px-2 text-xs border-border gap-1"
+            >
+              <Edit3 className="w-3 h-3" /> Customize
+            </Button>
+          </div>
+        </div>
+
+        {/* Long Note Formula Card */}
+        <div className="bg-card/70 border border-border/80 rounded-lg p-3 flex flex-col justify-between gap-2.5">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">
+                  Long Formula
+                </span>
+                <span className="text-xs font-semibold text-foreground">
+                  {longFormula.name}
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-mono border-rose-500/30 text-rose-400">
+                {longFormula.strokes.length} stroke{longFormula.strokes.length === 1 ? '' : 's'}
+              </Badge>
+            </div>
+
+            {/* Strokes mini-summary */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {longFormula.strokes.map((s, idx) => (
+                <span
+                  key={idx}
+                  className="px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-[10px] font-mono text-foreground"
+                >
+                  {s.voice} <strong className="text-rose-400">({s.limb || '?'})</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/40">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleAuditionFormula(longFormula)}
+              className="h-7 px-2 text-xs text-rose-400 hover:bg-rose-500/10 gap-1"
+            >
+              <Play className="w-3 h-3 fill-current" /> Audition
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
+              className="h-7 px-2 text-xs border-border gap-1"
+            >
+              <Edit3 className="w-3 h-3" /> Customize
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -323,7 +601,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               </div>
               <span className="text-xs font-semibold text-foreground">Snare Drum</span>
               <span className="text-[10px] text-muted-foreground">
-                {mode === 'inverted_bop' ? 'Long Notes' : 'Short Notes'}
+                {shortFormula.name}
               </span>
             </button>
 
@@ -352,7 +630,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               </div>
               <span className="text-xs font-semibold text-foreground">Bass Drum</span>
               <span className="text-[10px] text-muted-foreground">
-                {mode === 'inverted_bop' ? 'Short Notes' : 'Long Notes'}
+                {longFormula.name}
               </span>
             </button>
 
@@ -510,6 +788,30 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           </div>
         </div>
       </div>
+
+      {/* Preset Manager Modal Dialog */}
+      {isPresetManagerOpen && (
+        <PresetManager
+          open={isPresetManagerOpen}
+          onClose={() => setIsPresetManagerOpen(false)}
+          presetManager={presetManager}
+          activeSystemId={activeSystemId}
+          onSelectSystem={handleSelectSystem}
+          player={player}
+        />
+      )}
+
+      {/* Formula Editor Modal Dialog */}
+      {isFormulaDialogOpen && (
+        <FormulaEditorDialog
+          open={isFormulaDialogOpen}
+          onClose={() => setIsFormulaDialogOpen(false)}
+          formula={editingFormula}
+          defaultTrigger={formulaDefaultTrigger}
+          onSave={handleSaveFormulaFromDialog}
+          player={player}
+        />
+      )}
     </div>
   );
 };

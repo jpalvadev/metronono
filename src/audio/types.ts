@@ -11,6 +11,7 @@ import { IDrumKitPlayer } from './DrumKitPlayer';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { ReadingLine } from '../domain/rhythm/types';
 import { ScheduledDrumEvent } from '../domain/dawson/types';
+import type { BackgroundAudioService } from './BackgroundAudioService';
 
 export interface IAudioClockTransport {
   bpm: { value: number; rampTo?: (val: number, rampTime?: number) => void };
@@ -50,6 +51,7 @@ export interface ToneSchedulerOptions {
   dawsonEngine?: DawsonEngine;
   readingLine?: ReadingLine;
   storageManager?: any;
+  backgroundAudioService?: BackgroundAudioService;
 }
 
 export type {

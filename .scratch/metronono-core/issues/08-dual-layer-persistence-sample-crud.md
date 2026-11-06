@@ -4,11 +4,11 @@
 
 **Blocked by:** 05 (Alan Dawson Orchestration Engine & Drum Sample Playback)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Sample Bank CRUD modal lists all drum kit voices and metronome sounds with file upload (WAV/MP3) and audition playback
-- [ ] Uploaded custom samples are decoded and cached in browser IndexedDB via persistent storage
-- [ ] Desktop File System Access API integration provides a "Link Local Folder" button, saving library files to physical disk
-- [ ] Export Library button bundles all custom scores, Dawson systems, formulas, and user audio into a downloadable `.metronono` (.zip) archive
-- [ ] Import Library button reads a `.metronono` file and restores all assets and presets completely
-- [ ] Automated tests verify storage serialization, zip compression round-trips, and fallback when File System Access API is unavailable
+- [x] Sample Bank CRUD modal lists all drum kit voices and metronome sounds with file upload (WAV/MP3) and audition playback
+- [x] Uploaded custom samples are decoded and cached in browser IndexedDB via persistent storage
+- [x] Desktop File System Access API integration provides a "Link Local Folder" button, saving library files to physical disk
+- [x] Export Library button bundles all custom scores, Dawson systems, formulas, and user audio into a downloadable `.metronono` (.zip) archive
+- [x] Import Library button reads a `.metronono` file and restores all assets and presets completely
+- [x] Automated tests verify storage serialization, zip compression round-trips, and fallback when File System Access API is unavailable

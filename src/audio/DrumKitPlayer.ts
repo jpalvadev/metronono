@@ -25,12 +25,19 @@ export interface IDrumKitPlayer {
   ): void;
   onDrumHit(listener: (event: ScheduledDrumEvent, time: number) => void): () => void;
   initSynths?(ostinatoNode: any, orchestrationNode: any): void;
+  loadSampleBuffer?(voice: DrumVoice, buffer: any): void;
+  removeSampleBuffer?(voice: DrumVoice): void;
+  hasCustomSample?(voice: DrumVoice): boolean;
+  clearAllCustomSamples?(): void;
   dispose?(): void;
 }
 
 export class DrumKitPlayer implements IDrumKitPlayer {
   private synthTrigger?: SynthTriggerFn;
   private hitListeners: Set<(event: ScheduledDrumEvent, time: number) => void> = new Set();
+  private ostinatoNode?: any;
+  private orchestrationNode?: any;
+  private customSampleBuffers: Map<DrumVoice, any> = new Map();
 
   // Tone.js synths for real audio output
   private kickSynth?: Tone.MembraneSynth;
@@ -54,6 +61,8 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   }
 
   public initSynths(ostinatoNode: any, orchestrationNode: any): void {
+    this.ostinatoNode = ostinatoNode;
+    this.orchestrationNode = orchestrationNode;
     try {
       if (typeof Tone === 'undefined') return;
 
@@ -169,8 +178,49 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     };
   }
 
+  public loadSampleBuffer(voice: DrumVoice, buffer: any): void {
+    this.customSampleBuffers.set(voice, buffer);
+  }
+
+  public removeSampleBuffer(voice: DrumVoice): void {
+    this.customSampleBuffers.delete(voice);
+  }
+
+  public hasCustomSample(voice: DrumVoice): boolean {
+    return this.customSampleBuffers.has(voice);
+  }
+
+  public clearAllCustomSamples(): void {
+    this.customSampleBuffers.clear();
+  }
+
+  public playCustomSample(
+    buffer: any,
+    time: number,
+    velocity: number,
+    source: 'ostinato' | 'orchestration'
+  ): void {
+    try {
+      if (typeof Tone === 'undefined') return;
+      const audioTime = time > 0 ? time : Tone.now();
+      const targetNode = source === 'ostinato' ? this.ostinatoNode : this.orchestrationNode;
+      const bufferSource = new Tone.ToneBufferSource(buffer);
+      const gainNode = new Tone.Gain(velocity);
+      bufferSource.connect(gainNode);
+      if (targetNode) {
+        gainNode.connect(targetNode);
+      } else {
+        gainNode.toDestination();
+      }
+      bufferSource.start(audioTime);
+    } catch {
+      // Safe isolation
+    }
+  }
+
   public dispose(): void {
     this.hitListeners.clear();
+    this.customSampleBuffers.clear();
     const synths = [
       this.kickSynth,
       this.snareNoiseSynth,
@@ -198,6 +248,12 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     velocity: number,
     source: 'ostinato' | 'orchestration'
   ): void {
+    const customBuffer = this.customSampleBuffers.get(voice);
+    if (customBuffer) {
+      this.playCustomSample(customBuffer, time, velocity, source);
+      return;
+    }
+
     // If a custom or mock trigger function is registered, invoke it
     if (this.synthTrigger) {
       this.synthTrigger(voice, time, velocity, source);

@@ -12,6 +12,7 @@
   "dependencies": {
     "@vexflow-fonts/bravura": "^1.0.2",
     "clsx": "^2.1.1",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -22,11 +23,13 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^22.13.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "fake-indexeddb": "^6.2.7",
     "jsdom": "^26.0.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",

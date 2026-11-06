@@ -4,12 +4,12 @@
 
 **Blocked by:** 05 (Alan Dawson Orchestration Engine & Drum Sample Playback)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Formula Editor dialog allows creating, naming, editing, and deleting custom SubdivisionFormulas
-- [ ] Formula builder supports adding individual strokes with custom duration ratios (e.g. 1/8 note, 1/16 note, 1/8 triplet, etc.)
-- [ ] Stroke inspector assigns target voice (Snare, Kick, Tom 1, Tom 2, Floor Tom, Ride, Hi-Hat, Crash) and limb (R, L, RF, LF)
-- [ ] Articulation selector toggles dynamic levels: Accent (velocity ~115), Normal (~85), Ghost Note (~40), and Flam
-- [ ] Dawson engine correctly maps custom short and long formulas onto any active ReadingLine
-- [ ] System Preset Manager allows saving combinations of formulas + ostinatos as custom named Dawson Systems
-- [ ] Tests verify formula timing math (fractional duration sums) and multi-limb event scheduling
+- [x] Formula Editor dialog allows creating, naming, editing, and deleting custom SubdivisionFormulas
+- [x] Formula builder supports adding individual strokes with custom duration ratios (e.g. 1/8 note, 1/16 note, 1/8 triplet, etc.)
+- [x] Stroke inspector assigns target voice (Snare, Kick, Tom 1, Tom 2, Floor Tom, Ride, Hi-Hat, Crash) and limb (R, L, RF, LF)
+- [x] Articulation selector toggles dynamic levels: Accent (velocity ~115), Normal (~85), Ghost Note (~40), and Flam
+- [x] Dawson engine correctly maps custom short and long formulas onto any active ReadingLine
+- [x] System Preset Manager allows saving combinations of formulas + ostinatos as custom named Dawson Systems
+- [x] Tests verify formula timing math (fractional duration sums) and multi-limb event scheduling

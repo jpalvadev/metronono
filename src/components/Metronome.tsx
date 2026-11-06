@@ -1,7 +1,24 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Square, Volume2, Volume1, VolumeX, Activity } from 'lucide-react';
+import {
+  Play,
+  Square,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Activity,
+  TrendingUp,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
-import { BeatEvent, TimeSignature } from '../domain/metronome/MetronomeEngine';
+import {
+  BeatEvent,
+  TimeSignature,
+  TempoRampConfig,
+  DropoutConfig,
+  MetronomeClickConfig,
+} from '../domain/metronome/MetronomeEngine';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 import { Badge } from './ui/badge';
@@ -32,11 +49,27 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const [activeBeat, setActiveBeat] = useState<number | null>(null);
   const [isTapActive, setIsTapActive] = useState<boolean>(false);
 
+  // Advanced features state
+  const [beatMask, setBeatMaskState] = useState<boolean[]>(() => scheduler.getBeatMask());
+  const [rampConfig, setRampConfigState] = useState<TempoRampConfig>(() => scheduler.getTempoRampConfig());
+  const [dropoutConfig, setDropoutConfigState] = useState<DropoutConfig>(() => scheduler.getDropoutConfig());
+  const [clickConfig, setClickConfigState] = useState<MetronomeClickConfig>(() => scheduler.getClickConfig());
+  const [isDropout, setIsDropout] = useState<boolean>(false);
+  const [currentMeasure, setCurrentMeasure] = useState<number>(0);
+  const [showAccents, setShowAccents] = useState<boolean>(false);
+
   const activeBeatTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const unsubscribe = scheduler.onBeat((event: BeatEvent) => {
+    const unsubscribeBeat = scheduler.onBeat((event: BeatEvent) => {
       setActiveBeat(event.beatIndex);
+      setIsDropout(event.isDropout);
+      setCurrentMeasure(event.measureIndex);
+      if (event.bpm && event.bpm !== tempo) {
+        setTempoState(event.bpm);
+        setTempInputValue(String(event.bpm));
+      }
+
       if (activeBeatTimeoutRef.current !== null) {
         window.clearTimeout(activeBeatTimeoutRef.current);
       }
@@ -45,19 +78,25 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       }, 120);
     });
 
+    const unsubscribeDropout = scheduler.onDropoutChange((dropoutState: boolean) => {
+      setIsDropout(dropoutState);
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeBeat();
+      unsubscribeDropout();
       if (activeBeatTimeoutRef.current !== null) {
         window.clearTimeout(activeBeatTimeoutRef.current);
       }
     };
-  }, [scheduler]);
+  }, [scheduler, tempo]);
 
   const handleTogglePlay = async () => {
     if (isPlaying) {
       scheduler.stop();
       setIsPlaying(false);
       setActiveBeat(null);
+      setIsDropout(false);
     } else {
       await scheduler.start();
       setIsPlaying(true);
@@ -104,6 +143,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const handleTimeSignatureChange = (tsStr: string) => {
     scheduler.setTimeSignature(tsStr);
     setTimeSignatureState(scheduler.getTimeSignature());
+    setBeatMaskState(scheduler.getBeatMask());
   };
 
   const handleVolumeChange = (newVolPercent: number) => {
@@ -122,22 +162,90 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     }
   };
 
+  // Beat Mask handlers
+  const handleToggleBeat = (idx: number) => {
+    scheduler.toggleBeat(idx);
+    setBeatMaskState(scheduler.getBeatMask());
+  };
+
+  const handleSetPresetMask = (mask: boolean[]) => {
+    scheduler.setBeatMask(mask);
+    setBeatMaskState(scheduler.getBeatMask());
+  };
+
+  // Tempo Ramp handlers
+  const handleToggleRamp = () => {
+    const updated = {
+      ...rampConfig,
+      enabled: !rampConfig.enabled,
+      startBpm: tempo,
+    };
+    scheduler.setTempoRampConfig(updated);
+    setRampConfigState(scheduler.getTempoRampConfig());
+  };
+
+  const handleRampTargetChange = (targetBpm: number) => {
+    const updated = { ...rampConfig, targetBpm };
+    scheduler.setTempoRampConfig(updated);
+    setRampConfigState(scheduler.getTempoRampConfig());
+  };
+
+  const handleRampBarsChange = (durationBars: number) => {
+    const updated = { ...rampConfig, durationBars };
+    scheduler.setTempoRampConfig(updated);
+    setRampConfigState(scheduler.getTempoRampConfig());
+  };
+
+  // Dropout Mode handlers
+  const handleToggleDropout = () => {
+    const updated = {
+      ...dropoutConfig,
+      enabled: !dropoutConfig.enabled,
+    };
+    scheduler.setDropoutConfig(updated);
+    setDropoutConfigState(scheduler.getDropoutConfig());
+    if (!updated.enabled) {
+      setIsDropout(false);
+    }
+  };
+
+  const handleDropoutProbabilityChange = (percent: number) => {
+    const updated = {
+      ...dropoutConfig,
+      probability: percent / 100,
+    };
+    scheduler.setDropoutConfig(updated);
+    setDropoutConfigState(scheduler.getDropoutConfig());
+  };
+
+  // Voice accent customization handlers
+  const handleVoicePitchChange = (voice: 'downbeat' | 'regular' | 'subdivision', pitch: string) => {
+    scheduler.updateVoiceConfig(voice, { pitch });
+    setClickConfigState(scheduler.getClickConfig());
+  };
+
+  const handleVoiceVolumeChange = (voice: 'downbeat' | 'regular' | 'subdivision', volPercent: number) => {
+    scheduler.updateVoiceConfig(voice, { volume: volPercent / 100 });
+    setClickConfigState(scheduler.getClickConfig());
+  };
+
   const isCurrentTimeSig = (tsStr: string) => {
     const [beats, unit] = tsStr.split('/').map(Number);
     return timeSignature.beats === beats && timeSignature.beatUnit === unit;
   };
 
   const volumePercent = Math.round(volume * 100);
+  const rampProgress = scheduler.getRampProgress(currentMeasure, activeBeat ?? 0);
 
   return (
-    <div className="w-full max-w-md mx-auto p-6 bg-card border border-border rounded-2xl shadow-xl flex flex-col gap-6 text-foreground">
+    <div className="w-full max-w-lg mx-auto p-6 bg-card border border-border rounded-2xl shadow-xl flex flex-col gap-6 text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/60 pb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-teal-400 flex items-center gap-2">
             METRONONO
           </h1>
-          <p className="text-xs text-muted-foreground font-medium">Smart Drum Metronome</p>
+          <p className="text-xs text-muted-foreground font-medium">Smart Drum Metronome & Training</p>
         </div>
         <Badge variant={isPlaying ? 'default' : 'secondary'} className="gap-1.5 py-1">
           <span
@@ -150,31 +258,92 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
         </Badge>
       </div>
 
-      {/* Beat Indicators */}
-      <div className="flex justify-center items-center gap-3 py-2">
-        {Array.from({ length: timeSignature.beats }).map((_, idx) => {
-          const isDownbeat = idx === 0;
-          const isActive = activeBeat === idx;
+      {/* Prominent Dropout Mode Banner when active measure is silenced */}
+      {isDropout && (
+        <div className="bg-amber-500/20 border-2 border-amber-500 text-amber-300 font-extrabold text-sm py-2 px-4 rounded-xl text-center tracking-widest uppercase animate-pulse shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+          <VolumeX className="w-5 h-5 text-amber-400 animate-bounce" />
+          <span>DROPOUT / SILENT BAR</span>
+        </div>
+      )}
 
-          return (
-            <div
-              key={idx}
-              className={cn(
-                'transition-all duration-100 rounded-full flex items-center justify-center font-bold text-xs border select-none',
-                isDownbeat ? 'w-10 h-10' : 'w-8 h-8',
-                isActive
-                  ? isDownbeat
-                    ? 'bg-teal-400 text-teal-950 border-teal-300 scale-110 shadow-lg shadow-teal-500/40'
-                    : 'bg-teal-500 text-teal-950 border-teal-400 scale-105 shadow-md shadow-teal-500/30'
-                  : isDownbeat
-                    ? 'bg-muted/70 text-foreground border-teal-500/30'
-                    : 'bg-muted/40 text-muted-foreground border-border/60'
-              )}
-            >
-              {idx + 1}
-            </div>
-          );
-        })}
+      {/* Beat Selector Buttons & Visual Playhead */}
+      <div className="flex flex-col gap-2 items-center">
+        <div className="flex justify-center items-center gap-3 py-1">
+          {Array.from({ length: timeSignature.beats }).map((_, idx) => {
+            const isDownbeat = idx === 0;
+            const isActiveBeat = activeBeat === idx;
+            const isBeatAudible = beatMask[idx] ?? true;
+
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleToggleBeat(idx)}
+                aria-label={`Beat ${idx + 1}: ${isBeatAudible ? 'Active' : 'Muted'}`}
+                title={`Beat ${idx + 1} (${isBeatAudible ? 'Click to Mute' : 'Click to Activate'})`}
+                className={cn(
+                  'relative transition-all duration-100 rounded-full flex flex-col items-center justify-center font-bold text-xs border select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400',
+                  isDownbeat ? 'w-12 h-12 text-sm' : 'w-10 h-10 text-xs',
+                  !isBeatAudible && 'opacity-40 border-dashed border-muted-foreground',
+                  isActiveBeat
+                    ? isDownbeat
+                      ? 'bg-teal-400 text-teal-950 border-teal-300 scale-110 shadow-lg shadow-teal-500/40 ring-2 ring-teal-400'
+                      : 'bg-teal-500 text-teal-950 border-teal-400 scale-105 shadow-md shadow-teal-500/30 ring-2 ring-teal-500'
+                    : isBeatAudible
+                      ? isDownbeat
+                        ? 'bg-muted/70 text-foreground border-teal-500/40 hover:border-teal-400'
+                        : 'bg-muted/40 text-muted-foreground border-border/60 hover:border-teal-500/50'
+                      : 'bg-muted/20 text-muted-foreground/60'
+                )}
+              >
+                <span>{idx + 1}</span>
+                <span className="text-[9px] font-mono tracking-tighter leading-none mt-0.5">
+                  {isBeatAudible ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Quick Beat Presets */}
+        <div className="flex gap-2 text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => handleSetPresetMask(Array(timeSignature.beats).fill(true))}
+            className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-foreground border border-border/40 font-medium"
+          >
+            All
+          </button>
+          {timeSignature.beats === 4 && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleSetPresetMask([false, true, false, true])}
+                className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-teal-400 border border-teal-500/30 font-medium"
+              >
+                2 & 4 (Jazz)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetPresetMask([true, false, true, false])}
+                className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-foreground border border-border/40 font-medium"
+              >
+                1 & 3
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              const mask = Array(timeSignature.beats).fill(false);
+              mask[0] = true;
+              handleSetPresetMask(mask);
+            }}
+            className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-foreground border border-border/40 font-medium"
+          >
+            1 Only
+          </button>
+        </div>
       </div>
 
       {/* Tempo Display & Quick Steps */}
@@ -298,6 +467,221 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             3/4
           </button>
         </div>
+      </div>
+
+      {/* Advanced Training: Tempo Ramp Panel */}
+      <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-teal-400" />
+            <span className="text-sm font-bold">Tempo Ramp</span>
+          </div>
+          <Button
+            size="sm"
+            variant={rampConfig.enabled ? 'default' : 'outline'}
+            onClick={handleToggleRamp}
+            aria-label="Toggle Tempo Ramp"
+            className="text-xs font-semibold h-7 px-3"
+          >
+            {rampConfig.enabled ? 'ON' : 'OFF'}
+          </Button>
+        </div>
+
+        {rampConfig.enabled && (
+          <div className="flex flex-col gap-3 pt-2 border-t border-border/40 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="target-bpm-input" className="block text-muted-foreground mb-1 font-medium">
+                  Target BPM
+                </label>
+                <input
+                  id="target-bpm-input"
+                  type="number"
+                  min={30}
+                  max={300}
+                  value={rampConfig.targetBpm}
+                  onChange={(e) => handleRampTargetChange(Number(e.target.value))}
+                  aria-label="Target BPM"
+                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                />
+              </div>
+              <div>
+                <label htmlFor="duration-bars-input" className="block text-muted-foreground mb-1 font-medium">
+                  Duration (bars)
+                </label>
+                <input
+                  id="duration-bars-input"
+                  type="number"
+                  min={1}
+                  max={64}
+                  value={rampConfig.durationBars}
+                  onChange={(e) => handleRampBarsChange(Number(e.target.value))}
+                  aria-label="Duration Bars"
+                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center text-muted-foreground text-[11px] pt-1">
+              <span>
+                {rampConfig.startBpm} → {rampConfig.targetBpm} BPM ({rampConfig.durationBars} bars)
+              </span>
+              <span className="font-mono text-teal-400 font-semibold">
+                {Math.round(rampProgress.progress * 100)}% progress
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Advanced Training: Stochastic Dropout Mode Panel */}
+      <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <VolumeX className="w-4 h-4 text-amber-400" />
+            <div>
+              <span className="text-sm font-bold">Dropout Mode</span>
+              <span className="text-[11px] text-muted-foreground ml-2">Internal Clock Test</span>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant={dropoutConfig.enabled ? 'default' : 'outline'}
+            onClick={handleToggleDropout}
+            aria-label="Toggle Dropout Mode"
+            className="text-xs font-semibold h-7 px-3"
+          >
+            {dropoutConfig.enabled ? 'ON' : 'OFF'}
+          </Button>
+        </div>
+
+        {dropoutConfig.enabled && (
+          <div className="flex flex-col gap-2 pt-2 border-t border-border/40 text-xs">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Silence Probability</span>
+              <span className="font-mono text-amber-400 font-bold">
+                {Math.round(dropoutConfig.probability * 100)}%
+              </span>
+            </div>
+            <Slider
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(dropoutConfig.probability * 100)}
+              onChange={handleDropoutProbabilityChange}
+              ariaLabel="Dropout percentage"
+            />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Random bars will be completely silenced to test whether your internal tempo drifts.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Click Accents & Pitches Customization (Collapsible) */}
+      <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setShowAccents(!showAccents)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-teal-400" />
+            <span className="text-sm font-bold">Click Sounds & Pitches</span>
+          </div>
+          {showAccents ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {showAccents && (
+          <div className="flex flex-col gap-3 pt-2 border-t border-border/40 text-xs">
+            {/* Downbeat voice */}
+            <div className="grid grid-cols-2 gap-3 items-center">
+              <div>
+                <label htmlFor="downbeat-pitch-input" className="block text-muted-foreground mb-1 font-medium">
+                  Downbeat Pitch
+                </label>
+                <input
+                  id="downbeat-pitch-input"
+                  type="text"
+                  value={clickConfig.downbeat.pitch}
+                  onChange={(e) => handleVoicePitchChange('downbeat', e.target.value)}
+                  aria-label="Downbeat pitch"
+                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                />
+              </div>
+              <div>
+                <label className="block text-muted-foreground mb-1 font-medium">
+                  Volume ({Math.round(clickConfig.downbeat.volume * 100)}%)
+                </label>
+                <Slider
+                  min={0}
+                  max={100}
+                  value={Math.round(clickConfig.downbeat.volume * 100)}
+                  onChange={(v) => handleVoiceVolumeChange('downbeat', v)}
+                  ariaLabel="Downbeat volume"
+                />
+              </div>
+            </div>
+
+            {/* Regular voice */}
+            <div className="grid grid-cols-2 gap-3 items-center">
+              <div>
+                <label htmlFor="regular-pitch-input" className="block text-muted-foreground mb-1 font-medium">
+                  Regular Pitch
+                </label>
+                <input
+                  id="regular-pitch-input"
+                  type="text"
+                  value={clickConfig.regular.pitch}
+                  onChange={(e) => handleVoicePitchChange('regular', e.target.value)}
+                  aria-label="Regular pitch"
+                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                />
+              </div>
+              <div>
+                <label className="block text-muted-foreground mb-1 font-medium">
+                  Volume ({Math.round(clickConfig.regular.volume * 100)}%)
+                </label>
+                <Slider
+                  min={0}
+                  max={100}
+                  value={Math.round(clickConfig.regular.volume * 100)}
+                  onChange={(v) => handleVoiceVolumeChange('regular', v)}
+                  ariaLabel="Regular volume"
+                />
+              </div>
+            </div>
+
+            {/* Subdivision voice */}
+            <div className="grid grid-cols-2 gap-3 items-center">
+              <div>
+                <label htmlFor="subdivision-pitch-input" className="block text-muted-foreground mb-1 font-medium">
+                  Subdivision Pitch
+                </label>
+                <input
+                  id="subdivision-pitch-input"
+                  type="text"
+                  value={clickConfig.subdivision.pitch}
+                  onChange={(e) => handleVoicePitchChange('subdivision', e.target.value)}
+                  aria-label="Subdivision pitch"
+                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                />
+              </div>
+              <div>
+                <label className="block text-muted-foreground mb-1 font-medium">
+                  Volume ({Math.round(clickConfig.subdivision.volume * 100)}%)
+                </label>
+                <Slider
+                  min={0}
+                  max={100}
+                  value={Math.round(clickConfig.subdivision.volume * 100)}
+                  onChange={(v) => handleVoiceVolumeChange('subdivision', v)}
+                  ariaLabel="Subdivision volume"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Master Volume */}

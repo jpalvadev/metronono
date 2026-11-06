@@ -22,6 +22,24 @@ export class DawsonEngine {
   private shortFormula: SubdivisionFormula;
   private longFormula: SubdivisionFormula;
   private activeSystem?: DawsonSystem;
+  private changeListeners: Set<() => void> = new Set();
+
+  public onChange(listener: () => void): () => void {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  }
+
+  private notifyChange(): void {
+    this.changeListeners.forEach((l) => {
+      try {
+        l();
+      } catch {
+        // Safe listener dispatch
+      }
+    });
+  }
 
   constructor(options?: DawsonEngineOptions) {
     this.mode = options?.mode ?? 'classic_bop';
@@ -69,6 +87,7 @@ export class DawsonEngine {
       this.longFormula = DEFAULT_LONG_FORMULAS.single_kick;
       this.ostinato = 'straight_rock';
     }
+    this.notifyChange();
   }
 
   public getOstinato(): OstinatoType {
@@ -77,6 +96,7 @@ export class DawsonEngine {
 
   public setOstinato(ostinato: OstinatoType): void {
     this.ostinato = ostinato;
+    this.notifyChange();
   }
 
   public getSystem(): DawsonSystem | undefined {
@@ -95,6 +115,7 @@ export class DawsonEngine {
     } else if (system.ostinatoId === 'straight_rock') {
       this.mode = 'straight_rock';
     }
+    this.notifyChange();
   }
 
   public getShortFormula(): SubdivisionFormula {
@@ -103,6 +124,7 @@ export class DawsonEngine {
 
   public setShortFormula(formula: SubdivisionFormula): void {
     this.shortFormula = formula;
+    this.notifyChange();
   }
 
   public getLongFormula(): SubdivisionFormula {
@@ -111,6 +133,7 @@ export class DawsonEngine {
 
   public setLongFormula(formula: SubdivisionFormula): void {
     this.longFormula = formula;
+    this.notifyChange();
   }
 
   public dynamicToVelocity(dynamic: Dynamic): number {

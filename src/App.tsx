@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Metronome } from './components/Metronome';
 import { ReadingTrainingSection } from './components/ReadingTrainingSection';
 import { DawsonOrchestrationSection } from './components/DawsonOrchestrationSection';
@@ -8,6 +8,7 @@ import { SampleBankModal } from './components/storage/SampleBankModal';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { FolderArchive, HardDrive, Database } from 'lucide-react';
+import { NotationViewMode } from './components/notation/DrumStaffView';
 
 export function App() {
   const storageManager = useMemo(() => new StorageManager(), []);
@@ -18,6 +19,7 @@ export function App() {
 
   const [isSampleBankOpen, setIsSampleBankOpen] = useState(false);
   const [isLinked, setIsLinked] = useState(() => storageManager.isLinked());
+  const [viewMode, setViewMode] = useState<NotationViewMode>('reading');
 
   useEffect(() => {
     storageManager.init().then(() => {
@@ -73,9 +75,13 @@ export function App() {
           <DawsonOrchestrationSection scheduler={scheduler} />
         </div>
 
-        {/* Single-Line Reading Training Section with Real-Time Playhead */}
+        {/* Dual-View Notation Section: Reading View (1-line) vs Drum Staff View (5-line) */}
         <div className="w-full">
-          <ReadingTrainingSection scheduler={scheduler} />
+          <ReadingTrainingSection
+            scheduler={scheduler}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
         </div>
 
         {/* Sample Bank & Storage CRUD Modal */}

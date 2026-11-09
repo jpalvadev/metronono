@@ -51,3 +51,19 @@ _Avoid_: Full tab, multi-track sheet
 **Orchestrated Stroke**:
 An individual hit within an orchestration formula defining specific figure duration, target drum voice, limb, and articulation.
 _Avoid_: Drum hit, note event
+
+**Mixing Channel**:
+One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute under a single Master. A muted channel produces no sound and no drum-pad illumination, without stopping the Metronome or the notation.
+_Avoid_: Track, bus, stem, fader, channel strip
+
+**Practice Preset**:
+A one-press combination of Mixing Channel mutes naming a practice configuration: Click Only, Drums Only, or Full Mix; Custom when the channels match none of them.
+_Avoid_: Mode, scene, template
+
+**Audition**:
+A single user-initiated playback of a Sample Bank sample or Subdivision Formula, independent of the transport and of Mixing Channel mutes.
+_Avoid_: Preview, solo, test sound
+
+**No Ostinato**:
+A Dawson System configuration in which no Ostinato layer is composed at all, so no ostinato strokes are ever resolved. Distinct from muting the Ostinato Mixing Channel, which keeps the strokes and silences only their sound.
+_Avoid_: Silenced ostinato, muted ostinato

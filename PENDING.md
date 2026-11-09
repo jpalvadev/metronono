@@ -1,0 +1,15 @@
+- 1 [ ] each mixing channel (click, ostinato, orchestration) must be independently audible or silent, so the metronome can be played alone without the sight reading / alan dawson drum audio, and viceversa. Spec: .scratch/mixing-channels-mixer-panel/spec.md (root cause found: the channel gain nodes and the built-in drum synths are never created, so the 3 sliders and mutes do nothing)
+
+- 2 [ ] the partiture should have a dividing bar betweeen measures.
+
+- 3 [ ] ramp option should have 2 inputs, beginning and end tempo, and option if it should be up and down (or down and up) and if it should end the metronome or loop
+
+- 4 [ ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite
+
+- 5 [ ] config github
+
+- 6 [ ] fix 8 notes stems, its shows up and down, stems always go up
+
+- 7 [ ] subdivision (gap) clicks are configurable and auditionable but never scheduled: ToneClickPlayer.playSubdivision is only reached from auditionVoice, so a click_subdivision sample can never be heard during playback
+
+- 8 [ ] mixer state (mixing channel volumes, mutes, and the practice preset) should persist across sessions; StorageAdapter stores only scores, systems and samples today

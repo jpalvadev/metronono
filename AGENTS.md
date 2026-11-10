@@ -14,6 +14,8 @@ Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, 
 
 Local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
 
+`PENDING.md` at the repo root holds carry-over tickets, one line each; a done item `[ x ]` records its root cause inline, and full specs plus tracer-bullet tickets for a feature live under `.scratch/<feature>/` (`spec.md` + `issues/`).
+
 ### Triage labels
 
 Canonical roles mapped 1:1 (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
@@ -24,6 +26,7 @@ Single-context layout (`GLOSSARY.md` + `docs/adr/`). See `docs/agents/domain.md`
 
 ## Telegram Alerts
 
-Run `./notify.sh "<msg>"` ONLY when:
-- Done: `./notify.sh "Done: <one-sentence summary>"`
-- Blocked/Question: `./notify.sh "Question: <short question>"`
+Run `notify.sh` through Git's bash (the only invocation that executes on this PowerShell harness; `./notify.sh` alone and `bash ./notify.sh` both fail):
+`& 'C:\Program Files\Git\bin\bash.exe' ./notify.sh "<msg>"` ONLY when:
+- Done: message `"Done: <one-sentence summary>"`
+- Blocked/Question: message `"Question: <short question>"`

@@ -1,4 +1,4 @@
-- 1 [ ] each mixing channel (click, ostinato, orchestration) must be independently audible or silent, so the metronome can be played alone without the sight reading / alan dawson drum audio, and viceversa. Spec: .scratch/mixing-channels-mixer-panel/spec.md (root cause found: the channel gain nodes and the built-in drum synths are never created, so the 3 sliders and mutes do nothing)
+- 1 [ x ] each mixing channel (click, ostinato, orchestration) must be independently audible or silent, so the metronome can be played alone without the sight reading / alan dawson drum audio, and viceversa. Spec: .scratch/mixing-channels-mixer-panel/spec.md (root cause found: the channel gain nodes and the built-in drum synths are never created, so the 3 sliders and mutes do nothing). Done on branch feat/mixing-channels-mixer-panel, tickets 01-06 in .scratch/mixing-channels-mixer-panel/issues/; the Mixer Panel now holds the only loudness controls, and the root cause is fixed by the eager channel graph in ticket 02.
 
 - 2 [ ] the partiture should have a dividing bar betweeen measures.
 
@@ -6,7 +6,7 @@
 
 - 4 [ ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite
 
-- 5 [ ] config github
+- 5 [ x ] config github
 
 - 6 [ ] fix 8 notes stems, its shows up and down, stems always go up
 

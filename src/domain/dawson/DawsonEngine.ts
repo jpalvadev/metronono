@@ -175,7 +175,6 @@ export class DawsonEngine {
             velocity: beat.velocity,
             dynamic: beat.dynamic,
             source: 'ostinato',
-            limb: 'R',
           });
         }
 
@@ -186,7 +185,6 @@ export class DawsonEngine {
           velocity: 0.85,
           dynamic: 'accent',
           source: 'ostinato',
-          limb: 'LF',
         });
         events.push({
           timeInMeasure: 3.0,
@@ -194,7 +192,6 @@ export class DawsonEngine {
           velocity: 0.85,
           dynamic: 'accent',
           source: 'ostinato',
-          limb: 'LF',
         });
         break;
 
@@ -209,7 +206,6 @@ export class DawsonEngine {
             velocity: isDownbeat ? 0.8 : 0.7,
             dynamic: isDownbeat ? 'accent' : 'normal',
             source: 'ostinato',
-            limb: 'R',
           });
         }
         break;
@@ -239,17 +235,20 @@ export class DawsonEngine {
           let strokeOffset = 0;
           for (const stroke of formula.strokes) {
             const timeInMeasure = Math.round((currentOffsetBeats + strokeOffset) * 1000) / 1000;
-            if (timeInMeasure < measure.totalBeats) {
-              events.push({
-                timeInMeasure,
-                voice: stroke.voice,
-                velocity: this.dynamicToVelocity(stroke.dynamic),
-                dynamic: stroke.dynamic,
-                source: 'orchestration',
-                measureIndex,
-                durationBeats: stroke.durationRatio,
-                limb: stroke.limb,
-              });
+            if (!stroke.isRest && stroke.hits && stroke.hits.length > 0) {
+              for (const hit of stroke.hits) {
+                if (timeInMeasure < measure.totalBeats) {
+                  events.push({
+                    timeInMeasure,
+                    voice: hit.voice,
+                    velocity: this.dynamicToVelocity(hit.dynamic),
+                    dynamic: hit.dynamic,
+                    source: 'orchestration',
+                    measureIndex,
+                    durationBeats: stroke.durationRatio,
+                  });
+                }
+              }
             }
             strokeOffset += stroke.durationRatio;
           }

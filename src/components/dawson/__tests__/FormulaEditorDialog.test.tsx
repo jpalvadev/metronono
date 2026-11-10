@@ -16,9 +16,9 @@ describe('FormulaEditorDialog Component', () => {
     name: 'Custom Bop Triplet',
     trigger: 'short',
     strokes: [
-      { durationRatio: 0.1667, voice: 'kick', limb: 'RF', dynamic: 'accent' },
-      { durationRatio: 0.1667, voice: 'snare', limb: 'L', dynamic: 'normal' },
-      { durationRatio: 0.1667, voice: 'tom_high', limb: 'R', dynamic: 'ghost' },
+      { durationRatio: 0.1667, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+      { durationRatio: 0.1667, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 0.1667, hits: [{ voice: 'tom_high', dynamic: 'ghost' }] },
     ],
     isCustom: true,
   };
@@ -94,7 +94,7 @@ describe('FormulaEditorDialog Component', () => {
     expect(strokeItems).toHaveLength(2);
   });
 
-  it('modifies stroke attributes (voice, limb, dynamic)', () => {
+  it('modifies stroke attributes (voice, dynamic)', () => {
     render(
       <FormulaEditorDialog
         open={true}
@@ -105,13 +105,13 @@ describe('FormulaEditorDialog Component', () => {
       />
     );
 
-    // Change limb on stroke 0 to L
-    const limbLBtn = screen.getByTestId('stroke-0-limb-L');
-    fireEvent.click(limbLBtn);
-
     // Change dynamic on stroke 0 to flam
     const dynamicFlamBtn = screen.getByTestId('stroke-0-dynamic-flam');
     fireEvent.click(dynamicFlamBtn);
+
+    // Change voice on stroke 0 to tom_floor
+    const voiceSelect = screen.getByLabelText(/Stroke 1 voice/i);
+    fireEvent.change(voiceSelect, { target: { value: 'tom_floor' } });
 
     // Save and verify onSave received updated stroke
     const saveBtn = screen.getByRole('button', { name: /Save Formula/i });
@@ -119,8 +119,8 @@ describe('FormulaEditorDialog Component', () => {
 
     expect(mockOnSave).toHaveBeenCalledTimes(1);
     const savedFormula: SubdivisionFormula = mockOnSave.mock.calls[0][0];
-    expect(savedFormula.strokes[0].limb).toBe('L');
-    expect(savedFormula.strokes[0].dynamic).toBe('flam');
+    expect(savedFormula.strokes[0].hits[0].voice).toBe('tom_floor');
+    expect(savedFormula.strokes[0].hits[0].dynamic).toBe('flam');
   });
 
   it('auditions an individual stroke via player', () => {

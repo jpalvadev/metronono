@@ -1,7 +1,5 @@
 import { Measure, ReadingLine, RhythmicEvent } from '../rhythm/types';
 
-export type Limb = 'R' | 'L' | 'RF' | 'LF';
-
 export type DrumVoice =
   | 'kick'
   | 'snare'
@@ -24,11 +22,15 @@ export type OstinatoType = 'jazz_swing' | 'straight_rock' | 'none';
 
 export type DawsonMode = 'classic_bop' | 'inverted_bop' | 'straight_rock';
 
+export interface DrumHit {
+  voice: DrumVoice;
+  dynamic: Dynamic;
+}
+
 export interface OrchestratedStroke {
   durationRatio: number; // Duration in quarter note fraction (e.g. 0.1667 for 1/16 triplet, 0.25 for 1/16th, 0.3333 for 1/8 triplet, 0.5 for 1/8th, 1.0 for quarter)
-  voice: DrumVoice;
-  limb?: Limb;
-  dynamic: Dynamic;
+  isRest?: boolean;
+  hits: DrumHit[];
 }
 
 export interface SubdivisionFormula {
@@ -58,7 +60,6 @@ export interface ScheduledDrumEvent {
   source: 'ostinato' | 'orchestration';
   measureIndex?: number;
   durationBeats?: number;
-  limb?: Limb;
 }
 
 export interface DawsonEngineOptions {

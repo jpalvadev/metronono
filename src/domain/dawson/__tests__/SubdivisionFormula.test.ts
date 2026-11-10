@@ -17,25 +17,53 @@ import {
 import { createRhythmicEvent, Measure } from '../../rhythm/types';
 
 describe('SubdivisionFormula Math & Utilities', () => {
-  it('calculates formula duration accurately from strokes', () => {
+  it('calculates formula duration accurately from strokes including chords and rests', () => {
     const singleStroke: SubdivisionFormula = {
       id: 'test_single',
       name: 'Single',
       trigger: 'short',
       strokes: [
-        { durationRatio: 0.5, voice: 'snare', limb: 'L', dynamic: 'normal' },
+        { durationRatio: 0.5, hits: [{ voice: 'snare', dynamic: 'normal' }] },
       ],
     };
     expect(calculateFormulaDuration(singleStroke)).toBe(0.5);
+
+    const chordAndRestFormula: SubdivisionFormula = {
+      id: 'test_chord_rest',
+      name: 'Chord and Rest',
+      trigger: 'long',
+      strokes: [
+        // Beat 1: Chord of Kick + Crash
+        {
+          durationRatio: 0.25,
+          hits: [
+            { voice: 'kick', dynamic: 'accent' },
+            { voice: 'crash', dynamic: 'accent' },
+          ],
+        },
+        // Beat 1.25: Rest
+        {
+          durationRatio: 0.25,
+          isRest: true,
+          hits: [],
+        },
+        // Beat 1.5: Snare
+        {
+          durationRatio: 0.5,
+          hits: [{ voice: 'snare', dynamic: 'normal' }],
+        },
+      ],
+    };
+    expect(calculateFormulaDuration(chordAndRestFormula)).toBe(1.0);
 
     const tripletFormula: SubdivisionFormula = {
       id: 'test_triplet',
       name: 'Triplet',
       trigger: 'short',
       strokes: [
-        { durationRatio: 0.5 / 3, voice: 'kick', limb: 'RF', dynamic: 'accent' },
-        { durationRatio: 0.5 / 3, voice: 'snare', limb: 'L', dynamic: 'normal' },
-        { durationRatio: 0.5 / 3, voice: 'tom_high', limb: 'R', dynamic: 'normal' },
+        { durationRatio: 0.5 / 3, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+        { durationRatio: 0.5 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+        { durationRatio: 0.5 / 3, hits: [{ voice: 'tom_high', dynamic: 'normal' }] },
       ],
     };
     expect(calculateFormulaDuration(tripletFormula)).toBeCloseTo(0.5, 4);
@@ -49,24 +77,33 @@ describe('SubdivisionFormula Math & Utilities', () => {
     expect(calculateFormulaDuration(emptyFormula)).toBe(0);
   });
 
-  it('resolves sequential stroke offsets relative to note onset', () => {
+  it('resolves sequential stroke offsets relative to note onset for chords and rests', () => {
     const strokes: OrchestratedStroke[] = [
-      { durationRatio: 0.25, voice: 'kick', limb: 'RF', dynamic: 'accent' },
-      { durationRatio: 0.25, voice: 'snare', limb: 'L', dynamic: 'normal' },
-      { durationRatio: 0.5, voice: 'tom_floor', limb: 'R', dynamic: 'normal' },
+      {
+        durationRatio: 0.25,
+        hits: [
+          { voice: 'kick', dynamic: 'accent' },
+          { voice: 'crash', dynamic: 'accent' },
+        ],
+      },
+      { durationRatio: 0.25, isRest: true, hits: [] },
+      { durationRatio: 0.5, hits: [{ voice: 'tom_floor', dynamic: 'normal' }] },
     ];
 
     const resolved = resolveStrokeOffsets(strokes, 1.0);
     expect(resolved).toHaveLength(3);
     expect(resolved[0].offset).toBeCloseTo(1.0);
+    expect(resolved[0].stroke.hits).toHaveLength(2);
     expect(resolved[1].offset).toBeCloseTo(1.25);
+    expect(resolved[1].stroke.isRest).toBe(true);
     expect(resolved[2].offset).toBeCloseTo(1.5);
+    expect(resolved[2].stroke.hits[0].voice).toBe('tom_floor');
   });
 
   it('scales stroke durations proportionally to target duration', () => {
     const strokes: OrchestratedStroke[] = [
-      { durationRatio: 0.25, voice: 'kick', dynamic: 'accent' },
-      { durationRatio: 0.25, voice: 'snare', dynamic: 'normal' },
+      { durationRatio: 0.25, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+      { durationRatio: 0.25, hits: [{ voice: 'snare', dynamic: 'normal' }] },
     ]; // total = 0.5
 
     const scaled = scaleFormulaStrokes(strokes, 1.0);
@@ -77,47 +114,42 @@ describe('SubdivisionFormula Math & Utilities', () => {
 });
 
 describe('Default Built-in Formula Library', () => {
-  it('contains classic short formulas', () => {
+  it('contains classic short formulas without limbs', () => {
     expect(DEFAULT_SHORT_FORMULAS.single_snare).toBeDefined();
     expect(DEFAULT_SHORT_FORMULAS.single_snare.trigger).toBe('short');
-    expect(DEFAULT_SHORT_FORMULAS.single_snare.strokes[0].voice).toBe('snare');
+    expect(DEFAULT_SHORT_FORMULAS.single_snare.strokes[0].hits[0].voice).toBe('snare');
 
     expect(DEFAULT_SHORT_FORMULAS.flr_triplet).toBeDefined();
     expect(DEFAULT_SHORT_FORMULAS.flr_triplet.strokes).toHaveLength(3);
-    expect(DEFAULT_SHORT_FORMULAS.flr_triplet.strokes.map((s) => s.limb)).toEqual([
-      'RF',
-      'L',
-      'R',
-    ]);
-    expect(DEFAULT_SHORT_FORMULAS.flr_triplet.strokes.map((s) => s.voice)).toEqual([
+    expect(DEFAULT_SHORT_FORMULAS.flr_triplet.strokes.map((s) => s.hits[0].voice)).toEqual([
       'kick',
       'snare',
       'tom_high',
     ]);
 
     expect(DEFAULT_SHORT_FORMULAS.flam_snare).toBeDefined();
-    expect(DEFAULT_SHORT_FORMULAS.flam_snare.strokes[0].dynamic).toBe('flam');
+    expect(DEFAULT_SHORT_FORMULAS.flam_snare.strokes[0].hits[0].dynamic).toBe('flam');
 
     expect(DEFAULT_SHORT_FORMULAS.drag_snare).toBeDefined();
-    expect(DEFAULT_SHORT_FORMULAS.drag_snare.strokes[0].dynamic).toBe('drag');
+    expect(DEFAULT_SHORT_FORMULAS.drag_snare.strokes[0].hits[0].dynamic).toBe('drag');
   });
 
-  it('contains classic long formulas', () => {
+  it('contains classic long formulas without limbs', () => {
     expect(DEFAULT_LONG_FORMULAS.single_kick).toBeDefined();
     expect(DEFAULT_LONG_FORMULAS.single_kick.trigger).toBe('long');
 
     expect(DEFAULT_LONG_FORMULAS.linear_diddle).toBeDefined();
     expect(DEFAULT_LONG_FORMULAS.linear_diddle.strokes).toHaveLength(6);
-    expect(DEFAULT_LONG_FORMULAS.linear_diddle.strokes[0].voice).toBe('kick');
-    expect(DEFAULT_LONG_FORMULAS.linear_diddle.strokes[1].voice).toBe('snare');
+    expect(DEFAULT_LONG_FORMULAS.linear_diddle.strokes[0].hits[0].voice).toBe('kick');
+    expect(DEFAULT_LONG_FORMULAS.linear_diddle.strokes[1].hits[0].voice).toBe('snare');
 
     expect(DEFAULT_LONG_FORMULAS.linear_paradiddle).toBeDefined();
     expect(DEFAULT_LONG_FORMULAS.linear_paradiddle.strokes).toHaveLength(4);
-    expect(DEFAULT_LONG_FORMULAS.linear_paradiddle.strokes.map((s) => s.limb)).toEqual([
-      'RF',
-      'L',
-      'R',
-      'R',
+    expect(DEFAULT_LONG_FORMULAS.linear_paradiddle.strokes.map((s) => s.hits[0].voice)).toEqual([
+      'kick',
+      'snare',
+      'tom_high',
+      'tom_high',
     ]);
 
     expect(DEFAULT_LONG_FORMULAS.five_stroke_roll).toBeDefined();
@@ -140,7 +172,7 @@ describe('Default Built-in Formula Library', () => {
   });
 });
 
-describe('DawsonEngine Multi-Limb Orchestration with Formulas', () => {
+describe('DawsonEngine Polyphonic Orchestration with Formulas', () => {
   let engine: DawsonEngine;
 
   beforeEach(() => {
@@ -151,7 +183,6 @@ describe('DawsonEngine Multi-Limb Orchestration with Formulas', () => {
     engine.setShortFormula(DEFAULT_SHORT_FORMULAS.flr_triplet);
     engine.setLongFormula(DEFAULT_LONG_FORMULAS.single_kick);
 
-    // Measure: Eighth note (short) on beat 0, Quarter note (long) on beat 1.0, Half note on beat 2.0
     const measure: Measure = {
       index: 0,
       timeSignature: [4, 4],
@@ -165,76 +196,106 @@ describe('DawsonEngine Multi-Limb Orchestration with Formulas', () => {
     };
 
     const events = engine.resolveOrchestrationEvents(measure);
-
-    // Short note at 0 expands to 3 triplet strokes:
-    // Stroke 1: kick, RF, time = 0
-    // Stroke 2: snare, L, time ≈ 0.167
-    // Stroke 3: tom_high, R, time ≈ 0.333
-    // Long notes at 1.0 and 2.0 each have 1 kick stroke (RF)
     expect(events).toHaveLength(5);
 
     expect(events[0].voice).toBe('kick');
-    expect(events[0].limb).toBe('RF');
     expect(events[0].timeInMeasure).toBe(0);
 
     expect(events[1].voice).toBe('snare');
-    expect(events[1].limb).toBe('L');
     expect(events[1].timeInMeasure).toBeCloseTo(0.167, 2);
 
     expect(events[2].voice).toBe('tom_high');
-    expect(events[2].limb).toBe('R');
     expect(events[2].timeInMeasure).toBeCloseTo(0.333, 2);
 
     expect(events[3].voice).toBe('kick');
-    expect(events[3].limb).toBe('RF');
     expect(events[3].timeInMeasure).toBe(1.0);
 
     expect(events[4].voice).toBe('kick');
-    expect(events[4].limb).toBe('RF');
     expect(events[4].timeInMeasure).toBe(2.0);
+
+    // Verify limb field is not present on scheduled events
+    events.forEach((evt) => {
+      expect((evt as Record<string, unknown>).limb).toBeUndefined();
+    });
   });
 
-  it('orchestrates long notes using Linear Paradiddle formula', () => {
-    engine.setShortFormula(DEFAULT_SHORT_FORMULAS.single_snare);
-    engine.setLongFormula(DEFAULT_LONG_FORMULAS.linear_paradiddle);
+  it('schedules simultaneous unisons (chords) at the exact same metric timestamp', () => {
+    const chordFormula: SubdivisionFormula = {
+      id: 'kick_crash_unison',
+      name: 'Kick Crash Unison',
+      trigger: 'long',
+      strokes: [
+        {
+          durationRatio: 0.5,
+          hits: [
+            { voice: 'kick', dynamic: 'accent' },
+            { voice: 'crash', dynamic: 'accent' },
+          ],
+        },
+        {
+          durationRatio: 0.5,
+          hits: [{ voice: 'snare', dynamic: 'normal' }],
+        },
+      ],
+    };
 
-    // Measure: Quarter note on beat 0
+    engine.setLongFormula(chordFormula);
+
     const measure: Measure = {
       index: 0,
       timeSignature: [4, 4],
       totalBeats: 4,
       events: [
         createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
-        createRhythmicEvent({ isRest: true, durationBeats: 3.0 }),
       ],
     };
 
     const events = engine.resolveOrchestrationEvents(measure);
-    expect(events).toHaveLength(4);
+    expect(events).toHaveLength(3);
 
-    // 4 16th strokes: RF, L, R, R
-    expect(events[0]).toMatchObject({
-      timeInMeasure: 0,
-      voice: 'kick',
-      limb: 'RF',
-      dynamic: 'accent',
-    });
-    expect(events[1]).toMatchObject({
-      timeInMeasure: 0.25,
-      voice: 'snare',
-      limb: 'L',
-    });
+    // Two simultaneous events at time 0
+    const downbeatEvents = events.filter((e) => e.timeInMeasure === 0);
+    expect(downbeatEvents).toHaveLength(2);
+    expect(downbeatEvents.map((e) => e.voice).sort()).toEqual(['crash', 'kick']);
+    expect(downbeatEvents[0].dynamic).toBe('accent');
+    expect(downbeatEvents[1].dynamic).toBe('accent');
+
+    // Snare at time 0.5
     expect(events[2]).toMatchObject({
       timeInMeasure: 0.5,
-      voice: 'tom_high',
-      limb: 'R',
+      voice: 'snare',
+      dynamic: 'normal',
     });
-    expect(events[3]).toMatchObject({
-      timeInMeasure: 0.75,
-      voice: 'tom_high',
-      limb: 'R',
-      dynamic: 'ghost',
-    });
+  });
+
+  it('skips rests and advances metric clock without creating audible events', () => {
+    const formulaWithRest: SubdivisionFormula = {
+      id: 'syncopated_rest',
+      name: 'Syncopated Rest Formula',
+      trigger: 'short',
+      strokes: [
+        { durationRatio: 0.25, isRest: true, hits: [] },
+        { durationRatio: 0.25, hits: [{ voice: 'snare', dynamic: 'accent' }] },
+      ],
+    };
+
+    engine.setShortFormula(formulaWithRest);
+
+    const measure: Measure = {
+      index: 0,
+      timeSignature: [4, 4],
+      totalBeats: 4,
+      events: [
+        createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+      ],
+    };
+
+    const events = engine.resolveOrchestrationEvents(measure);
+    // Only 1 sounding event, at offset 0.25 (since offset 0 is a rest)
+    expect(events).toHaveLength(1);
+    expect(events[0].voice).toBe('snare');
+    expect(events[0].timeInMeasure).toBe(0.25);
+    expect(events[0].dynamic).toBe('accent');
   });
 
   it('applies a complete DawsonSystem preset via setSystem', () => {
@@ -269,22 +330,29 @@ describe('DawsonPresetManager CRUD & Persistence', () => {
     expect(longFormulas.some((f) => f.id === 'linear_paradiddle')).toBe(true);
   });
 
-  it('allows saving, retrieving, updating, and deleting custom formulas', () => {
+  it('allows saving, retrieving, updating, and deleting custom polyphonic formulas', () => {
     const customFormula: SubdivisionFormula = {
       id: 'custom_quad',
       name: 'Custom Quad Fill',
       trigger: 'short',
       strokes: [
-        { durationRatio: 0.125, voice: 'snare', limb: 'L', dynamic: 'accent' },
-        { durationRatio: 0.125, voice: 'tom_high', limb: 'R', dynamic: 'normal' },
-        { durationRatio: 0.125, voice: 'tom_mid', limb: 'L', dynamic: 'normal' },
-        { durationRatio: 0.125, voice: 'tom_floor', limb: 'R', dynamic: 'accent' },
+        { durationRatio: 0.125, hits: [{ voice: 'snare', dynamic: 'accent' }] },
+        { durationRatio: 0.125, hits: [{ voice: 'tom_high', dynamic: 'normal' }] },
+        { durationRatio: 0.125, isRest: true, hits: [] },
+        {
+          durationRatio: 0.125,
+          hits: [
+            { voice: 'tom_floor', dynamic: 'accent' },
+            { voice: 'kick', dynamic: 'accent' },
+          ],
+        },
       ],
     };
 
     manager.saveFormula(customFormula);
     expect(manager.getFormula('custom_quad')).toBeDefined();
     expect(manager.getFormula('custom_quad')?.name).toBe('Custom Quad Fill');
+    expect(manager.getFormula('custom_quad')?.strokes[3].hits).toHaveLength(2);
 
     // Update
     manager.saveFormula({

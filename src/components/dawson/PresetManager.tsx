@@ -146,7 +146,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                   Dawson Systems & Formula Manager
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Manage orchestration presets, custom subdivision formulas, and limb choreography
+                  Manage orchestration presets and custom subdivision formulas
                 </p>
               </div>
             </div>
@@ -502,7 +502,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 key={idx}
                                 className="px-1.5 py-0.5 rounded bg-muted/50 border border-border/60 text-[10px] font-mono"
                               >
-                                {s.voice} ({s.limb || '?'})
+                                {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                               </span>
                             ))}
                           </div>
@@ -575,7 +575,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 key={idx}
                                 className="px-1.5 py-0.5 rounded bg-muted/50 border border-border/60 text-[10px] font-mono"
                               >
-                                {s.voice} ({s.limb || '?'})
+                                {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                               </span>
                             ))}
                           </div>

@@ -15,3 +15,5 @@
 - 8 [ ] mixer state (mixing channel volumes, mutes, and the practice preset) should persist across sessions; StorageAdapter stores only scores, systems and samples today
 
 - 9 [ ] the components are arrenged badly. The metronome should live inside the main container, as a module
+
+- 10 [ ] the formula composer, instead of selecting the note value, the sound, etc, it should be a partiture editor, where i should select the not value, if its a rest, if its an accent, or ghost, etc. and in a partiture i could place the note whenever I want to select the sound source. Spec: .scratch/partiture-formula-editor/spec.md 

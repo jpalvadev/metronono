@@ -37,8 +37,8 @@ The audio timing architecture that decouples a coarse JavaScript interval from t
 _Avoid_: JS timer, clock ticker
 
 **Subdivision Formula**:
-The sequence of sub-beat strokes and limb assignments (e.g. Foot-Left-Right triplet) applied to a single short or long note trigger.
-_Avoid_: Fill lick, sticking pattern
+The sequence of sub-beat strokes and rests (monophonic hits or stacked unisons like kick and cymbal) applied to a single short or long note trigger.
+_Avoid_: Fill lick, sticking pattern, limb sequence
 
 **Gap Clicks**:
 The subdivision voice's clicks sounding at the even fractions between one beat click and the next, splitting each beat into a chosen number of equal parts; one part means the beat click alone and no gap clicks. Counted in parts, not added clicks: two parts is one click in the gap.
@@ -53,8 +53,8 @@ A standard 5-line percussion score (PAS standard) with dedicated pitch positions
 _Avoid_: Full tab, multi-track sheet
 
 **Orchestrated Stroke**:
-An individual hit within an orchestration formula defining specific figure duration, target drum voice, limb, and articulation.
-_Avoid_: Drum hit, note event
+An individual sounding hit or rest within an orchestration formula defining a specific figure duration, target drum voices (single hit or stacked unison), and articulation.
+_Avoid_: Drum hit, note event, limb hit
 
 **Mixing Channel**:
 One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute under a single Master. A muted channel produces no sound and no drum-pad illumination, without stopping the Metronome or the notation.

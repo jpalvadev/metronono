@@ -155,15 +155,18 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       const resolved = resolveStrokeOffsets(formula.strokes, 0);
 
       resolved.forEach(({ stroke, offset }) => {
+        if (stroke.isRest || !stroke.hits) return;
         const delayMs = offset * beatDurationMs;
-        const vel = engine.dynamicToVelocity(stroke.dynamic);
-        if (delayMs <= 0) {
-          player.triggerVoice(stroke.voice, 0, vel, 'orchestration');
-        } else {
-          setTimeout(() => {
-            player.triggerVoice(stroke.voice, 0, vel, 'orchestration');
-          }, delayMs);
-        }
+        stroke.hits.forEach((hit) => {
+          const vel = engine.dynamicToVelocity(hit.dynamic);
+          if (delayMs <= 0) {
+            player.triggerVoice(hit.voice, 0, vel, 'orchestration');
+          } else {
+            setTimeout(() => {
+              player.triggerVoice(hit.voice, 0, vel, 'orchestration');
+            }, delayMs);
+          }
+        });
       });
     },
     [player, engine]
@@ -429,7 +432,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   key={idx}
                   className="px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-[10px] font-mono text-foreground"
                 >
-                  {s.voice} <strong className="text-teal-400">({s.limb || '?'})</strong>
+                  {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                 </span>
               ))}
             </div>
@@ -481,7 +484,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   key={idx}
                   className="px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-[10px] font-mono text-foreground"
                 >
-                  {s.voice} <strong className="text-rose-400">({s.limb || '?'})</strong>
+                  {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                 </span>
               ))}
             </div>

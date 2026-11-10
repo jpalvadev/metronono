@@ -4,12 +4,22 @@
 
 **Blocked by:** 01 (Polyphonic formula domain model and limb removal)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Formula strokes are engraved on a 5-line percussion stave following the standard PAS pitch map (Snare on space 3, Kick on space 1, Toms on lines and spaces, Cymbals with cross noteheads on or above line 5).
-- [ ] Multi-voice unisons at the same metric offset automatically separate into Voice 1 (Hands: cymbals, snare, toms) with stems pointing up, and Voice 2 (Feet: bass drum, hi-hat foot) with stems pointing down.
-- [ ] Explicit rests render on the stave using standard musical rest symbols matching the stroke's duration.
-- [ ] Beaming groups rapid subdivisions (8ths, 16ths, 32nds) by metric quarter-note beats separately for Voice 1 and Voice 2.
-- [ ] A spatial helper `getDrumVoiceForY(y: number)` accurately translates any vertical pointer/canvas position to the nearest drum voice line or space.
-- [ ] A spatial helper `getStepForX(x: number, gridResolution: number)` accurately translates any horizontal pointer/canvas position to the nearest snapped subdivision column.
-- [ ] Automated rendering tests assert correct SVG element creation, dual-voice stem directions, and coordinate lookup accuracy.
+- [x] Formula strokes are engraved on a 5-line percussion stave following the standard PAS pitch map (Snare on space 3, Kick on space 1, Toms on lines and spaces, Cymbals with cross noteheads on or above line 5).
+- [x] Multi-voice unisons at the same metric offset automatically separate into Voice 1 (Hands: cymbals, snare, toms) with stems pointing up, and Voice 2 (Feet: bass drum, hi-hat foot) with stems pointing down.
+- [x] Explicit rests render on the stave using standard musical rest symbols matching the stroke's duration.
+- [x] Beaming groups rapid subdivisions (8ths, 16ths, 32nds) by metric quarter-note beats separately for Voice 1 and Voice 2.
+- [x] A spatial helper `getDrumVoiceForY(y: number)` accurately translates any vertical pointer/canvas position to the nearest drum voice line or space.
+- [x] A spatial helper `getStepForX(x: number, gridResolution: number)` accurately translates any horizontal pointer/canvas position to the nearest snapped subdivision column.
+- [x] Automated rendering tests assert correct SVG element creation, dual-voice stem directions, and coordinate lookup accuracy.
+
+## Answer
+
+Implemented `DrumStaffFormulaRenderer`:
+1. Renders a dedicated 5-line PAS percussion stave with percussion clef.
+2. Automatically partitions formula hits into Voice 1 (Hands, Stem.UP) and Voice 2 (Feet, Stem.DOWN).
+3. Explicit rests render with standard rest notation matching stroke durations.
+4. Automatic beaming for rapid subdivisions across both voices.
+5. Spatial helpers `getDrumVoiceForY(y)` and `getStepForX(x, gridResolution)` accurately map canvas coordinates to drum lines and snapped subdivision columns.
+6. Comprehensive test suite in `src/notation/__tests__/DrumStaffFormulaRenderer.test.ts` passes.

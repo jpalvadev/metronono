@@ -13,6 +13,7 @@ import {
   resolveStrokeOffsets,
 } from '../domain/dawson/SubdivisionFormula';
 import { MixerChannelId, AudioMixerState } from '../audio/AudioMixer';
+import { DrumLane } from '../audio/DrumKitPlayer';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 import { Badge } from './ui/badge';
@@ -154,8 +155,9 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   );
 
   const handlePadAudition = useCallback(
-    (voice: DrumVoice) => {
-      player.triggerVoice(voice, 0, 0.9);
+    (voice: DrumVoice, channel: DrumLane) => {
+      // A pad tap is an audition tap on the Mixing Channel that pad belongs to.
+      player.triggerVoice(voice, 0, 0.9, channel);
       if (voice === 'kick') {
         setActiveKick(true);
         setTimeout(() => setActiveKick(false), 120);
@@ -554,7 +556,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               type="button"
               data-testid="drum-pad-ride"
               data-active={activeRide ? 'true' : 'false'}
-              onClick={() => handlePadAudition('ride')}
+              onClick={() => handlePadAudition('ride', 'ostinato')}
               className={cn(
                 'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
                 activeRide
@@ -581,7 +583,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               type="button"
               data-testid="drum-pad-snare"
               data-active={activeSnare ? 'true' : 'false'}
-              onClick={() => handlePadAudition('snare')}
+              onClick={() => handlePadAudition('snare', 'orchestration')}
               className={cn(
                 'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
                 activeSnare
@@ -610,7 +612,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               type="button"
               data-testid="drum-pad-kick"
               data-active={activeKick ? 'true' : 'false'}
-              onClick={() => handlePadAudition('kick')}
+              onClick={() => handlePadAudition('kick', 'orchestration')}
               className={cn(
                 'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
                 activeKick
@@ -639,7 +641,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               type="button"
               data-testid="drum-pad-hihat"
               data-active={activeHihat ? 'true' : 'false'}
-              onClick={() => handlePadAudition('hihat_foot')}
+              onClick={() => handlePadAudition('hihat_foot', 'ostinato')}
               className={cn(
                 'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
                 activeHihat

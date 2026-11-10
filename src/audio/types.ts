@@ -33,18 +33,12 @@ export interface IClickPlayer {
   dispose?(): void;
 }
 
-export interface IMasterVolumeControl {
-  setVolume(volume: number): void;
-  getVolume(): number;
-}
-
 export type DrawSyncFn = (callback: () => void, time: number) => void;
 
 export interface ToneSchedulerOptions {
   engine?: import('../domain/metronome/MetronomeEngine').MetronomeEngine;
   transport?: IAudioClockTransport;
   clickPlayer?: IClickPlayer;
-  volumeControl?: IMasterVolumeControl;
   drawSync?: DrawSyncFn;
   audioMixer?: IAudioMixer;
   drumKitPlayer?: IDrumKitPlayer;

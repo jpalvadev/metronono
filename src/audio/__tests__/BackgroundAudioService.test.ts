@@ -185,18 +185,13 @@ describe('BackgroundAudioService', () => {
         scheduleRepeat: vi.fn(() => 1),
         clear: vi.fn(),
       };
-      const mockVolume = {
-        setVolume: vi.fn(),
-        getVolume: vi.fn(() => 0.8),
-      };
       const mockClickPlayer = {
         play: vi.fn(),
       };
 
       return new ToneTransportScheduler({
         transport: mockTransport as any,
-        volumeControl: mockVolume,
-        clickPlayer: mockClickPlayer,
+        clickPlayer: mockClickPlayer as any,
         drawSync: (fn) => fn(),
         backgroundAudioService: bgService,
       });

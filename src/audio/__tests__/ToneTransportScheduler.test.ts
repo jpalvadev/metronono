@@ -17,11 +17,6 @@ describe('ToneTransportScheduler', () => {
     play: ReturnType<typeof vi.fn>;
   };
 
-  let mockVolume: {
-    setVolume: ReturnType<typeof vi.fn>;
-    getVolume: ReturnType<typeof vi.fn>;
-  };
-
   let scheduler: ToneTransportScheduler;
   let scheduledCallback: ((time: number) => void) | null = null;
 
@@ -47,19 +42,10 @@ describe('ToneTransportScheduler', () => {
       play: vi.fn(),
     };
 
-    let vol = 0.8;
-    mockVolume = {
-      setVolume: vi.fn().mockImplementation((v: number) => {
-        vol = v;
-      }),
-      getVolume: vi.fn().mockImplementation(() => vol),
-    };
-
     scheduler = new ToneTransportScheduler({
       engine: new MetronomeEngine(120, '4/4'),
       transport: mockTransport as any,
       clickPlayer: mockClickPlayer,
-      volumeControl: mockVolume,
       drawSync: (fn) => fn(), // Immediate execution in tests
     });
   });
@@ -116,15 +102,16 @@ describe('ToneTransportScheduler', () => {
     expect(mockTransport.timeSignature).toBe(3);
   });
 
-  it('sets and clamps master volume between 0 and 1', () => {
+  it('sets and clamps the Mixer Master volume between 0 and 1', () => {
     scheduler.setVolume(0.5);
-    expect(mockVolume.setVolume).toHaveBeenCalledWith(0.5);
+    expect(scheduler.getVolume()).toBe(0.5);
+    expect(scheduler.getAudioMixer().getMasterVolume()).toBe(0.5);
 
     scheduler.setVolume(1.5);
-    expect(mockVolume.setVolume).toHaveBeenCalledWith(1.0);
+    expect(scheduler.getVolume()).toBe(1.0);
 
     scheduler.setVolume(-0.2);
-    expect(mockVolume.setVolume).toHaveBeenCalledWith(0.0);
+    expect(scheduler.getVolume()).toBe(0.0);
   });
 
   describe('Advanced Training Features', () => {
@@ -221,9 +208,14 @@ describe('ToneTransportScheduler', () => {
 
     it('schedules Dawson drum events in sync with beat ticks on audio clock', async () => {
       const mockDrumPlayer = {
+        initSynths: vi.fn(() => true),
         play: vi.fn(),
         triggerVoice: vi.fn(),
         onDrumHit: vi.fn(),
+        loadSampleBuffer: vi.fn(),
+        removeSampleBuffer: vi.fn(),
+        hasCustomSample: vi.fn(() => false),
+        clearAllCustomSamples: vi.fn(),
       };
 
       const { DawsonEngine } = await import('../../domain/dawson/DawsonEngine');

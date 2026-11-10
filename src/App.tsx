@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Metronome } from './components/Metronome';
 import { ReadingTrainingSection } from './components/ReadingTrainingSection';
 import { DawsonOrchestrationSection } from './components/DawsonOrchestrationSection';
@@ -12,10 +12,21 @@ import { NotationViewMode } from './components/notation/DrumStaffView';
 
 export function App() {
   const storageManager = useMemo(() => new StorageManager(), []);
-  const scheduler = useMemo(
-    () => new ToneTransportScheduler({ storageManager }),
-    [storageManager]
-  );
+
+  // The shell owns the only audio graph: it constructs one scheduler per mounted shell — a
+  // StrictMode double render must not build a second one — and releases it when the shell unmounts.
+  const schedulerRef = useRef<ToneTransportScheduler | null>(null);
+  if (schedulerRef.current === null) {
+    schedulerRef.current = new ToneTransportScheduler({ storageManager });
+  }
+  const scheduler = schedulerRef.current;
+
+  useEffect(() => {
+    return () => {
+      schedulerRef.current?.dispose();
+      schedulerRef.current = null;
+    };
+  }, []);
 
   const [isSampleBankOpen, setIsSampleBankOpen] = useState(false);
   const [isLinked, setIsLinked] = useState(() => storageManager.isLinked());

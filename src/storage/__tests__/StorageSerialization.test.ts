@@ -6,10 +6,17 @@ import { IndexedDBAdapter } from '../IndexedDBAdapter';
 import { FileSystemAccessAdapter } from '../FileSystemAccessAdapter';
 import { StorageManager } from '../StorageManager';
 import { ReadingLine, createRhythmicEvent } from '../../domain/rhythm/types';
-import { DawsonSystem, DrumVoice } from '../../domain/dawson/types';
+import { DawsonSystem } from '../../domain/dawson/types';
 import { StoredSample } from '../types';
 import { DrumKitPlayer } from '../../audio/DrumKitPlayer';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
+import { AudioMixer } from '../../audio/AudioMixer';
+import { fakeAudioBuffer, fakeToneRecorder } from '../../test/fakeTone';
+
+vi.mock('tone', async () => {
+  const fake = await import('../../test/fakeTone');
+  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
+});
 
 // Helper to create dummy audio data
 function createDummyAudioBuffer(size: number = 64, fillByte: number = 42): ArrayBuffer {
@@ -17,6 +24,19 @@ function createDummyAudioBuffer(size: number = 64, fillByte: number = 42): Array
   const view = new Uint8Array(buffer);
   view.fill(fillByte);
   return buffer;
+}
+
+// How many times any instrument carrying this label was played.
+function triggerCountFor(label: string): number {
+  return fakeToneRecorder.nodes
+    .filter((created) => created.label === label)
+    .reduce((total, node) => total + fakeToneRecorder.triggers(node).length, 0);
+}
+
+function nodeByLabel(label: string) {
+  const node = fakeToneRecorder.nodes.find((created) => created.label === label);
+  if (!node) throw new Error(`no node labelled '${label}' in the recorded graph`);
+  return node;
 }
 
 // Sample test data
@@ -356,19 +376,17 @@ describe('StorageManager & Fallback Behavior', () => {
 });
 
 describe('DrumKitPlayer & ToneTransportScheduler Custom Sample Playback', () => {
+  beforeEach(() => {
+    fakeToneRecorder.reset();
+  });
+
   it('allows loading and clearing custom sample buffers in DrumKitPlayer', () => {
-    const player = new DrumKitPlayer();
+    const mixer = new AudioMixer();
+    mixer.initToneNodes();
+    const player = new DrumKitPlayer(mixer);
     expect(player.hasCustomSample('kick')).toBe(false);
 
-    // Mock AudioBuffer
-    const mockBuffer = {
-      duration: 0.5,
-      length: 22050,
-      numberOfChannels: 1,
-      sampleRate: 44100,
-    };
-
-    player.loadSampleBuffer('kick', mockBuffer as any);
+    player.loadSampleBuffer('kick', fakeAudioBuffer());
     expect(player.hasCustomSample('kick')).toBe(true);
 
     player.removeSampleBuffer('kick');
@@ -376,32 +394,25 @@ describe('DrumKitPlayer & ToneTransportScheduler Custom Sample Playback', () => 
   });
 
   it('triggers custom sample playback when available and falls back to synth otherwise', () => {
-    let triggeredVoice: DrumVoice | null = null;
-    let customSamplePlayed = false;
+    const mixer = new AudioMixer();
+    mixer.initToneNodes();
+    const player = new DrumKitPlayer(mixer);
 
-    const player = new DrumKitPlayer({
-      synthTrigger: (voice) => {
-        triggeredVoice = voice;
-      },
-    });
+    player.loadSampleBuffer('snare', fakeAudioBuffer());
 
-    // Provide custom sample player mock
-    const mockBuffer = { duration: 0.2 };
-    player.loadSampleBuffer('snare', mockBuffer as any);
+    // Snare has a custom buffer: the sample plays instead of the built-in instrument.
+    player.triggerVoice('snare', 1.0, 0.9);
+    const sampleGain = nodeByLabel('sample:orchestration:audition');
+    expect(fakeToneRecorder.connectedTo(sampleGain)).toContain(nodeByLabel('audition:orchestration'));
+    expect(fakeToneRecorder.bufferSources()).toHaveLength(1);
+    expect(fakeToneRecorder.bufferSources()[0].startedAt).toBe(1.0);
+    expect(triggerCountFor('rig:orchestration:audition:snare')).toBe(0);
 
-    // Inject custom trigger spy if available or test execution
-    (player as any).playCustomSample = vi.fn(() => {
-      customSamplePlayed = true;
-    });
-
-    // Snare has custom buffer
-    player.triggerVoice('snare');
-    expect(customSamplePlayed).toBe(true);
-    expect(triggeredVoice).toBeNull(); // Did not call synth trigger
-
-    // Kick does NOT have custom buffer -> falls back to synth
-    player.triggerVoice('kick');
-    expect(triggeredVoice).toBe('kick');
+    // Kick has no custom buffer, so it falls back to the built-in instrument.
+    player.triggerVoice('kick', 2.0, 0.9);
+    expect(triggerCountFor('rig:orchestration:audition:kick')).toBeGreaterThan(0);
+    // The stored sample never leaves its Mixing Channel.
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
   });
 
   it('synchronizes custom samples between StorageManager and ToneTransportScheduler', async () => {
@@ -417,12 +428,20 @@ describe('DrumKitPlayer & ToneTransportScheduler Custom Sample Playback', () => 
     const removeSpy = vi.spyOn(player, 'removeSampleBuffer');
 
     // Mock audio decoder in manager
-    vi.spyOn(manager, 'decodeAudioData').mockResolvedValue({ duration: 1.0 } as any);
+    vi.spyOn(manager, 'decodeAudioData').mockResolvedValue(fakeAudioBuffer());
 
     const dummyAudio = createDummyAudioBuffer(32, 10);
     await manager.saveSample('kick', dummyAudio, { filename: 'kick.wav' });
 
     expect(loadSpy).toHaveBeenCalledWith('kick', expect.anything());
+
+    // The uploaded sample plays through the Orchestration Mixing Channel.
+    player.play({ timeInMeasure: 0, voice: 'kick', velocity: 0.7, dynamic: 'normal', source: 'orchestration' }, 3.0);
+    const sampleGain = fakeToneRecorder.nodes.find(
+      (created) => created.label === 'sample:orchestration:mix'
+    );
+    expect(sampleGain).toBeDefined();
+    expect(fakeToneRecorder.gainValue(sampleGain)).toBe(0.7);
 
     await manager.deleteSample('kick');
     expect(removeSpy).toHaveBeenCalledWith('kick');

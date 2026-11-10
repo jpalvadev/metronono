@@ -1,153 +1,202 @@
 import * as Tone from 'tone';
 import { DrumVoice, ScheduledDrumEvent } from '../domain/dawson/types';
-import { IGainNodeLike } from './AudioMixer';
+import { IAudioMixer, IGainNodeLike, MixerChannelId } from './AudioMixer';
 
-export type SynthTriggerFn = (
-  voice: DrumVoice,
-  time: number,
-  velocity: number,
-  source: 'ostinato' | 'orchestration'
-) => void;
+// The lane a drum sound belongs to. A Mixing Channel is only ever 'click' for metronome
+// clicks; drum voices play on the Ostinato or Orchestration channel.
+export type DrumLane = Extract<MixerChannelId, 'ostinato' | 'orchestration'>;
 
-export interface DrumKitPlayerOptions {
-  synthTrigger?: SynthTriggerFn;
-  ostinatoNode?: IGainNodeLike;
-  orchestrationNode?: IGainNodeLike;
+// Every Mixing Channel line owns a rig of the drum voices: one rig for the channel's
+// audible line and one for the Audition node it shares. An instrument belongs to exactly
+// one line, so a voice can never be played on two lines at once.
+export type RigMode = 'mix' | 'audition';
+type RigKey = `${DrumLane}:${RigMode}`;
+
+interface DrumRig {
+  kick: Tone.MembraneSynth;
+  snareNoise: Tone.NoiseSynth;
+  snareMembrane: Tone.MembraneSynth;
+  tomHigh: Tone.MembraneSynth;
+  tomMid: Tone.MembraneSynth;
+  tomFloor: Tone.MembraneSynth;
+  crash: Tone.MetalSynth;
+  ride: Tone.MetalSynth;
+  hihat: Tone.MetalSynth;
 }
 
 export interface IDrumKitPlayer {
+  initSynths?(): boolean;
   play(event: ScheduledDrumEvent, time: number): void;
   triggerVoice(
     voice: DrumVoice,
     time?: number,
     velocity?: number,
-    source?: 'ostinato' | 'orchestration'
+    source?: DrumLane
   ): void;
   onDrumHit(listener: (event: ScheduledDrumEvent, time: number) => void): () => void;
-  initSynths?(ostinatoNode: any, orchestrationNode: any): void;
   loadSampleBuffer?(voice: DrumVoice, buffer: any): void;
   removeSampleBuffer?(voice: DrumVoice): void;
   hasCustomSample?(voice: DrumVoice): boolean;
   clearAllCustomSamples?(): void;
+  playCustomSample?(
+    buffer: any,
+    time: number,
+    velocity: number,
+    lane: DrumLane,
+    mode?: RigMode
+  ): void;
   dispose?(): void;
 }
 
+function labelNode<T>(node: T, label: string): T {
+  (node as { label?: string }).label = label;
+  return node;
+}
+
+function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumRig {
+  const named = (voice: string) => `rig:${lane}:${mode}:${voice}`;
+
+  const kick = new Tone.MembraneSynth({
+    pitchDecay: 0.05,
+    octaves: 5,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
+  });
+  kick.connect(lineNode as any);
+
+  const snareNoise = new Tone.NoiseSynth({
+    noise: { type: 'white' },
+    envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
+  });
+  snareNoise.connect(lineNode as any);
+
+  const snareMembrane = new Tone.MembraneSynth({
+    pitchDecay: 0.01,
+    octaves: 2,
+    oscillator: { type: 'triangle' },
+    envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
+  });
+  snareMembrane.connect(lineNode as any);
+
+  const tomHigh = new Tone.MembraneSynth({
+    pitchDecay: 0.04,
+    octaves: 4,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.3 },
+  });
+  tomHigh.connect(lineNode as any);
+
+  const tomMid = new Tone.MembraneSynth({
+    pitchDecay: 0.04,
+    octaves: 4,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
+  });
+  tomMid.connect(lineNode as any);
+
+  const tomFloor = new Tone.MembraneSynth({
+    pitchDecay: 0.05,
+    octaves: 4,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.001, decay: 0.45, sustain: 0.01, release: 0.4 },
+  });
+  tomFloor.connect(lineNode as any);
+
+  const crash = new Tone.MetalSynth({
+    envelope: { attack: 0.001, decay: 1.2, release: 0.2 },
+    harmonicity: 5.1,
+    modulationIndex: 32,
+    resonance: 4000,
+    octaves: 1.5,
+  });
+  crash.connect(lineNode as any);
+
+  const ride = new Tone.MetalSynth({
+    envelope: { attack: 0.001, decay: 0.6, release: 0.15 },
+    harmonicity: 4.8,
+    modulationIndex: 28,
+    resonance: 5000,
+    octaves: 1.2,
+  });
+  ride.connect(lineNode as any);
+
+  const hihat = new Tone.MetalSynth({
+    envelope: { attack: 0.001, decay: 0.05, release: 0.02 },
+    harmonicity: 5.2,
+    modulationIndex: 36,
+    resonance: 6000,
+    octaves: 1.5,
+  });
+  hihat.connect(lineNode as any);
+
+  labelNode(kick, named('kick'));
+  labelNode(snareNoise, named('snare'));
+  labelNode(snareMembrane, named('snare'));
+  labelNode(tomHigh, named('tom_high'));
+  labelNode(tomMid, named('tom_mid'));
+  labelNode(tomFloor, named('tom_floor'));
+  labelNode(crash, named('crash'));
+  labelNode(ride, named('ride'));
+  labelNode(hihat, named('hihat'));
+
+  return { kick, snareNoise, snareMembrane, tomHigh, tomMid, tomFloor, crash, ride, hihat };
+}
+
+/**
+ * DrumKitPlayer — the Drum Kit and Sample Manager.
+ *
+ * Owns a rig per Mixing Channel line (one audible, one Audition) plus the stored custom
+ * sample buffers. Scheduled composed events play through the audible line of the channel
+ * their source names; a tap on a voice plays through that channel's Audition node, which
+ * is never silenced. A muted Mixing Channel plays nothing at all: its rig is not even
+ * triggered.
+ */
 export class DrumKitPlayer implements IDrumKitPlayer {
-  private synthTrigger?: SynthTriggerFn;
-  private hitListeners: Set<(event: ScheduledDrumEvent, time: number) => void> = new Set();
-  private ostinatoNode?: any;
-  private orchestrationNode?: any;
+  private mixer: IAudioMixer;
+  private rigs: Map<RigKey, DrumRig> = new Map();
   private customSampleBuffers: Map<DrumVoice, any> = new Map();
+  private hitListeners: Set<(event: ScheduledDrumEvent, time: number) => void> = new Set();
 
-  // Tone.js synths for real audio output
-  private kickSynth?: Tone.MembraneSynth;
-  private snareNoiseSynth?: Tone.NoiseSynth;
-  private snareMembraneSynth?: Tone.MembraneSynth;
-  private tomHighSynth?: Tone.MembraneSynth;
-  private tomMidSynth?: Tone.MembraneSynth;
-  private tomFloorSynth?: Tone.MembraneSynth;
-  private rideSynth?: Tone.MetalSynth;
-  private hihatSynth?: Tone.MetalSynth;
-  private crashSynth?: Tone.MetalSynth;
-
-  constructor(options?: DrumKitPlayerOptions) {
-    if (options?.synthTrigger) {
-      this.synthTrigger = options.synthTrigger;
-    }
-
-    if (options?.ostinatoNode && options?.orchestrationNode) {
-      this.initSynths(options.ostinatoNode, options.orchestrationNode);
-    }
+  constructor(mixer: IAudioMixer) {
+    this.mixer = mixer;
+    // Components read the player right after construction, so the rigs are built eagerly
+    // whenever the Mixer Channel graph is ready.
+    this.initSynths();
   }
 
-  public initSynths(ostinatoNode: any, orchestrationNode: any): void {
-    this.ostinatoNode = ostinatoNode;
-    this.orchestrationNode = orchestrationNode;
+  /**
+   * Builds the channel rigs from the Mixing Channel nodes the AudioMixer owns. Idempotent
+   * and retry-safe: call again after the audio context is unlocked.
+   */
+  public initSynths(): boolean {
+    if (this.rigs.size > 0) return true;
+    if (!this.mixer.isGraphInitialized()) return false;
+
     try {
-      if (typeof Tone === 'undefined') return;
-
-      // Orchestration synths connected to orchestration channel
-      this.kickSynth = new Tone.MembraneSynth({
-        pitchDecay: 0.05,
-        octaves: 5,
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
-      });
-      if (orchestrationNode) this.kickSynth.connect(orchestrationNode);
-
-      this.snareNoiseSynth = new Tone.NoiseSynth({
-        noise: { type: 'white' },
-        envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
-      });
-      if (orchestrationNode) this.snareNoiseSynth.connect(orchestrationNode);
-
-      this.snareMembraneSynth = new Tone.MembraneSynth({
-        pitchDecay: 0.01,
-        octaves: 2,
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
-      });
-      if (orchestrationNode) this.snareMembraneSynth.connect(orchestrationNode);
-
-      this.tomHighSynth = new Tone.MembraneSynth({
-        pitchDecay: 0.04,
-        octaves: 4,
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.3 },
-      });
-      if (orchestrationNode) this.tomHighSynth.connect(orchestrationNode);
-
-      this.tomMidSynth = new Tone.MembraneSynth({
-        pitchDecay: 0.04,
-        octaves: 4,
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
-      });
-      if (orchestrationNode) this.tomMidSynth.connect(orchestrationNode);
-
-      this.tomFloorSynth = new Tone.MembraneSynth({
-        pitchDecay: 0.05,
-        octaves: 4,
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 0.45, sustain: 0.01, release: 0.4 },
-      });
-      if (orchestrationNode) this.tomFloorSynth.connect(orchestrationNode);
-
-      this.crashSynth = new Tone.MetalSynth({
-        envelope: { attack: 0.001, decay: 1.2, release: 0.2 },
-        harmonicity: 5.1,
-        modulationIndex: 32,
-        resonance: 4000,
-        octaves: 1.5,
-      });
-      if (orchestrationNode) this.crashSynth.connect(orchestrationNode);
-
-      // Ostinato synths connected to ostinato channel
-      this.rideSynth = new Tone.MetalSynth({
-        envelope: { attack: 0.001, decay: 0.6, release: 0.15 },
-        harmonicity: 4.8,
-        modulationIndex: 28,
-        resonance: 5000,
-        octaves: 1.2,
-      });
-      if (ostinatoNode) this.rideSynth.connect(ostinatoNode);
-
-      this.hihatSynth = new Tone.MetalSynth({
-        envelope: { attack: 0.001, decay: 0.05, release: 0.02 },
-        harmonicity: 5.2,
-        modulationIndex: 36,
-        resonance: 6000,
-        octaves: 1.5,
-      });
-      if (ostinatoNode) this.hihatSynth.connect(ostinatoNode);
+      const rigs = new Map<RigKey, DrumRig>();
+      for (const lane of ['ostinato', 'orchestration'] as DrumLane[]) {
+        for (const mode of ['mix', 'audition'] as RigMode[]) {
+          const lineNode =
+            mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
+          rigs.set(`${lane}:${mode}`, buildRig(lane, mode, lineNode));
+        }
+      }
+      this.rigs = rigs;
+      return true;
     } catch {
-      // In testing environments without AudioContext, synths are safely skipped
+      // Fail closed: a half built kit is disposed so no sound can reach the destination.
+      this.disposeRigs();
+      return false;
     }
   }
 
   public play(event: ScheduledDrumEvent, time: number): void {
+    const lane = event.source;
+    // A muted Mixing Channel produces no sound.
+    if (!this.mixer.isChannelAudible(lane)) return;
+
     const velocity = event.velocity ?? 0.8;
-    this.executeVoiceSound(event.voice, time, velocity, event.source);
+    this.executeVoiceSound(event.voice, time, velocity, lane, 'mix');
     this.notifyHit(event, time);
   }
 
@@ -155,20 +204,23 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     voice: DrumVoice,
     time: number = 0,
     velocity: number = 0.8,
-    source?: 'ostinato' | 'orchestration'
+    source?: DrumLane
   ): void {
     const isOstinatoVoice = voice === 'ride' || voice === 'ride_bell' || voice.startsWith('hihat');
-    const channelSource: 'ostinato' | 'orchestration' = source ?? (isOstinatoVoice ? 'ostinato' : 'orchestration');
+    const lane: DrumLane = source ?? (isOstinatoVoice ? 'ostinato' : 'orchestration');
 
     const event: ScheduledDrumEvent = {
       timeInMeasure: 0,
       voice,
       velocity,
       dynamic: 'normal',
-      source: channelSource,
+      source: lane,
     };
 
-    this.play(event, time);
+    // A manual tap is an Audition tap: it plays through the Audition node of its channel,
+    // which is never silenced.
+    this.executeVoiceSound(voice, time, velocity, lane, 'audition');
+    this.notifyHit(event, time);
   }
 
   public onDrumHit(listener: (event: ScheduledDrumEvent, time: number) => void): () => void {
@@ -198,20 +250,18 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     buffer: any,
     time: number,
     velocity: number,
-    source: 'ostinato' | 'orchestration'
+    lane: DrumLane,
+    mode: RigMode = 'mix'
   ): void {
     try {
-      if (typeof Tone === 'undefined') return;
       const audioTime = time > 0 ? time : Tone.now();
-      const targetNode = source === 'ostinato' ? this.ostinatoNode : this.orchestrationNode;
+      const targetNode =
+        mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
       const bufferSource = new Tone.ToneBufferSource(buffer);
       const gainNode = new Tone.Gain(velocity);
-      bufferSource.connect(gainNode);
-      if (targetNode) {
-        gainNode.connect(targetNode);
-      } else {
-        gainNode.toDestination();
-      }
+      labelNode(gainNode, `sample:${lane}:${mode}`);
+      bufferSource.connect(gainNode as any);
+      gainNode.connect(targetNode as any);
       bufferSource.start(audioTime);
     } catch {
       // Safe isolation
@@ -221,21 +271,29 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   public dispose(): void {
     this.hitListeners.clear();
     this.customSampleBuffers.clear();
-    const synths = [
-      this.kickSynth,
-      this.snareNoiseSynth,
-      this.snareMembraneSynth,
-      this.tomHighSynth,
-      this.tomMidSynth,
-      this.tomFloorSynth,
-      this.rideSynth,
-      this.hihatSynth,
-      this.crashSynth,
-    ];
+    this.disposeRigs();
+  }
+
+  private disposeRigs(): void {
+    const synths: Tone.ToneAudioNode[] = [];
+    this.rigs.forEach((rig) => {
+      synths.push(
+        rig.kick,
+        rig.snareNoise,
+        rig.snareMembrane,
+        rig.tomHigh,
+        rig.tomMid,
+        rig.tomFloor,
+        rig.crash,
+        rig.ride,
+        rig.hihat
+      );
+    });
+    this.rigs.clear();
 
     synths.forEach((synth) => {
       try {
-        synth?.dispose();
+        synth.dispose();
       } catch {
         // Safe disposal
       }
@@ -246,69 +304,66 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     voice: DrumVoice,
     time: number,
     velocity: number,
-    source: 'ostinato' | 'orchestration'
+    lane: DrumLane,
+    mode: RigMode
   ): void {
     const customBuffer = this.customSampleBuffers.get(voice);
     if (customBuffer) {
-      this.playCustomSample(customBuffer, time, velocity, source);
+      this.playCustomSample(customBuffer, time, velocity, lane, mode);
       return;
     }
 
-    // If a custom or mock trigger function is registered, invoke it
-    if (this.synthTrigger) {
-      this.synthTrigger(voice, time, velocity, source);
-      return;
-    }
+    const rig = this.rigs.get(`${lane}:${mode}`);
+    if (!rig) return;
 
-    // Built-in Tone.js synthesis execution
     try {
       const audioTime = time > 0 ? time : Tone.now();
 
       switch (voice) {
         case 'kick':
-          this.kickSynth?.triggerAttackRelease('C1', '8n', audioTime, velocity);
+          rig.kick.triggerAttackRelease('C1', '8n', audioTime, velocity);
           break;
 
         case 'snare':
-          this.snareMembraneSynth?.triggerAttackRelease('D2', '16n', audioTime, velocity * 0.7);
-          this.snareNoiseSynth?.triggerAttackRelease('16n', audioTime, velocity);
+          rig.snareMembrane.triggerAttackRelease('D2', '16n', audioTime, velocity * 0.7);
+          rig.snareNoise.triggerAttackRelease('16n', audioTime, velocity);
           break;
 
         case 'snare_ghost':
-          this.snareNoiseSynth?.triggerAttackRelease('32n', audioTime, velocity * 0.4);
+          rig.snareNoise.triggerAttackRelease('32n', audioTime, velocity * 0.4);
           break;
 
         case 'tom_high':
-          this.tomHighSynth?.triggerAttackRelease('G2', '8n', audioTime, velocity);
+          rig.tomHigh.triggerAttackRelease('G2', '8n', audioTime, velocity);
           break;
 
         case 'tom_mid':
-          this.tomMidSynth?.triggerAttackRelease('D2', '8n', audioTime, velocity);
+          rig.tomMid.triggerAttackRelease('D2', '8n', audioTime, velocity);
           break;
 
         case 'tom_floor':
-          this.tomFloorSynth?.triggerAttackRelease('A1', '8n', audioTime, velocity);
+          rig.tomFloor.triggerAttackRelease('A1', '8n', audioTime, velocity);
           break;
 
         case 'ride':
-          this.rideSynth?.triggerAttackRelease('16n', audioTime, velocity);
+          rig.ride.triggerAttackRelease('16n', audioTime, velocity);
           break;
 
         case 'ride_bell':
-          this.rideSynth?.triggerAttackRelease('32n', audioTime, velocity * 1.1);
+          rig.ride.triggerAttackRelease('32n', audioTime, velocity * 1.1);
           break;
 
         case 'hihat_closed':
         case 'hihat_foot':
-          this.hihatSynth?.triggerAttackRelease('32n', audioTime, velocity);
+          rig.hihat.triggerAttackRelease('32n', audioTime, velocity);
           break;
 
         case 'hihat_open':
-          this.hihatSynth?.triggerAttackRelease('8n', audioTime, velocity);
+          rig.hihat.triggerAttackRelease('8n', audioTime, velocity);
           break;
 
         case 'crash':
-          this.crashSynth?.triggerAttackRelease('4n', audioTime, velocity);
+          rig.crash.triggerAttackRelease('4n', audioTime, velocity);
           break;
 
         default:

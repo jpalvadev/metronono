@@ -4,13 +4,13 @@ import { DawsonOrchestrationSection } from '../DawsonOrchestrationSection';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
 import { AudioMixer } from '../../audio/AudioMixer';
 import { DawsonEngine } from '../../domain/dawson/DawsonEngine';
-import { DrumKitPlayer } from '../../audio/DrumKitPlayer';
+import { IDrumKitPlayer } from '../../audio/DrumKitPlayer';
 
 describe('DawsonOrchestrationSection', () => {
   let scheduler: ToneTransportScheduler;
   let mixer: AudioMixer;
   let engine: DawsonEngine;
-  let player: DrumKitPlayer;
+  let player: IDrumKitPlayer;
   let drumHitCallback: ((event: any) => void) | null = null;
   let mockTriggerVoice: ReturnType<typeof vi.fn>;
 
@@ -18,9 +18,16 @@ describe('DawsonOrchestrationSection', () => {
     mixer = new AudioMixer();
     engine = new DawsonEngine({ mode: 'classic_bop', ostinato: 'jazz_swing' });
     mockTriggerVoice = vi.fn();
-    player = new DrumKitPlayer({
-      synthTrigger: mockTriggerVoice,
-    });
+    player = {
+      initSynths: vi.fn(() => true),
+      play: vi.fn(),
+      triggerVoice: mockTriggerVoice,
+      onDrumHit: vi.fn(() => () => undefined),
+      loadSampleBuffer: vi.fn(),
+      removeSampleBuffer: vi.fn(),
+      hasCustomSample: vi.fn(() => false),
+      clearAllCustomSamples: vi.fn(),
+    };
 
     scheduler = {
       getAudioMixer: () => mixer,

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Tone from 'tone'
 
+import { AudioMixer } from '../../audio/AudioMixer'
 import {
   asFakeNode,
   fakeAudioBuffer,
@@ -161,5 +162,34 @@ describe('recording fake Tone harness', () => {
     expect(snapshot.nodes.map((node) => node.kind).sort()).toEqual(
       ['Destination', 'Gain', 'Gain'].sort()
     )
+  })
+
+  it('makes the graph a production mixer builds through the fake observable', () => {
+    const mixer = new AudioMixer()
+    mixer.initToneNodes()
+
+    const master = mixer.getMasterNode()
+    const click = mixer.getChannelNode('click')
+    const orchestration = mixer.getChannelNode('orchestration')
+    if (!master || !click || !orchestration) {
+      throw new Error('mixer did not build its node graph through the registered fake')
+    }
+
+    expect(fakeToneRecorder.routeToDestination(click)).toEqual([
+      asFakeNode(click).id,
+      asFakeNode(master).id,
+      'destination',
+    ])
+    // Three mix nodes and three audition nodes all feed the single Master.
+    expect(fakeToneRecorder.feedsInto(master)).toHaveLength(6)
+    expect(fakeToneRecorder.gainValue(click)).toBe(0.8)
+
+    mixer.setChannelMute('click', true)
+    expect(fakeToneRecorder.gainValue(click)).toBe(0)
+    expect(fakeToneRecorder.lastGainWrite(click)).toMatchObject({ method: 'rampTo', value: 0 })
+    expect(fakeToneRecorder.gainValue(orchestration)).toBe(0.8)
+
+    mixer.setMasterVolume(0.25)
+    expect(fakeToneRecorder.gainValue(master)).toBe(0.25)
   })
 })

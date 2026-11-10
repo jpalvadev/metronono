@@ -2,16 +2,26 @@ import * as Tone from 'tone';
 
 export type MixerChannelId = 'click' | 'ostinato' | 'orchestration';
 
+// The three Mixing Channels every click and drum hit belongs to, plus the single Master
+// they all feed. See docs/adr/0005.
+export const MIXING_CHANNELS: MixerChannelId[] = ['click', 'ostinato', 'orchestration'];
+
 export interface ChannelState {
   volume: number; // 0.0 to 1.0
   muted: boolean;
+}
+
+// The single place loudness is set for everything the app plays. The Master has no mute
+// control: a silent Master is simply a Master at 0.
+export interface MasterState {
+  volume: number; // 0.0 to 1.0
 }
 
 export interface AudioMixerState {
   click: ChannelState;
   ostinato: ChannelState;
   orchestration: ChannelState;
-  master: ChannelState;
+  master: MasterState;
 }
 
 export interface IGainNodeLike {
@@ -21,31 +31,58 @@ export interface IGainNodeLike {
   };
   connect?(destination: any): any;
   toDestination?(): any;
+  disconnect?(): any;
   dispose?(): void;
 }
 
 export interface AudioMixerOptions {
-  channelNodes?: Partial<Record<MixerChannelId, IGainNodeLike>>;
-  masterNode?: IGainNodeLike;
-  initialState?: Partial<Record<MixerChannelId, Partial<ChannelState>>>;
+  initialState?: Partial<Record<MixerChannelId, Partial<ChannelState>>> & {
+    master?: Partial<MasterState>;
+  };
 }
 
 export interface IAudioMixer {
+  initToneNodes(): boolean;
+  isGraphInitialized(): boolean;
   getChannelVolume(channel: MixerChannelId): number;
   setChannelVolume(channel: MixerChannelId, volume: number): void;
   isChannelMuted(channel: MixerChannelId): boolean;
   setChannelMute(channel: MixerChannelId, muted: boolean): void;
   toggleChannelMute(channel: MixerChannelId): boolean;
+  // Volume a scheduled click or drum hit is actually heard at on this channel.
   getEffectiveVolume(channel: MixerChannelId): number;
+  isChannelAudible(channel: MixerChannelId): boolean;
   getMasterVolume(): number;
   setMasterVolume(volume: number): void;
   getState(): AudioMixerState;
   onStateChange(listener: (state: AudioMixerState) => void): () => void;
-  getChannelNode?(channel: MixerChannelId): IGainNodeLike | undefined;
-  getMasterNode?(): IGainNodeLike | undefined;
+  // Throws when the graph has not been built: there is no second route to the destination.
+  getChannelNode(channel: MixerChannelId): IGainNodeLike;
+  getAuditionNode(channel: MixerChannelId): IGainNodeLike;
+  getMasterNode(): IGainNodeLike;
   dispose?(): void;
 }
 
+interface ChannelNodes {
+  main: IGainNodeLike;
+  audition: IGainNodeLike;
+}
+
+function clampVolume(volume: number): number {
+  return Math.max(0, Math.min(1, volume));
+}
+
+function labelNode<T extends IGainNodeLike>(node: T, label: string): T {
+  (node as { label?: string }).label = label;
+  return node;
+}
+
+/**
+ * AudioMixer — owns the audio graph: the three Mixing Channel gain nodes, the Audition
+ * node each Mixing Channel feeds it shares, and the single Master gain node that is the
+ * only connection to the audio destination. Mutes and volumes are written on the node
+ * the Mixing Channel itself owns.
+ */
 export class AudioMixer implements IAudioMixer {
   private channels: Record<MixerChannelId, ChannelState> = {
     click: { volume: 0.8, muted: false },
@@ -53,65 +90,80 @@ export class AudioMixer implements IAudioMixer {
     orchestration: { volume: 0.8, muted: false },
   };
 
-  private master: ChannelState = {
-    volume: 0.8,
-    muted: false,
-  };
+  private master: MasterState = { volume: 0.8 };
 
-  private channelNodes: Partial<Record<MixerChannelId, IGainNodeLike>> = {};
+  private channelNodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
   private masterNode?: IGainNodeLike;
   private listeners: Set<(state: AudioMixerState) => void> = new Set();
 
   constructor(options?: AudioMixerOptions) {
     if (options?.initialState) {
-      for (const key of Object.keys(options.initialState) as MixerChannelId[]) {
-        const item = options.initialState[key];
-        if (item) {
-          if (typeof item.volume === 'number') {
-            this.channels[key].volume = Math.max(0, Math.min(1, item.volume));
+      for (const channel of MIXING_CHANNELS) {
+        const initial = options.initialState[channel];
+        if (initial) {
+          if (typeof initial.volume === 'number') {
+            this.channels[channel].volume = clampVolume(initial.volume);
           }
-          if (typeof item.muted === 'boolean') {
-            this.channels[key].muted = item.muted;
+          if (typeof initial.muted === 'boolean') {
+            this.channels[channel].muted = initial.muted;
           }
         }
       }
-    }
-
-    if (options?.channelNodes) {
-      this.channelNodes = { ...options.channelNodes };
-    }
-
-    if (options?.masterNode) {
-      this.masterNode = options.masterNode;
+      if (options.initialState.master && typeof options.initialState.master.volume === 'number') {
+        this.master.volume = clampVolume(options.initialState.master.volume);
+      }
     }
   }
 
-  public initToneNodes(masterDestinationNode?: any): void {
-    try {
-      if (!this.masterNode && typeof Tone !== 'undefined' && Tone.Gain) {
-        const masterGain = new Tone.Gain(this.master.volume);
-        if (masterDestinationNode) {
-          masterGain.connect(masterDestinationNode);
-        } else {
-          masterGain.toDestination();
-        }
-        this.masterNode = masterGain as unknown as IGainNodeLike;
-      }
+  /**
+   * Builds the Master node and the Mixing Channel / Audition nodes it feeds. Eagerly
+   * called by the scheduler, idempotent, and retry-safe: a browser that refuses to build
+   * nodes before its audio context is unlocked can simply call again. Returns false when
+   * the audio context is unavailable, in which case nothing reaches the destination.
+   */
+  public initToneNodes(): boolean {
+    if (this.masterNode) return true;
 
-      const channelKeys: MixerChannelId[] = ['click', 'ostinato', 'orchestration'];
-      for (const ch of channelKeys) {
-        if (!this.channelNodes[ch] && typeof Tone !== 'undefined' && Tone.Gain) {
-          const effectiveVol = this.channels[ch].muted ? 0 : this.channels[ch].volume;
-          const gain = new Tone.Gain(effectiveVol);
-          if (this.masterNode && (gain as any).connect) {
-            (gain as any).connect(this.masterNode);
-          }
-          this.channelNodes[ch] = gain as unknown as IGainNodeLike;
+    try {
+      const masterGain = new Tone.Gain(this.master.volume);
+      masterGain.toDestination();
+      this.masterNode = labelNode(masterGain as unknown as IGainNodeLike, 'mixer:master');
+
+      const nodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
+      for (const channel of MIXING_CHANNELS) {
+        const mainGain = new Tone.Gain(this.getEffectiveVolume(channel));
+        mainGain.connect(this.masterNode as unknown as Tone.ToneAudioNode);
+
+        // The Audition node is never silenced: it holds the channel volume so a tap on a
+        // muted channel is still heard at that channel's volume.
+        const auditionGain = new Tone.Gain(this.channels[channel].volume);
+        auditionGain.connect(this.masterNode as unknown as Tone.ToneAudioNode);
+
+        nodes[channel] = {
+          main: labelNode(mainGain as unknown as IGainNodeLike, `mixer:${channel}`),
+          audition: labelNode(auditionGain as unknown as IGainNodeLike, `audition:${channel}`),
+        };
+      }
+      this.channelNodes = nodes;
+      return true;
+    } catch {
+      // Fail closed: a half built graph is torn down so no sound can reach the destination.
+      for (const channel of MIXING_CHANNELS) {
+        const nodes = this.channelNodes[channel];
+        if (nodes) {
+          nodes.main.disconnect?.();
+          nodes.audition.disconnect?.();
         }
       }
-    } catch {
-      // In environments without Web Audio API, nodes remain uninitialized
+      this.channelNodes = {};
+      this.masterNode?.disconnect?.();
+      this.masterNode = undefined;
+      return false;
     }
+  }
+
+  public isGraphInitialized(): boolean {
+    return this.masterNode !== undefined;
   }
 
   public getChannelVolume(channel: MixerChannelId): number {
@@ -119,9 +171,8 @@ export class AudioMixer implements IAudioMixer {
   }
 
   public setChannelVolume(channel: MixerChannelId, volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume));
-    this.channels[channel].volume = clamped;
-    this.updateChannelNode(channel);
+    this.channels[channel].volume = clampVolume(volume);
+    this.updateChannelNodes(channel);
     this.notifyState();
   }
 
@@ -131,7 +182,7 @@ export class AudioMixer implements IAudioMixer {
 
   public setChannelMute(channel: MixerChannelId, muted: boolean): void {
     this.channels[channel].muted = muted;
-    this.updateChannelNode(channel);
+    this.updateChannelNodes(channel);
     this.notifyState();
   }
 
@@ -145,18 +196,22 @@ export class AudioMixer implements IAudioMixer {
     return this.channels[channel].muted ? 0.0 : this.channels[channel].volume;
   }
 
+  public isChannelAudible(channel: MixerChannelId): boolean {
+    return !this.channels[channel].muted;
+  }
+
   public getMasterVolume(): number {
     return this.master.volume;
   }
 
   public setMasterVolume(volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume));
-    this.master.volume = clamped;
-    if (this.masterNode?.gain) {
-      if (this.masterNode.gain.rampTo) {
-        this.masterNode.gain.rampTo(clamped, 0.02);
+    this.master.volume = clampVolume(volume);
+    const masterNode = this.masterNode;
+    if (masterNode?.gain) {
+      if (masterNode.gain.rampTo) {
+        masterNode.gain.rampTo(this.master.volume, 0.02);
       } else {
-        this.masterNode.gain.value = clamped;
+        masterNode.gain.value = this.master.volume;
       }
     }
     this.notifyState();
@@ -178,41 +233,67 @@ export class AudioMixer implements IAudioMixer {
     };
   }
 
-  public getChannelNode(channel: MixerChannelId): IGainNodeLike | undefined {
-    return this.channelNodes[channel];
+  public getChannelNode(channel: MixerChannelId): IGainNodeLike {
+    const nodes = this.channelNodes[channel];
+    if (!nodes) {
+      throw new Error(
+        `AudioMixer: Mixing Channel '${channel}' has no node. Call initToneNodes() first.`
+      );
+    }
+    return nodes.main;
   }
 
-  public getMasterNode(): IGainNodeLike | undefined {
+  public getAuditionNode(channel: MixerChannelId): IGainNodeLike {
+    const nodes = this.channelNodes[channel];
+    if (!nodes) {
+      throw new Error(
+        `AudioMixer: Audition node for '${channel}' is unavailable. Call initToneNodes() first.`
+      );
+    }
+    return nodes.audition;
+  }
+
+  public getMasterNode(): IGainNodeLike {
+    if (!this.masterNode) {
+      throw new Error('AudioMixer: Master node is unavailable. Call initToneNodes() first.');
+    }
     return this.masterNode;
   }
 
   public dispose(): void {
     this.listeners.clear();
-    for (const key of Object.keys(this.channelNodes) as MixerChannelId[]) {
-      const node = this.channelNodes[key];
-      if (node && typeof node.dispose === 'function') {
-        node.dispose();
+    for (const channel of MIXING_CHANNELS) {
+      const nodes = this.channelNodes[channel];
+      if (nodes) {
+        nodes.main.dispose?.();
+        nodes.audition.dispose?.();
       }
     }
-    if (this.masterNode && typeof this.masterNode.dispose === 'function') {
-      this.masterNode.dispose();
-    }
+    this.channelNodes = {};
+    this.masterNode?.dispose?.();
+    this.masterNode = undefined;
   }
 
-  private updateChannelNode(channel: MixerChannelId): void {
-    const node = this.channelNodes[channel];
-    if (!node || !node.gain) return;
+  private updateChannelNodes(channel: MixerChannelId): void {
+    const nodes = this.channelNodes[channel];
+    if (!nodes) return;
 
-    const targetGain = this.channels[channel].muted ? 0.0 : this.channels[channel].volume;
-    if (node.gain.rampTo) {
-      node.gain.rampTo(targetGain, 0.02);
-    } else {
-      node.gain.value = targetGain;
-    }
+    // Silence is written on the channel's own node, never shared with the Audition node.
+    applyGain(nodes.main.gain, this.getEffectiveVolume(channel));
+    // The line volume the slider sets is held even while the channel is muted.
+    applyGain(nodes.audition.gain, this.channels[channel].volume);
   }
 
   private notifyState(): void {
     const state = this.getState();
     this.listeners.forEach((listener) => listener(state));
+  }
+}
+
+function applyGain(gain: IGainNodeLike['gain'], value: number): void {
+  if (gain.rampTo) {
+    gain.rampTo(value, 0.02);
+  } else {
+    gain.value = value;
   }
 }

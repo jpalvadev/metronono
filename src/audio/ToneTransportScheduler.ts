@@ -11,7 +11,6 @@ import {
 import {
   IAudioClockTransport,
   IClickPlayer,
-  IMasterVolumeControl,
   DrawSyncFn,
   ToneSchedulerOptions,
   IAudioMixer,
@@ -24,27 +23,11 @@ import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
 import { BackgroundAudioService } from './BackgroundAudioService';
 
-export class ToneMasterVolume implements IMasterVolumeControl {
-  private gainNode: Tone.Gain;
-  private currentVolume: number = 0.8;
-
-  constructor() {
-    this.gainNode = new Tone.Gain(this.currentVolume).toDestination();
-  }
-
-  public getNode(): Tone.Gain {
-    return this.gainNode;
-  }
-
-  public setVolume(volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume));
-    this.currentVolume = clamped;
-    this.gainNode.gain.rampTo(clamped, 0.02);
-  }
-
-  public getVolume(): number {
-    return this.currentVolume;
-  }
+// Names every node of the audio graph carries, so a test can follow a sound from the voice
+// that made it to the audio destination through its Mixing Channel and the Master.
+function labelNode<T>(node: T, label: string): T {
+  (node as { label?: string }).label = label;
+  return node;
 }
 
 export class ToneClickPlayer implements IClickPlayer {
@@ -63,20 +46,29 @@ export class ToneClickPlayer implements IClickPlayer {
       subdivision: { pitch: 'C5', volume: 0.5 },
     };
 
-    this.downbeatSynth = new Tone.Synth({
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.02 },
-    }).connect(outputNode);
+    this.downbeatSynth = labelNode(
+      new Tone.Synth({
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.02 },
+      }),
+      'click:downbeat'
+    ).connect(outputNode) as unknown as Tone.Synth;
 
-    this.regularSynth = new Tone.Synth({
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.02 },
-    }).connect(outputNode);
+    this.regularSynth = labelNode(
+      new Tone.Synth({
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.02 },
+      }),
+      'click:regular'
+    ).connect(outputNode) as unknown as Tone.Synth;
 
-    this.subdivisionSynth = new Tone.Synth({
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 },
-    }).connect(outputNode);
+    this.subdivisionSynth = labelNode(
+      new Tone.Synth({
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 },
+      }),
+      'click:subdivision'
+    ).connect(outputNode) as unknown as Tone.Synth;
   }
 
   public setClickConfig(config: Partial<MetronomeClickConfig>): void {
@@ -107,12 +99,10 @@ export class ToneClickPlayer implements IClickPlayer {
     try {
       const audioTime = time > 0 ? time : Tone.now();
       const bufferSource = new Tone.ToneBufferSource(buffer);
-      const gainNode = new Tone.Gain(velocity);
+      const gainNode = labelNode(new Tone.Gain(velocity), 'click-sample-gain');
       bufferSource.connect(gainNode);
       if (this.outputNode) {
         gainNode.connect(this.outputNode);
-      } else {
-        gainNode.toDestination();
       }
       bufferSource.start(audioTime);
     } catch {
@@ -161,14 +151,23 @@ export class ToneClickPlayer implements IClickPlayer {
   }
 }
 
+/**
+ * ToneTransportScheduler — owns the whole audio graph.
+ *
+ * The AudioMixer (the three Mixing Channels and the single Master they feed), the click voice
+ * wired onto the Click Mixing Channel node and the Drum Kit Player rigs wired onto the Ostinato
+ * and Orchestration Mixing Channel nodes are all built here, eagerly, and only reach the audio
+ * destination through the Master. Loudness lives on the Mixer Master alone: there is no second
+ * volume stage anywhere in the app.
+ */
 export class ToneTransportScheduler {
   private engine: MetronomeEngine;
   private transport?: IAudioClockTransport;
   private clickPlayer?: IClickPlayer;
-  private volumeControl?: IMasterVolumeControl;
+  private injectedClickPlayer: boolean;
   private drawSync?: DrawSyncFn;
-  private audioMixer?: IAudioMixer;
-  private drumKitPlayer?: IDrumKitPlayer;
+  private audioMixer: IAudioMixer;
+  private drumKitPlayer: IDrumKitPlayer;
   private dawsonEngine?: DawsonEngine;
   private readingLine: ReadingLine | null = null;
   private scheduledEventId: number | null = null;
@@ -186,12 +185,13 @@ export class ToneTransportScheduler {
     this.engine = options?.engine ?? new MetronomeEngine();
     this.transport = options?.transport;
     this.clickPlayer = options?.clickPlayer;
-    this.volumeControl = options?.volumeControl;
+    this.injectedClickPlayer = options?.clickPlayer !== undefined;
     this.drawSync = options?.drawSync;
-    this.audioMixer = options?.audioMixer;
-    this.drumKitPlayer = options?.drumKitPlayer;
+    this.audioMixer = options?.audioMixer ?? new AudioMixer();
     this.dawsonEngine = options?.dawsonEngine;
     this.readingLine = options?.readingLine ?? null;
+    // The Drum Kit Player plays on the Mixing Channel nodes the Mixer owns, so it is built from it.
+    this.drumKitPlayer = options?.drumKitPlayer ?? new DrumKitPlayer(this.audioMixer);
 
     if (options?.backgroundAudioService) {
       this.setBackgroundAudioService(options.backgroundAudioService);
@@ -199,52 +199,56 @@ export class ToneTransportScheduler {
       this.setBackgroundAudioService(new BackgroundAudioService());
     }
 
+    // Components read the Mixer and the Drum Kit Player as soon as they mount, so the graph is
+    // built at construction instead of on the first play.
+    this.buildAudioGraph();
+
     if (options?.storageManager) {
       this.setStorageManager(options.storageManager);
     }
   }
 
+  /**
+   * Builds the Master, the Mixing Channel nodes and every voice wired onto them. Idempotent and
+   * retry-safe: an audio context that could not build nodes yet can build them on the next call.
+   * Returns false when the graph is unavailable, in which case nothing plays.
+   */
+  private buildAudioGraph(): boolean {
+    if (!this.audioMixer.isGraphInitialized?.()) {
+      if (!this.audioMixer.initToneNodes()) return false;
+    }
+
+    if (!this.injectedClickPlayer && !this.clickPlayer) {
+      try {
+        this.clickPlayer = new ToneClickPlayer(
+          this.audioMixer.getChannelNode('click') as unknown as Tone.ToneAudioNode,
+          this.engine.getClickConfig()
+        );
+      } catch {
+        // Fail closed: without the Click Mixing Channel node the click voice stays silent.
+        return false;
+      }
+    }
+
+    if (this.drumKitPlayer.initSynths) {
+      this.drumKitPlayer.initSynths();
+    }
+
+    return this.audioMixer.isGraphInitialized?.() ?? false;
+  }
+
+  public isAudioGraphReady(): boolean {
+    return this.audioMixer.isGraphInitialized?.() ?? false;
+  }
+
+  // Lazy acquisition of the Tone transport and audio clock (retryable)
   private async ensureInitialized(): Promise<{
     transport: IAudioClockTransport;
-    clickPlayer: IClickPlayer;
-    volumeControl: IMasterVolumeControl;
+    clickPlayer?: IClickPlayer;
     drawSync: DrawSyncFn;
   }> {
-    if (!this.volumeControl) {
-      this.volumeControl = new ToneMasterVolume();
-    }
-
-    if (!this.audioMixer) {
-      this.audioMixer = new AudioMixer();
-      try {
-        const outputNode = (this.volumeControl as ToneMasterVolume).getNode();
-        (this.audioMixer as AudioMixer).initToneNodes(outputNode);
-      } catch {
-        // Safe initialization without Web Audio
-      }
-    }
-
-    if (!this.clickPlayer) {
-      const clickNode =
-        this.audioMixer?.getChannelNode?.('click') ??
-        (this.volumeControl as ToneMasterVolume).getNode();
-      this.clickPlayer = new ToneClickPlayer(clickNode as any, this.engine.getClickConfig());
-    }
-
-    if (!this.drumKitPlayer) {
-      this.drumKitPlayer = new DrumKitPlayer();
-      try {
-        const ostNode = this.audioMixer?.getChannelNode?.('ostinato');
-        const orchNode = this.audioMixer?.getChannelNode?.('orchestration');
-        (this.drumKitPlayer as DrumKitPlayer).initSynths(ostNode, orchNode);
-      } catch {
-        // Safe initialization
-      }
-    }
-
-    if (!this.dawsonEngine) {
-      this.dawsonEngine = new DawsonEngine();
-    }
+    // An audio context that was not ready at construction may be ready now.
+    this.buildAudioGraph();
 
     if (!this.transport) {
       await Tone.start();
@@ -263,7 +267,6 @@ export class ToneTransportScheduler {
     return {
       transport: this.transport,
       clickPlayer: this.clickPlayer,
-      volumeControl: this.volumeControl,
       drawSync: this.drawSync,
     };
   }
@@ -299,24 +302,13 @@ export class ToneTransportScheduler {
     }
   }
 
+  // Loudness for everything the app plays: the Mixer Master is the only volume control.
   public getVolume(): number {
-    if (this.audioMixer) {
-      return this.audioMixer.getMasterVolume();
-    }
-    if (this.volumeControl) {
-      return this.volumeControl.getVolume();
-    }
-    return 0.8;
+    return this.audioMixer.getMasterVolume();
   }
 
   public setVolume(volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume));
-    if (this.volumeControl) {
-      this.volumeControl.setVolume(clamped);
-    }
-    if (this.audioMixer) {
-      this.audioMixer.setMasterVolume(clamped);
-    }
+    this.audioMixer.setMasterVolume(volume);
   }
 
   public tap(timestampMs?: number): number | null {
@@ -394,26 +386,24 @@ export class ToneTransportScheduler {
 
   // Audio Mixer Access
   public getAudioMixer(): IAudioMixer {
-    if (!this.audioMixer) {
-      this.audioMixer = new AudioMixer();
-    }
     return this.audioMixer;
   }
 
   public setAudioMixer(mixer: IAudioMixer): void {
     this.audioMixer = mixer;
+    this.buildAudioGraph();
   }
 
   // Drum Kit Player Access
   public getDrumKitPlayer(): IDrumKitPlayer {
-    if (!this.drumKitPlayer) {
-      this.drumKitPlayer = new DrumKitPlayer();
-    }
     return this.drumKitPlayer;
   }
 
   public setDrumKitPlayer(player: IDrumKitPlayer): void {
     this.drumKitPlayer = player;
+    if (player.initSynths) {
+      player.initSynths();
+    }
   }
 
   // Dawson Engine Access
@@ -604,6 +594,29 @@ export class ToneTransportScheduler {
       this.lastDropoutState = false;
       this.dropoutListeners.forEach((listener) => listener(false));
     }
+  }
+
+  public dispose(): void {
+    this.stop();
+
+    if (this.unsubscribeStorage) {
+      this.unsubscribeStorage();
+      this.unsubscribeStorage = undefined;
+    }
+
+    (this.clickPlayer as { dispose?: () => void })?.dispose?.();
+    // The click voice this scheduler built is gone with the graph: a shell that unmounts and
+    // mounts again re-acquires a live one rather than triggering a disposed synth.
+    if (!this.injectedClickPlayer) {
+      this.clickPlayer = undefined;
+    }
+    this.drumKitPlayer?.dispose?.();
+    this.audioMixer?.dispose?.();
+
+    this.beatListeners.clear();
+    this.dropoutListeners.clear();
+    this.playStateListeners.clear();
+    this.drumHitListeners.clear();
   }
 
   private reschedule(): void {

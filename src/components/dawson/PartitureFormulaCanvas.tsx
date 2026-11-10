@@ -25,6 +25,7 @@ export interface PartitureFormulaCanvasProps {
   height?: number;
   readOnly?: boolean;
   className?: string;
+  playheadBeat?: number | null;
 }
 
 export function dynamicToVelocity(dynamic: Dynamic): number {
@@ -62,6 +63,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
   height = 160,
   readOnly = false,
   className,
+  playheadBeat = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<DrumStaffFormulaRenderer>(new DrumStaffFormulaRenderer());
@@ -502,6 +504,17 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       style={{ minHeight: height }}
     >
       <div ref={containerRef} className="w-full flex justify-center" />
+
+      {/* Animated Audition Playhead */}
+      {playheadBeat !== null && playheadBeat !== undefined && layoutRef.current && (
+        <div
+          data-testid="audition-playhead"
+          className="absolute top-0 bottom-0 w-[2px] bg-rose-400 shadow-[0_0_10px_rgba(251,113,133,0.9)] pointer-events-none transition-all duration-75"
+          style={{
+            left: `${layoutRef.current.getXForBeatOffset(playheadBeat, targetBeats)}px`,
+          }}
+        />
+      )}
 
       {/* Visual Snap & Target Guide Overlay */}
       {dragGuide && (

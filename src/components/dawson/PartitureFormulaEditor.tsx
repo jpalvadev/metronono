@@ -12,6 +12,7 @@ export interface PartitureFormulaEditorProps {
   width?: number;
   height?: number;
   readOnly?: boolean;
+  playheadBeat?: number | null;
 }
 
 export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
@@ -22,6 +23,7 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
   width = 560,
   height = 170,
   readOnly = false,
+  playheadBeat = null,
 }) => {
   const [activeTool, setActiveTool] = useState<EntryTool>('note');
   const [selectedDuration, setSelectedDuration] = useState<number>(0.25);
@@ -52,6 +54,7 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
         width={width}
         height={height}
         readOnly={readOnly}
+        playheadBeat={playheadBeat}
       />
     </div>
   );

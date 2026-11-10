@@ -89,6 +89,67 @@ describe('ReadingScoreRenderer', () => {
     expect(paths && paths.length).toBeGreaterThan(0);
   });
 
+  // Helper: every note sits on the single stave line, so a stem points up
+  // exactly when its whole path stays above that line.
+  const stemPathsAboveStaveLine = (svg: Element | null): { tips: number[]; line: number } | null => {
+    if (!svg) return null;
+    const linePaths = svg!.querySelectorAll('g[class="vf-stave"] > path');
+    if (!linePaths.length) return null;
+    const lineNums = (linePaths[0].getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g) ?? [];
+    const line = parseFloat(lineNums[1] ?? '');
+    const tips: number[] = [];
+    for (const stem of svg!.querySelectorAll('g[class="vf-stem"] path')) {
+      const ys = (stem.getAttribute('d') ?? '')
+        .match(/-?\d+(\.\d+)?/g)
+        ?.map(Number)
+        .filter((_: number, i: number) => i % 2 === 1);
+      if (!ys) return null;
+      tips.push(Math.min(...ys));
+    }
+    return { tips, line };
+  };
+
+  it('keeps short-note stems pointing up when beamed', () => {
+    const measure = createTestMeasure(0, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+    const readingLine: ReadingLine = {
+      id: 'test-stems-up',
+      title: 'Beamed Short Notes Point Up',
+      tier: 1,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    renderer.render(container, readingLine, { width: 600 });
+
+    const svg = container.querySelector('svg');
+    const stems = stemPathsAboveStaveLine(svg);
+    expect(stems).not.toBeNull();
+    expect(stems!.tips.length).toBeGreaterThan(0);
+    stems!.tips.forEach((tip) => expect(tip).toBeLessThan(stems!.line - 10));
+  });
+
+  it('keeps every short-note stem pointing up across mixed measures', () => {
+    // Beamed pairs, a sixteenth beat, and a trailing group flushed at measure end.
+    const measures = [
+      createTestMeasure(0, [0.5, 0.5, 1, 0.5, 0.5, 0.5, 0.5, 1]),
+      createTestMeasure(1, [1, 0.25, 0.25, 0.5, 1, 0.5, 0.5]),
+    ];
+    const readingLine: ReadingLine = {
+      id: 'test-stems-up-mixed',
+      title: 'All Short Note Stems Up',
+      tier: 2,
+      measures,
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    renderer.render(container, readingLine, { width: 800 });
+
+    const stems = stemPathsAboveStaveLine(container.querySelector('svg'));
+    expect(stems).not.toBeNull();
+    expect(stems!.tips.length).toBeGreaterThan(0);
+    stems!.tips.forEach((tip) => expect(tip).toBeLessThan(stems!.line - 10));
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

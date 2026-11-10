@@ -8,7 +8,7 @@
 
 - 5 [ x ] config github
 
-- 6 [ ] fix 8 notes stems, its shows up and down, stems always go up
+- 6 [ x ] fix 8 notes stems, its shows up and down, stems always go up (root cause: Beam.generateBeams auto-computes the beam/stem direction from the notes' key line, and b/4 on the one-line stave reads as below-center, so it setStemDirection(DOWN) over the beamed groups' own stems while single short notes stayed up; ReadingScoreRenderer now forces { stemDirection: Stem.UP } at both generateBeams call sites, and the guard tests assert every vf-stem path in the rendered SVG stays above the stave line)
 
 - 7 [ x ] subdivision (gap) clicks are configurable and auditionable but never scheduled: ToneClickPlayer.playSubdivision is only reached from auditionVoice, so a click_subdivision sample can never be heard during playback (root cause: scheduleTicks only ever called play() for the beat click, never playSubdivision. Fixed by scheduling gap clicks on the audio clock: MetronomeEngine's subdivision voice gained a divisions count (1 = no gap clicks, default), ToneTransportScheduler splits each unmuted beat at time + (gap/divisions)*beatDuration through the subdivision voice, and the Click Sounds panel gained a Gap Clicks selector None/2×/3×/4×)
 

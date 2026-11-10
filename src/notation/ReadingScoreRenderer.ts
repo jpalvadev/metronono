@@ -193,13 +193,15 @@ export class ReadingScoreRenderer {
           currentBeamGroup.push(note);
         } else {
           if (currentBeamGroup.length > 1) {
-            beams.push(...Beam.generateBeams(currentBeamGroup));
+            // Force stems up: VexFlow's auto direction reads b/4 as below-center
+            // on a one-line stave and flips beamed groups to stem-down.
+            beams.push(...Beam.generateBeams(currentBeamGroup, { stemDirection: Stem.UP }));
           }
           currentBeamGroup = [];
         }
       }
       if (currentBeamGroup.length > 1) {
-        beams.push(...Beam.generateBeams(currentBeamGroup));
+        beams.push(...Beam.generateBeams(currentBeamGroup, { stemDirection: Stem.UP }));
       }
       beams.forEach((beam) => beam.setContext(context).draw());
 

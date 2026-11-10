@@ -36,6 +36,12 @@ function getTempoMarking(bpm: number): string {
   return 'Prestissimo';
 }
 
+// The subdivision voice splits each beat into equal parts so its clicks land in
+// the gaps between beats; one part is the beat click alone, with no gap clicks.
+function getGapClicksLabel(divisions: number): string {
+  return divisions > 1 ? `Split each beat into ${divisions} parts` : 'None';
+}
+
 export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler }) => {
   const scheduler = useMemo(() => customScheduler ?? new ToneTransportScheduler(), [customScheduler]);
 
@@ -207,6 +213,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
 
   const handleVoiceVolumeChange = (voice: 'downbeat' | 'regular' | 'subdivision', volPercent: number) => {
     scheduler.updateVoiceConfig(voice, { volume: volPercent / 100 });
+    setClickConfigState(scheduler.getClickConfig());
+  };
+
+  const handleGapClicksChange = (divisions: number) => {
+    scheduler.updateVoiceConfig('subdivision', { divisions });
     setClickConfigState(scheduler.getClickConfig());
   };
 
@@ -658,6 +669,35 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   onChange={(v) => handleVoiceVolumeChange('subdivision', v)}
                   ariaLabel="Subdivision volume"
                 />
+              </div>
+            </div>
+
+            {/* Gap Clicks: how many equal parts each beat is clicked into */}
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">
+                Gap clicks: {getGapClicksLabel(clickConfig.subdivision.divisions ?? 1)}
+              </span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((divisions) => {
+                  const isActive = (clickConfig.subdivision.divisions ?? 1) === divisions;
+                  return (
+                    <button
+                      key={divisions}
+                      type="button"
+                      onClick={() => handleGapClicksChange(divisions)}
+                      aria-label={`Gap clicks: ${getGapClicksLabel(divisions)}`}
+                      title={divisions === 1 ? 'Beat clicks only' : 'Click the gaps between beats too'}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-xs font-mono border border-border/40 cursor-pointer select-none transition-all',
+                        isActive
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-muted/40 text-muted-foreground hover:bg-muted'
+                      )}
+                    >
+                      {divisions === 1 ? 'None' : `${divisions}×`}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

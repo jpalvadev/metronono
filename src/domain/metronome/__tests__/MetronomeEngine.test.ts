@@ -175,7 +175,7 @@ describe('MetronomeEngine', () => {
       const config = engine.getClickConfig();
       expect(config.downbeat).toEqual({ pitch: 'A6', volume: 1.0 });
       expect(config.regular).toEqual({ pitch: 'E5', volume: 0.7 });
-      expect(config.subdivision).toEqual({ pitch: 'C5', volume: 0.5 });
+      expect(config.subdivision).toEqual({ pitch: 'C5', volume: 0.5, divisions: 1 });
     });
 
     it('allows updating voice pitch and volume', () => {
@@ -186,7 +186,7 @@ describe('MetronomeEngine', () => {
       const config = engine.getClickConfig();
       expect(config.downbeat).toEqual({ pitch: 'C7', volume: 0.9 });
       expect(config.regular).toEqual({ pitch: 'G5', volume: 0.6 });
-      expect(config.subdivision).toEqual({ pitch: 'D5', volume: 0.4 });
+      expect(config.subdivision).toEqual({ pitch: 'D5', volume: 0.4, divisions: 1 });
     });
 
     it('allows replacing full click config', () => {
@@ -196,6 +196,30 @@ describe('MetronomeEngine', () => {
       expect(engine.getClickConfig().downbeat).toEqual({ pitch: 'B6', volume: 0.8 });
       // Preserves untouched regular
       expect(engine.getClickConfig().regular.pitch).toBe('E5');
+    });
+  });
+
+  describe('Gap Clicks (Subdivision Divisions)', () => {
+    it('splits each beat into a configured number of equal parts', () => {
+      engine.updateVoiceConfig('subdivision', { divisions: 3 });
+      expect(engine.getClickConfig().subdivision).toEqual({ pitch: 'C5', volume: 0.5, divisions: 3 });
+    });
+
+    it('defaults to one part, which means no gap clicks', () => {
+      expect(engine.getClickConfig().subdivision.divisions).toBe(1);
+    });
+
+    it('preserves the division count when only pitch or volume is changed', () => {
+      engine.updateVoiceConfig('subdivision', { divisions: 4 });
+      engine.updateVoiceConfig('subdivision', { pitch: 'D5' });
+      expect(engine.getClickConfig().subdivision).toEqual({ pitch: 'D5', volume: 0.5, divisions: 4 });
+    });
+
+    it('clamps the division count to whole parts between 1 and 8', () => {
+      engine.updateVoiceConfig('subdivision', { divisions: 0 });
+      expect(engine.getClickConfig().subdivision.divisions).toBe(1);
+      engine.updateVoiceConfig('subdivision', { divisions: 20.6 });
+      expect(engine.getClickConfig().subdivision.divisions).toBe(8);
     });
   });
 

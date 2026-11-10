@@ -2,6 +2,7 @@ import {
   BeatEvent,
   TimeSignature,
   ClickVoiceConfig,
+  SubdivisionVoiceConfig,
   MetronomeClickConfig,
   TempoRampConfig,
   DropoutConfig,
@@ -28,7 +29,14 @@ export interface IClickPlayer {
   playSubdivision?(time: number, velocity?: number, pitch?: string): void;
   // Preview one click voice through the Audition node the Click Channel shares.
   audition?(voice: 'downbeat' | 'regular' | 'subdivision', time?: number, velocity?: number): void;
-  setClickConfig?(config: Partial<MetronomeClickConfig>): void;
+  // Voice-level partials: a caller can retune one voice, or one field of it.
+  setClickConfig?(
+    config: {
+      downbeat?: Partial<ClickVoiceConfig>;
+      regular?: Partial<ClickVoiceConfig>;
+      subdivision?: Partial<SubdivisionVoiceConfig>;
+    }
+  ): void;
   loadSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void;
   removeSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision'): void;
   hasCustomSample?(voice: 'downbeat' | 'regular' | 'subdivision'): boolean;
@@ -54,6 +62,7 @@ export type {
   BeatEvent,
   TimeSignature,
   ClickVoiceConfig,
+  SubdivisionVoiceConfig,
   MetronomeClickConfig,
   TempoRampConfig,
   DropoutConfig,

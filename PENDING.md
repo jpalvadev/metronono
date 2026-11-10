@@ -10,6 +10,8 @@
 
 - 6 [ ] fix 8 notes stems, its shows up and down, stems always go up
 
-- 7 [ ] subdivision (gap) clicks are configurable and auditionable but never scheduled: ToneClickPlayer.playSubdivision is only reached from auditionVoice, so a click_subdivision sample can never be heard during playback
+- 7 [ x ] subdivision (gap) clicks are configurable and auditionable but never scheduled: ToneClickPlayer.playSubdivision is only reached from auditionVoice, so a click_subdivision sample can never be heard during playback (root cause: scheduleTicks only ever called play() for the beat click, never playSubdivision. Fixed by scheduling gap clicks on the audio clock: MetronomeEngine's subdivision voice gained a divisions count (1 = no gap clicks, default), ToneTransportScheduler splits each unmuted beat at time + (gap/divisions)*beatDuration through the subdivision voice, and the Click Sounds panel gained a Gap Clicks selector None/2×/3×/4×)
 
 - 8 [ ] mixer state (mixing channel volumes, mutes, and the practice preset) should persist across sessions; StorageAdapter stores only scores, systems and samples today
+
+- 9 [ ] the components are arrenged badly. The metronome should live inside the main container, as a module

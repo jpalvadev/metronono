@@ -4,6 +4,7 @@ import {
   BeatEvent,
   TimeSignature,
   ClickVoiceConfig,
+  SubdivisionVoiceConfig,
   MetronomeClickConfig,
   TempoRampConfig,
   DropoutConfig,
@@ -52,7 +53,7 @@ export class ToneClickPlayer implements IClickPlayer {
     this.clickConfig = initialConfig ?? {
       downbeat: { pitch: 'A6', volume: 1.0 },
       regular: { pitch: 'E5', volume: 0.7 },
-      subdivision: { pitch: 'C5', volume: 0.5 },
+      subdivision: { pitch: 'C5', volume: 0.5, divisions: 1 },
     };
 
     this.mixVoices = {
@@ -387,7 +388,11 @@ export class ToneTransportScheduler {
     return this.engine.getClickConfig();
   }
 
-  public setClickConfig(config: Partial<MetronomeClickConfig>): void {
+  public setClickConfig(config: {
+    downbeat?: Partial<ClickVoiceConfig>;
+    regular?: Partial<ClickVoiceConfig>;
+    subdivision?: Partial<SubdivisionVoiceConfig>;
+  }): void {
     this.engine.setClickConfig(config);
     if (this.clickPlayer?.setClickConfig) {
       this.clickPlayer.setClickConfig(config);
@@ -396,7 +401,7 @@ export class ToneTransportScheduler {
 
   public updateVoiceConfig(
     type: 'downbeat' | 'regular' | 'subdivision',
-    config: Partial<ClickVoiceConfig>
+    config: Partial<ClickVoiceConfig & SubdivisionVoiceConfig>
   ): void {
     this.engine.updateVoiceConfig(type, config);
     if (this.clickPlayer?.setClickConfig) {
@@ -718,12 +723,30 @@ export class ToneTransportScheduler {
         this.transport.bpm.value = beatEvent.bpm;
       }
 
+      // A beat's length at the tempo this beat arrived at, shared by the gap clicks
+      // and the drum events so both land on the same audio-clock instant.
+      const beatDuration = 60 / beatEvent.bpm;
+
       // Audio click gating: silenced if beat is muted by mask or in dropout mode!
       if (this.clickPlayer && !beatEvent.isMuted) {
+        const clickConfig = this.engine.getClickConfig();
         const voiceConfig = beatEvent.isDownbeat
-          ? this.engine.getClickConfig().downbeat
-          : this.engine.getClickConfig().regular;
+          ? clickConfig.downbeat
+          : clickConfig.regular;
         this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume, voiceConfig.pitch);
+
+        // Gap clicks: the subdivision voice heard at the even fractions of the beat,
+        // splitting it into parts. One part means the beat click alone.
+        const divisions = Math.max(1, Math.floor(clickConfig.subdivision.divisions ?? 1));
+        if (this.clickPlayer.playSubdivision && divisions > 1) {
+          for (let gap = 1; gap < divisions; gap++) {
+            this.clickPlayer.playSubdivision(
+              time + (gap / divisions) * beatDuration,
+              clickConfig.subdivision.volume,
+              clickConfig.subdivision.pitch
+            );
+          }
+        }
       }
 
       // Dawson Drum Kit Orchestration & Ostinato Playback
@@ -735,7 +758,6 @@ export class ToneTransportScheduler {
           const beatEvents = measureEvents.filter(
             (e) => e.timeInMeasure >= b && e.timeInMeasure < b + 1.0
           );
-          const beatDuration = 60 / beatEvent.bpm;
 
           for (const drumEvent of beatEvents) {
             const subOffset = drumEvent.timeInMeasure - b;

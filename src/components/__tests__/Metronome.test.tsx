@@ -17,7 +17,7 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
       let clickConfig = {
         downbeat: { pitch: 'A6', volume: 1.0 },
         regular: { pitch: 'E5', volume: 0.7 },
-        subdivision: { pitch: 'C5', volume: 0.5 },
+        subdivision: { pitch: 'C5', volume: 0.5, divisions: 1 },
       };
       const beatListeners: Array<(event: any) => void> = [];
       const dropoutListeners: Array<(isDropout: boolean) => void> = [];
@@ -273,7 +273,7 @@ describe('Metronome Component', () => {
     });
   });
 
-  describe('Accent & Pitch Customization', () => {
+  describe('Accent, Pitch & Gap Click Customization', () => {
     it('allows customizing click pitch and volume', () => {
       render(<Metronome scheduler={mockScheduler} />);
 
@@ -289,6 +289,24 @@ describe('Metronome Component', () => {
         'downbeat',
         expect.objectContaining({ pitch: 'C7' })
       );
+    });
+
+    it('offers gap clicks and splits each beat when requested', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      // Open the Click Sounds panel where the subdivision voice is configured
+      fireEvent.click(screen.getByRole('button', { name: /click sounds/i }));
+
+      // The beat starts undivided: no gap clicks
+      expect(screen.getByText(/Gap Clicks: none/i)).toBeInTheDocument();
+
+      // Split each beat into three, so the gap between beats gets two clicks
+      fireEvent.click(screen.getByRole('button', { name: /gap clicks: split each beat into 3/i }));
+      expect(mockScheduler.updateVoiceConfig).toHaveBeenCalledWith(
+        'subdivision',
+        expect.objectContaining({ divisions: 3 })
+      );
+      expect(screen.getByText(/Gap Clicks: split each beat into 3 parts/i)).toBeInTheDocument();
     });
   });
 });

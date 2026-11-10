@@ -18,10 +18,18 @@ export interface ClickVoiceConfig {
   volume: number;
 }
 
+// The subdivision voice also carries the Gap Clicks count: how many equal parts each
+// beat is split into. One part means only the beat click, so no gap clicks.
+export interface SubdivisionVoiceConfig {
+  pitch: string;
+  volume: number;
+  divisions: number;
+}
+
 export interface MetronomeClickConfig {
   downbeat: ClickVoiceConfig;
   regular: ClickVoiceConfig;
-  subdivision: ClickVoiceConfig;
+  subdivision: SubdivisionVoiceConfig;
 }
 
 export interface TempoRampConfig {
@@ -37,12 +45,28 @@ export interface DropoutConfig {
   seed?: number;
 }
 
+// A whole-number division count within the supported range; anything unusable
+// falls back to one part, which means no gap clicks.
+function clampBeatDivisions(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MetronomeEngine.MIN_BEAT_DIVISIONS;
+  }
+  return Math.max(
+    MetronomeEngine.MIN_BEAT_DIVISIONS,
+    Math.min(MetronomeEngine.MAX_BEAT_DIVISIONS, Math.round(value))
+  );
+}
+
 export class MetronomeEngine {
   public static readonly MIN_BPM = 30;
   public static readonly MAX_BPM = 300;
   public static readonly DEFAULT_BPM = 120;
   public static readonly TAP_TIMEOUT_MS = 2000;
   public static readonly MAX_TAP_SAMPLES = 8;
+  // Gap Clicks: the division count of the subdivision voice. One part is the beat click
+  // alone, so no gap clicks; eight is the widest split a beat is ever clicked into.
+  public static readonly MIN_BEAT_DIVISIONS = 1;
+  public static readonly MAX_BEAT_DIVISIONS = 8;
 
   private tempo: number = MetronomeEngine.DEFAULT_BPM;
   private timeSignature: TimeSignature = { beats: 4, beatUnit: 4 };
@@ -55,7 +79,7 @@ export class MetronomeEngine {
   private clickConfig: MetronomeClickConfig = {
     downbeat: { pitch: 'A6', volume: 1.0 },
     regular: { pitch: 'E5', volume: 0.7 },
-    subdivision: { pitch: 'C5', volume: 0.5 },
+    subdivision: { pitch: 'C5', volume: 0.5, divisions: MetronomeEngine.MIN_BEAT_DIVISIONS },
   };
 
   private rampConfig: TempoRampConfig = {
@@ -144,7 +168,11 @@ export class MetronomeEngine {
     };
   }
 
-  public setClickConfig(config: Partial<MetronomeClickConfig>): void {
+  public setClickConfig(config: {
+    downbeat?: Partial<ClickVoiceConfig>;
+    regular?: Partial<ClickVoiceConfig>;
+    subdivision?: Partial<SubdivisionVoiceConfig>;
+  }): void {
     if (config.downbeat) {
       this.clickConfig.downbeat = { ...this.clickConfig.downbeat, ...config.downbeat };
     }
@@ -152,18 +180,23 @@ export class MetronomeEngine {
       this.clickConfig.regular = { ...this.clickConfig.regular, ...config.regular };
     }
     if (config.subdivision) {
-      this.clickConfig.subdivision = { ...this.clickConfig.subdivision, ...config.subdivision };
+      const subdivision = { ...this.clickConfig.subdivision, ...config.subdivision };
+      subdivision.divisions = clampBeatDivisions(subdivision.divisions);
+      this.clickConfig.subdivision = subdivision;
     }
   }
 
   public updateVoiceConfig(
     type: 'downbeat' | 'regular' | 'subdivision',
-    config: Partial<ClickVoiceConfig>
+    config: Partial<ClickVoiceConfig & SubdivisionVoiceConfig>
   ): void {
-    this.clickConfig[type] = {
-      ...this.clickConfig[type],
-      ...config,
-    };
+    if (type === 'subdivision') {
+      const subdivision = { ...this.clickConfig.subdivision, ...config };
+      subdivision.divisions = clampBeatDivisions(subdivision.divisions);
+      this.clickConfig.subdivision = subdivision;
+    } else {
+      this.clickConfig[type] = { ...this.clickConfig[type], ...config };
+    }
   }
 
   // Tempo Ramp

@@ -15,6 +15,7 @@ describe('ToneTransportScheduler', () => {
 
   let mockClickPlayer: {
     play: ReturnType<typeof vi.fn>;
+    playSubdivision: ReturnType<typeof vi.fn>;
   };
 
   let scheduler: ToneTransportScheduler;
@@ -40,6 +41,7 @@ describe('ToneTransportScheduler', () => {
 
     mockClickPlayer = {
       play: vi.fn(),
+      playSubdivision: vi.fn(),
     };
 
     scheduler = new ToneTransportScheduler({
@@ -296,6 +298,93 @@ describe('ToneTransportScheduler', () => {
         expect.objectContaining({ voice: 'ride', source: 'ostinato', timeInMeasure: 1.667 }),
         expect.closeTo(10.8335, 3)
       );
+    });
+  });
+
+  describe('Gap Click Subdivision Scheduling', () => {
+    // 120 BPM -> 0.5s beats. Gap clicks must land on the audio clock at the
+    // even fractions of each beat, through the subdivision voice.
+    it('plays no gap clicks while the beat is undivided', async () => {
+      await scheduler.start();
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 1.0, 'A6');
+      expect(mockClickPlayer.playSubdivision).not.toHaveBeenCalled();
+    });
+
+    it('clicks the gap at the middle of every beat when split into two', async () => {
+      scheduler.setClickConfig({ subdivision: { divisions: 2 } });
+      await scheduler.start();
+
+      // Beat 0 at 1.0s: gap click at the half-beat 1.25s
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.25, 0.5, 'C5');
+
+      // Beat 1 at 1.5s: gap click at 1.75s
+      mockClickPlayer.playSubdivision.mockClear();
+      scheduledCallback!(1.5);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.75, 0.5, 'C5');
+    });
+
+    it('splits the beat into three evenly spaced gap clicks', async () => {
+      scheduler.setClickConfig({ subdivision: { divisions: 3 } });
+      await scheduler.start();
+
+      // Beat 0 at 1.0s: gap clicks at a third and two thirds of the 0.5s beat
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(
+        expect.closeTo(1.1667, 3),
+        0.5,
+        'C5'
+      );
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(
+        expect.closeTo(1.3333, 3),
+        0.5,
+        'C5'
+      );
+    });
+
+    it('uses the configured subdivision pitch and volume', async () => {
+      scheduler.setClickConfig({
+        subdivision: { pitch: 'F5', volume: 0.35, divisions: 2 },
+      });
+      await scheduler.start();
+
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.25, 0.35, 'F5');
+    });
+
+    it('silences gap clicks of a beat muted by the beat mask', async () => {
+      const beatListener = vi.fn();
+      scheduler.onBeat(beatListener);
+
+      scheduler.setClickConfig({ subdivision: { divisions: 4 } });
+      scheduler.setBeatMask([false, true, true, true]);
+      await scheduler.start();
+
+      // Beat 0 muted: neither the beat click nor its gap clicks are heard...
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.play).not.toHaveBeenCalled();
+      expect(mockClickPlayer.playSubdivision).not.toHaveBeenCalled();
+
+      // ...but the beat still advances the playhead
+      expect(beatListener).toHaveBeenCalledWith(
+        expect.objectContaining({ beatIndex: 0, isMuted: true })
+      );
+    });
+
+    it('keeps gap clicks following the beat through a tempo ramp', async () => {
+      scheduler.setTempoRampConfig({
+        enabled: true,
+        startBpm: 60,
+        targetBpm: 60,
+        durationBars: 4,
+      });
+      scheduler.setClickConfig({ subdivision: { divisions: 2 } });
+      await scheduler.start();
+
+      // 60 BPM -> 1s beats: the gap click of the beat at 1.0s lands at 1.5s
+      scheduledCallback!(1.0);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.5, 0.5, 'C5');
     });
   });
 });

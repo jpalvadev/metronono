@@ -40,6 +40,10 @@ _Avoid_: JS timer, clock ticker
 The sequence of sub-beat strokes and limb assignments (e.g. Foot-Left-Right triplet) applied to a single short or long note trigger.
 _Avoid_: Fill lick, sticking pattern
 
+**Gap Clicks**:
+The subdivision voice's clicks sounding at the even fractions between one beat click and the next, splitting each beat into a chosen number of equal parts; one part means the beat click alone and no gap clicks. Counted in parts, not added clicks: two parts is one click in the gap.
+_Avoid_: Subdivision Formula (the drum-stroke formula this must not be confused with), upbeat, shuffle feel
+
 **Reading View**:
 A minimalist single-line rhythmic score displaying only short and long notes (with rests and ties) used for sight-reading and mental orchestration training.
 _Avoid_: Tab view, practice sheet

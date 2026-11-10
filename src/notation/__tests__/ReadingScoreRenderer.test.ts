@@ -199,4 +199,32 @@ describe('ReadingScoreRenderer', () => {
     expect(layout.systemCount).toBe(8);
     expect(container.querySelector('svg')).toBeTruthy();
   });
+
+  it('draws dividing barlines between measures on the one-line stave', () => {
+    const readingLine: ReadingLine = {
+      id: 'test-barlines',
+      title: 'Barlines Test',
+      tier: 1,
+      measures: [0, 1, 2].map((i) => createTestMeasure(i, [1, 1, 1, 1])),
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    renderer.render(container, readingLine, { width: 800, measuresPerSystem: 3 });
+
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+
+    // Each measure starts with a thin barline (system start + 2 dividers),
+    // plus the final barline pair (thin + thick) at the end of the score.
+    const barlineGroups = svg!.querySelectorAll('g[class="vf-barline"]');
+    expect(barlineGroups).toHaveLength(5);
+
+    // Barlines span a visible height around the single stave line
+    const dividerPath = barlineGroups[1].querySelector('path');
+    expect(dividerPath).toBeTruthy();
+    const yValues = ((dividerPath!.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g) || [])
+      .map(Number)
+      .filter((_, i) => i % 2 === 1);
+    expect(Math.max(...yValues) - Math.min(...yValues)).toBeGreaterThanOrEqual(20);
+  });
 });

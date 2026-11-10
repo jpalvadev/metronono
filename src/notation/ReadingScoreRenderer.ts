@@ -7,9 +7,13 @@ import VexFlow, {
   Beam,
   StaveTie,
   Dot,
-  BarlineType,
   Stem,
 } from 'vexflow';
+
+// On a 1-line stave VexFlow's built-in barlines collapse to a 1px rect (they
+// span first-to-last line), so dividing bars are drawn explicitly instead.
+const BARLINE_HALF_HEIGHT = 14;
+const FINAL_BARLINE_THICKNESS = 3;
 import { Measure, ReadingLine, RhythmicEvent } from '../domain/rhythm/types';
 import {
   ScoreRenderOptions,
@@ -90,6 +94,16 @@ export class ReadingScoreRenderer {
     renderer.resize(width, totalHeight);
     const context = renderer.getContext();
 
+    const drawBarlineAt = (x: number, centerY: number, lineWidth: number): void => {
+      context.openGroup('barline');
+      context.setLineWidth(lineWidth);
+      context.beginPath();
+      context.moveTo(x, centerY - BARLINE_HALF_HEIGHT);
+      context.lineTo(x, centerY + BARLINE_HALF_HEIGHT);
+      context.stroke();
+      context.closeGroup();
+    };
+
     const measureCoordinates: MeasureCoordinate[] = [];
     const measureCoordsMap = new Map<number, MeasureCoordinate>();
 
@@ -112,7 +126,7 @@ export class ReadingScoreRenderer {
       const staveX = paddingLeft + col * measureWidth;
       const staveY = paddingTop + row * staveSpacing;
 
-      const stave = new Stave(staveX, staveY, measureWidth, { numLines: 1 });
+      const stave = new Stave(staveX, staveY, measureWidth, { numLines: 1, leftBar: false, rightBar: false });
 
       if (isFirstInSystem) {
         stave.addClef('percussion');
@@ -125,11 +139,18 @@ export class ReadingScoreRenderer {
         stave.setMeasure(i + 1);
       }
 
-      if (isLastOverall) {
-        stave.setEndBarType(BarlineType.END);
-      }
-
       stave.setContext(context).draw();
+
+      // Dividing bar at the start of every measure (system start or bar line)
+      const staveLineY = stave.getYForLine(0);
+      drawBarlineAt(staveX, staveLineY, 1);
+
+      if (isLastOverall) {
+        // Final barline: thin line followed by a thick one at the score end
+        const staveRightX = staveX + measureWidth;
+        drawBarlineAt(staveRightX - 5, staveLineY, 1);
+        drawBarlineAt(staveRightX - 1, staveLineY, FINAL_BARLINE_THICKNESS);
+      }
 
       // Convert measure events to StaveNotes
       const staveNotes: Array<{ note: StaveNote; event: RhythmicEvent; beatOffset: number }> = [];

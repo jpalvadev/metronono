@@ -26,6 +26,8 @@ export interface IAudioClockTransport {
 export interface IClickPlayer {
   play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void;
   playSubdivision?(time: number, velocity?: number, pitch?: string): void;
+  // Preview one click voice through the Audition node the Click Channel shares.
+  audition?(voice: 'downbeat' | 'regular' | 'subdivision', time?: number, velocity?: number): void;
   setClickConfig?(config: Partial<MetronomeClickConfig>): void;
   loadSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void;
   removeSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision'): void;

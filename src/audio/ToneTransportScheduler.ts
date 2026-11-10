@@ -30,45 +30,65 @@ function labelNode<T>(node: T, label: string): T {
   return node;
 }
 
-export class ToneClickPlayer implements IClickPlayer {
-  private downbeatSynth: Tone.Synth;
-  private regularSynth: Tone.Synth;
-  private subdivisionSynth: Tone.Synth;
-  private clickConfig: MetronomeClickConfig;
-  private outputNode?: Tone.ToneAudioNode;
-  private customBuffers: Map<'downbeat' | 'regular' | 'subdivision', any> = new Map();
+type ClickVoiceKey = 'downbeat' | 'regular' | 'subdivision';
 
-  constructor(outputNode: Tone.ToneAudioNode, initialConfig?: MetronomeClickConfig) {
+export class ToneClickPlayer implements IClickPlayer {
+  private mixVoices: Record<ClickVoiceKey, Tone.Synth>;
+  private auditionVoices: Record<ClickVoiceKey, Tone.Synth>;
+  private clickConfig: MetronomeClickConfig;
+  // The Click Mixing Channel node every scheduled click is heard through, and the Audition
+  // node Click shares, which a preview tap is heard through instead.
+  private outputNode?: Tone.ToneAudioNode;
+  private auditionNode?: Tone.ToneAudioNode;
+  private customBuffers: Map<ClickVoiceKey, any> = new Map();
+
+  constructor(
+    outputNode: Tone.ToneAudioNode,
+    auditionNode: Tone.ToneAudioNode,
+    initialConfig?: MetronomeClickConfig
+  ) {
     this.outputNode = outputNode;
+    this.auditionNode = auditionNode;
     this.clickConfig = initialConfig ?? {
       downbeat: { pitch: 'A6', volume: 1.0 },
       regular: { pitch: 'E5', volume: 0.7 },
       subdivision: { pitch: 'C5', volume: 0.5 },
     };
 
-    this.downbeatSynth = labelNode(
-      new Tone.Synth({
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.02 },
-      }),
-      'click:downbeat'
-    ).connect(outputNode) as unknown as Tone.Synth;
+    this.mixVoices = {
+      downbeat: this.buildVoice('downbeat', outputNode, 'click:downbeat'),
+      regular: this.buildVoice('regular', outputNode, 'click:regular'),
+      subdivision: this.buildVoice('subdivision', outputNode, 'click:subdivision'),
+    };
 
-    this.regularSynth = labelNode(
-      new Tone.Synth({
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.02 },
-      }),
-      'click:regular'
-    ).connect(outputNode) as unknown as Tone.Synth;
+    // A second, identical set wired onto the Audition node: previewing a voice on a muted
+    // Click Channel is still heard, at the volume the Click slider holds.
+    this.auditionVoices = {
+      downbeat: this.buildVoice('downbeat', auditionNode, 'click:audition:downbeat'),
+      regular: this.buildVoice('regular', auditionNode, 'click:audition:regular'),
+      subdivision: this.buildVoice('subdivision', auditionNode, 'click:audition:subdivision'),
+    };
+  }
 
-    this.subdivisionSynth = labelNode(
+  private buildVoice(
+    key: ClickVoiceKey,
+    destination: Tone.ToneAudioNode,
+    label: string
+  ): Tone.Synth {
+    const voice = labelNode(
       new Tone.Synth({
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 },
+        oscillator: { type: key === 'regular' ? 'sine' : 'triangle' },
+        envelope: {
+          attack: 0.001,
+          decay: key === 'downbeat' ? 0.04 : key === 'regular' ? 0.03 : 0.02,
+          sustain: 0,
+          release: key === 'downbeat' ? 0.02 : key === 'regular' ? 0.02 : 0.01,
+        },
       }),
-      'click:subdivision'
-    ).connect(outputNode) as unknown as Tone.Synth;
+      label
+    );
+    voice.connect(destination);
+    return voice as unknown as Tone.Synth;
   }
 
   public setClickConfig(config: Partial<MetronomeClickConfig>): void {
@@ -83,26 +103,35 @@ export class ToneClickPlayer implements IClickPlayer {
     }
   }
 
-  public loadSampleBuffer(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void {
+  public loadSampleBuffer(voice: ClickVoiceKey, buffer: any): void {
     this.customBuffers.set(voice, buffer);
   }
 
-  public removeSampleBuffer(voice: 'downbeat' | 'regular' | 'subdivision'): void {
+  public removeSampleBuffer(voice: ClickVoiceKey): void {
     this.customBuffers.delete(voice);
   }
 
-  public hasCustomSample(voice: 'downbeat' | 'regular' | 'subdivision'): boolean {
+  public hasCustomSample(voice: ClickVoiceKey): boolean {
     return this.customBuffers.has(voice);
   }
 
-  private playCustomSample(buffer: any, time: number, velocity: number): void {
+  private playCustomSample(
+    buffer: any,
+    time: number,
+    velocity: number,
+    mode: 'mix' | 'audition'
+  ): void {
     try {
       const audioTime = time > 0 ? time : Tone.now();
+      const destination = mode === 'audition' ? this.auditionNode : this.outputNode;
       const bufferSource = new Tone.ToneBufferSource(buffer);
-      const gainNode = labelNode(new Tone.Gain(velocity), 'click-sample-gain');
+      const gainNode = labelNode(
+        new Tone.Gain(velocity),
+        mode === 'audition' ? 'click-sample-audition-gain' : 'click-sample-gain'
+      );
       bufferSource.connect(gainNode);
-      if (this.outputNode) {
-        gainNode.connect(this.outputNode);
+      if (destination) {
+        gainNode.connect(destination);
       }
       bufferSource.start(audioTime);
     } catch {
@@ -110,44 +139,56 @@ export class ToneClickPlayer implements IClickPlayer {
     }
   }
 
-  public play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void {
-    const key = isDownbeat ? 'downbeat' : 'regular';
+  private playVoice(key: ClickVoiceKey, time: number, velocity?: number, pitch?: string): void {
     const custom = this.customBuffers.get(key);
     if (custom) {
-      const v = velocity ?? (isDownbeat ? this.clickConfig.downbeat.volume : this.clickConfig.regular.volume);
-      this.playCustomSample(custom, time, v);
+      const v = velocity ?? this.clickConfig[key].volume;
+      this.playCustomSample(custom, time, v, 'mix');
       return;
     }
 
-    if (isDownbeat) {
-      const p = pitch ?? this.clickConfig.downbeat.pitch;
-      const v = velocity ?? this.clickConfig.downbeat.volume;
-      this.downbeatSynth.triggerAttackRelease(p, '32n', time, v);
-    } else {
-      const p = pitch ?? this.clickConfig.regular.pitch;
-      const v = velocity ?? this.clickConfig.regular.volume;
-      this.regularSynth.triggerAttackRelease(p, '32n', time, v);
-    }
+    const voice = this.mixVoices[key];
+    voice.triggerAttackRelease(
+      pitch ?? this.clickConfig[key].pitch,
+      '32n',
+      time,
+      velocity ?? this.clickConfig[key].volume
+    );
+  }
+
+  public play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void {
+    this.playVoice(isDownbeat ? 'downbeat' : 'regular', time, velocity, pitch);
   }
 
   public playSubdivision(time: number, velocity?: number, pitch?: string): void {
-    const custom = this.customBuffers.get('subdivision');
+    this.playVoice('subdivision', time, velocity, pitch);
+  }
+
+  /** A preview tap: heard through the Audition node Click shares, never through its mute. */
+  public audition(voice: ClickVoiceKey, time = 0, velocity = 1.0): void {
+    const custom = this.customBuffers.get(voice);
     if (custom) {
-      const v = velocity ?? this.clickConfig.subdivision.volume;
-      this.playCustomSample(custom, time, v);
+      this.playCustomSample(custom, time, velocity, 'audition');
       return;
     }
 
-    const p = pitch ?? this.clickConfig.subdivision.pitch;
-    const v = velocity ?? this.clickConfig.subdivision.volume;
-    this.subdivisionSynth.triggerAttackRelease(p, '32n', time, v);
+    const auditionVoice = this.auditionVoices[voice];
+    auditionVoice.triggerAttackRelease(
+      this.clickConfig[voice].pitch,
+      '32n',
+      time,
+      velocity * this.clickConfig[voice].volume
+    );
   }
 
   public dispose(): void {
     this.customBuffers.clear();
-    this.downbeatSynth.dispose();
-    this.regularSynth.dispose();
-    this.subdivisionSynth.dispose();
+    for (const voice of Object.values(this.mixVoices)) {
+      voice.dispose();
+    }
+    for (const voice of Object.values(this.auditionVoices)) {
+      voice.dispose();
+    }
   }
 }
 
@@ -222,6 +263,7 @@ export class ToneTransportScheduler {
       try {
         this.clickPlayer = new ToneClickPlayer(
           this.audioMixer.getChannelNode('click') as unknown as Tone.ToneAudioNode,
+          this.audioMixer.getAuditionNode('click') as unknown as Tone.ToneAudioNode,
           this.engine.getClickConfig()
         );
       } catch {
@@ -516,15 +558,37 @@ export class ToneTransportScheduler {
     }
   }
 
+  /**
+   * Preview one voice on its own Mixing Channel: a tap on a muted or silent Channel is still
+   * heard, at the volume that Channel's slider holds, because it is played through the Audition
+   * node the Channel shares instead of through the Channel node itself.
+   */
   public auditionVoice(voice: string): void {
     if (voice === 'click_downbeat') {
-      this.clickPlayer?.play(true, 0, 1.0);
+      this.auditionClickVoice('downbeat');
     } else if (voice === 'click_regular') {
-      this.clickPlayer?.play(false, 0, 1.0);
+      this.auditionClickVoice('regular');
     } else if (voice === 'click_subdivision') {
-      this.clickPlayer?.playSubdivision?.(0, 1.0);
+      this.auditionClickVoice('subdivision');
     } else {
       this.drumKitPlayer?.triggerVoice(voice as any, 0, 1.0);
+    }
+  }
+
+  private auditionClickVoice(key: 'downbeat' | 'regular' | 'subdivision'): void {
+    const player = this.clickPlayer;
+    if (!player) return;
+
+    if (player.audition) {
+      player.audition(key);
+      return;
+    }
+
+    // A click player without an Audition path previews on the audible line it already has.
+    if (key === 'subdivision') {
+      player.playSubdivision?.(0, 1.0);
+    } else {
+      player.play(key === 'downbeat', 0, 1.0);
     }
   }
 
@@ -679,7 +743,9 @@ export class ToneTransportScheduler {
 
             this.drumKitPlayer.play(drumEvent, eventTime);
 
-            if (this.drawSync) {
+            // Pad illumination follows the audio: a silent Mixing Channel announces nothing,
+            // while every beat and the playhead keep running underneath it.
+            if (this.drawSync && this.audioMixer.isChannelAudible(drumEvent.source)) {
               this.drawSync(() => {
                 this.drumHitListeners.forEach((listener) => listener(drumEvent));
               }, eventTime);

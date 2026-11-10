@@ -148,8 +148,8 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
  * Owns a rig per Mixing Channel line (one audible, one Audition) plus the stored custom
  * sample buffers. Scheduled composed events play through the audible line of the channel
  * their source names; a tap on a voice plays through that channel's Audition node, which
- * is never silenced. A muted Mixing Channel plays nothing at all: its rig is not even
- * triggered.
+ * is never silenced. A silent Mixing Channel, muted or turned all the way down, plays nothing
+ * at all: its rig is not even triggered, and no Drum Hit is announced for it.
  */
 export class DrumKitPlayer implements IDrumKitPlayer {
   private mixer: IAudioMixer;
@@ -192,7 +192,7 @@ export class DrumKitPlayer implements IDrumKitPlayer {
 
   public play(event: ScheduledDrumEvent, time: number): void {
     const lane = event.source;
-    // A muted Mixing Channel produces no sound.
+    // A silent Mixing Channel, muted or turned all the way down, produces no sound at all.
     if (!this.mixer.isChannelAudible(lane)) return;
 
     const velocity = event.velocity ?? 0.8;

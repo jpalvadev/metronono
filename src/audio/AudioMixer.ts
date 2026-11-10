@@ -51,6 +51,7 @@ export interface IAudioMixer {
   toggleChannelMute(channel: MixerChannelId): boolean;
   // Volume a scheduled click or drum hit is actually heard at on this channel.
   getEffectiveVolume(channel: MixerChannelId): number;
+  // Whether that volume leaves the channel able to be heard at all.
   isChannelAudible(channel: MixerChannelId): boolean;
   getMasterVolume(): number;
   setMasterVolume(volume: number): void;
@@ -196,8 +197,12 @@ export class AudioMixer implements IAudioMixer {
     return this.channels[channel].muted ? 0.0 : this.channels[channel].volume;
   }
 
+  /**
+   * A Mixing Channel can be heard when the volume its slider holds is not zero, muted or not:
+   * turning a Channel all the way down silences it exactly as its mute does.
+   */
   public isChannelAudible(channel: MixerChannelId): boolean {
-    return !this.channels[channel].muted;
+    return this.getEffectiveVolume(channel) > 0;
   }
 
   public getMasterVolume(): number {

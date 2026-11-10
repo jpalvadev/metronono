@@ -42,18 +42,31 @@ describe('Transport audio graph', () => {
     }
     expect(fakeToneRecorder.destination.incoming).toEqual([master]);
 
-    // The built-in click plays through the Click channel node.
+    // The built-in click plays through the Click Mixing Channel node.
     fakeToneRecorder.transport.fireRepeats();
 
     const clickChannel = nodeByLabel('mixer:click');
-    const clickVoices = fakeToneRecorder.nodes.filter((created) =>
-      (created.label ?? '').startsWith('click:')
-    );
-    expect(clickVoices.length).toBeGreaterThan(0);
-    for (const click of clickVoices) {
+    const clickLine = fakeToneRecorder.nodes.filter((created) => {
+      const label = created.label ?? '';
+      return label.startsWith('click:') && !label.includes(':audition:');
+    });
+    expect(clickLine.length).toBeGreaterThan(0);
+    for (const click of clickLine) {
       expect(fakeToneRecorder.routeTo(click, clickChannel)).not.toBeNull();
       expect(fakeToneRecorder.routeTo(click, master)).not.toBeNull();
       expect(fakeToneRecorder.routeTo(click, fakeToneRecorder.destination)).not.toBeNull();
+    }
+
+    // A previewed click voice is wired onto the Audition node Click shares, which is why it is
+    // heard even while the Click Mixing Channel is muted.
+    scheduler.auditionVoice('click_regular');
+    const auditionVoices = fakeToneRecorder.nodes.filter((created) =>
+      (created.label ?? '').startsWith('click:audition:')
+    );
+    expect(auditionVoices.length).toBeGreaterThan(0);
+    for (const voice of auditionVoices) {
+      expect(fakeToneRecorder.routeTo(voice, nodeByLabel('audition:click'))).not.toBeNull();
+      expect(fakeToneRecorder.routeTo(voice, clickChannel)).toBeNull();
     }
   });
 

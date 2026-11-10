@@ -215,7 +215,7 @@ describe('DawsonEngine Polyphonic Orchestration with Formulas', () => {
 
     // Verify limb field is not present on scheduled events
     events.forEach((evt) => {
-      expect((evt as Record<string, unknown>).limb).toBeUndefined();
+      expect((evt as unknown as Record<string, unknown>).limb).toBeUndefined();
     });
   });
 

@@ -16,4 +16,4 @@
 
 - 9 [ ] the components are arrenged badly. The metronome should live inside the main container, as a module
 
-- 10 [ ] the formula composer, instead of selecting the note value, the sound, etc, it should be a partiture editor, where i should select the not value, if its a rest, if its an accent, or ghost, etc. and in a partiture i could place the note whenever I want to select the sound source. Spec: .scratch/partiture-formula-editor/spec.md 
+- 10 [ x ] the formula composer, instead of selecting the note value, the sound, etc, it should be a partiture editor, where i should select the not value, if its a rest, if its an accent, or ghost, etc. and in a partiture i could place the note whenever I want to select the sound source. Spec: .scratch/partiture-formula-editor/spec.md (root cause: replaced legacy card/dropdown form with interactive 5-line PAS PartitureFormulaEditor supporting polyphonic unisons, rests, and drag-and-drop) 

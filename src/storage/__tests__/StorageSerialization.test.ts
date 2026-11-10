@@ -69,13 +69,13 @@ const dummySystems: DawsonSystem[] = [
       id: 'f-short',
       name: 'Snare Accent',
       trigger: 'short',
-      strokes: [{ voice: 'snare', durationRatio: 0.5, dynamic: 'accent' }],
+      strokes: [{ durationRatio: 0.5, hits: [{ voice: 'snare', dynamic: 'accent' }] }],
     },
     longFormula: {
       id: 'f-long',
       name: 'Kick Punch',
       trigger: 'long',
-      strokes: [{ voice: 'kick', durationRatio: 1.0, dynamic: 'accent' }],
+      strokes: [{ durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'accent' }] }],
     },
   },
 ];

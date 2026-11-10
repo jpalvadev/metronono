@@ -1,6 +1,6 @@
 # Spec: Partiture (Drum Staff) Editor for Formula Composer
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

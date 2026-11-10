@@ -8,7 +8,7 @@ import VexFlow, {
   Stem,
   Articulation,
 } from 'vexflow';
-import { DrumVoice, OrchestratedStroke, Dynamic } from '../domain/dawson/types';
+import { DrumVoice, OrchestratedStroke } from '../domain/dawson/types';
 import { DRUM_VOICE_PAS_MAP } from './DrumStaffRenderer';
 import { calculateFormulaDuration, resolveStrokeOffsets } from '../domain/dawson/SubdivisionFormula';
 
@@ -70,7 +70,7 @@ export class DrumStaffFormulaRenderer {
   }
 
   public render(
-    container: HTMLElement | HTMLDivElement,
+    container: HTMLDivElement,
     strokes: OrchestratedStroke[],
     options: DrumStaffFormulaRenderOptions = {}
   ): DrumStaffFormulaLayout {
@@ -156,7 +156,7 @@ export class DrumStaffFormulaRenderer {
             clef: 'percussion',
             keys,
             duration: vexDur,
-            stem_direction: Stem.UP,
+            stemDirection: Stem.UP,
           });
           noteV1.setStemDirection(Stem.UP);
 
@@ -174,7 +174,7 @@ export class DrumStaffFormulaRenderer {
             clef: 'percussion',
             keys: ['c/5/r'],
             duration: `${vexDur}r`,
-            stem_direction: Stem.UP,
+            stemDirection: Stem.UP,
           });
           restNote.setStemDirection(Stem.UP);
           voice1Notes.push(restNote);
@@ -188,7 +188,7 @@ export class DrumStaffFormulaRenderer {
               clef: 'percussion',
               keys,
               duration: vexDur,
-              stem_direction: Stem.DOWN,
+              stemDirection: Stem.DOWN,
             });
             noteV2.setStemDirection(Stem.DOWN);
 
@@ -205,7 +205,7 @@ export class DrumStaffFormulaRenderer {
               clef: 'percussion',
               keys: ['d/4/r'],
               duration: `${vexDur}r`,
-              stem_direction: Stem.DOWN,
+              stemDirection: Stem.DOWN,
             });
             restNote.setStemDirection(Stem.DOWN);
             voice2Notes.push(restNote);
@@ -219,13 +219,13 @@ export class DrumStaffFormulaRenderer {
     const voicesToFormat: Voice[] = [];
 
     // Loose formatting (soft format) to accommodate fractional subdivisions
-    const v1 = new Voice({ time: { num_beats: Math.max(1, Math.ceil(targetBeats)), beat_value: 4 } });
+    const v1 = new Voice({ numBeats: Math.max(1, Math.ceil(targetBeats)), beatValue: 4 });
     v1.setMode(Voice.Mode.SOFT);
     v1.addTickables(voice1Notes);
     voicesToFormat.push(v1);
 
     if (hasFeetHits && voice2Notes.length > 0) {
-      const v2 = new Voice({ time: { num_beats: Math.max(1, Math.ceil(targetBeats)), beat_value: 4 } });
+      const v2 = new Voice({ numBeats: Math.max(1, Math.ceil(targetBeats)), beatValue: 4 });
       v2.setMode(Voice.Mode.SOFT);
       v2.addTickables(voice2Notes);
       voicesToFormat.push(v2);
@@ -246,9 +246,8 @@ export class DrumStaffFormulaRenderer {
       const beamableV1 = voice1Notes.filter((n) => !n.isRest());
       if (beamableV1.length > 1) {
         const v1Beams = Beam.generateBeams(beamableV1, {
-          stem_direction: Stem.UP,
           stemDirection: Stem.UP,
-          beam_rests: false,
+          beamRests: false,
         });
         v1Beams.forEach((b) => {
           b.setContext(context).draw();
@@ -260,9 +259,8 @@ export class DrumStaffFormulaRenderer {
         const beamableV2 = voice2Notes.filter((n) => !n.isRest());
         if (beamableV2.length > 1) {
           const v2Beams = Beam.generateBeams(beamableV2, {
-            stem_direction: Stem.DOWN,
             stemDirection: Stem.DOWN,
-            beam_rests: false,
+            beamRests: false,
           });
           v2Beams.forEach((b) => {
             b.setContext(context).draw();

@@ -2,8 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   SubdivisionFormula,
   OrchestratedStroke,
-  DrumVoice,
-  Dynamic,
 } from '../../domain/dawson/types';
 import {
   calculateFormulaDuration,

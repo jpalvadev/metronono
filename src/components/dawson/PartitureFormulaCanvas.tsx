@@ -166,7 +166,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
 
     if (strokeIndex === -1 && resolved.length > 0) {
       let closestDist = Infinity;
-      resolved.forEach(({ stroke, offset }, idx) => {
+      resolved.forEach(({ offset }, idx) => {
         const dist = Math.abs(beatOffset - offset);
         if (dist < 0.25 && dist < closestDist) {
           closestDist = dist;

@@ -38,6 +38,10 @@ Multi-context repo (presence of `GLOSSARY-MAP.md` at the root):
         └── docs/adr/
 ```
 
+## Navigation pointers
+
+- **Partiture / score rendering**: `src/notation/` holds the VexFlow renderers (`ReadingScoreRenderer` = 1-line Reading View, `DrumStaffRenderer` = 5-line Drum Staff View); the React views live in `src/components/notation/` and are mounted by `src/components/ReadingTrainingSection.tsx`, not directly by `App.tsx` (which only imports view types).
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.

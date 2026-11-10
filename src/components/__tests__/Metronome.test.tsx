@@ -163,13 +163,26 @@ describe('Metronome Component', () => {
     expect(mockScheduler.setTimeSignature).toHaveBeenCalledWith('3/4');
   });
 
-  it('adjusts master volume via volume slider', () => {
+  it('holds no loudness control of its own: volume belongs to the Mixer Panel', () => {
     render(<Metronome scheduler={mockScheduler} />);
 
-    const volumeSlider = screen.getByLabelText(/volume/i);
-    fireEvent.change(volumeSlider, { target: { value: '50' } });
+    expect(mockScheduler.getVolume).not.toHaveBeenCalled();
+    expect(mockScheduler.setVolume).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/^Volume$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^toggle mute$/i })).not.toBeInTheDocument();
 
-    expect(mockScheduler.setVolume).toHaveBeenCalledWith(0.5);
+    // Click voice volumes are velocity shaping inside the Click Channel, so they stay.
+    fireEvent.click(screen.getByRole('button', { name: /click sounds/i }));
+    for (const label of ['Downbeat volume', 'Regular volume', 'Subdivision volume']) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
+
+    fireEvent.change(screen.getByLabelText('Downbeat volume'), { target: { value: '60' } });
+    expect(mockScheduler.updateVoiceConfig).toHaveBeenCalledWith(
+      'downbeat',
+      expect.objectContaining({ volume: 0.6 })
+    );
+    expect(mockScheduler.setVolume).not.toHaveBeenCalled();
   });
 
   describe('Beat Selector Toggles (Beat Mask)', () => {

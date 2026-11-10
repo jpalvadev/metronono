@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Play,
   Square,
-  Volume2,
-  Volume1,
   VolumeX,
   Activity,
   TrendingUp,
@@ -45,7 +43,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const [tempo, setTempoState] = useState<number>(() => scheduler.getTempo());
   const [tempInputValue, setTempInputValue] = useState<string>(() => String(scheduler.getTempo()));
   const [timeSignature, setTimeSignatureState] = useState<TimeSignature>(() => scheduler.getTimeSignature());
-  const [volume, setVolumeState] = useState<number>(() => scheduler.getVolume());
   const [activeBeat, setActiveBeat] = useState<number | null>(null);
   const [isTapActive, setIsTapActive] = useState<boolean>(false);
 
@@ -146,22 +143,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     setBeatMaskState(scheduler.getBeatMask());
   };
 
-  const handleVolumeChange = (newVolPercent: number) => {
-    const fraction = newVolPercent / 100;
-    scheduler.setVolume(fraction);
-    setVolumeState(fraction);
-  };
-
-  const toggleMute = () => {
-    if (volume > 0) {
-      scheduler.setVolume(0);
-      setVolumeState(0);
-    } else {
-      scheduler.setVolume(0.8);
-      setVolumeState(0.8);
-    }
-  };
-
   // Beat Mask handlers
   const handleToggleBeat = (idx: number) => {
     scheduler.toggleBeat(idx);
@@ -234,7 +215,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     return timeSignature.beats === beats && timeSignature.beatUnit === unit;
   };
 
-  const volumePercent = Math.round(volume * 100);
   const rampProgress = scheduler.getRampProgress(currentMeasure, activeBeat ?? 0);
 
   return (
@@ -682,35 +662,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             </div>
           </div>
         )}
-      </div>
-
-      {/* Master Volume */}
-      <div className="flex items-center gap-3 bg-muted/30 p-3 rounded-xl border border-border/60">
-        <button
-          type="button"
-          onClick={toggleMute}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1"
-          title={volume === 0 ? 'Unmute' : 'Mute'}
-          aria-label="Toggle mute"
-        >
-          {volume === 0 ? (
-            <VolumeX className="w-5 h-5 text-destructive" />
-          ) : volume < 0.5 ? (
-            <Volume1 className="w-5 h-5 text-teal-400" />
-          ) : (
-            <Volume2 className="w-5 h-5 text-teal-400" />
-          )}
-        </button>
-        <Slider
-          min={0}
-          max={100}
-          value={volumePercent}
-          onChange={handleVolumeChange}
-          ariaLabel="Volume"
-        />
-        <span className="text-xs font-mono font-medium text-muted-foreground w-10 text-right">
-          {volumePercent}%
-        </span>
       </div>
 
       {/* Main Play / Stop Button */}

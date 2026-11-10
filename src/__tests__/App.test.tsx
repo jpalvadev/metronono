@@ -54,6 +54,10 @@ describe('App', () => {
       expect(screen.getAllByRole('button', { name: `Mute ${channel}` })).toHaveLength(1);
     }
     expect(screen.getByTestId('mixer-preset-row')).toBeInTheDocument();
+
+    // The Metronome panel holds no loudness control of its own (ticket 06).
+    expect(screen.queryByLabelText('Volume')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Toggle mute' })).not.toBeInTheDocument();
   });
 
   it('switches between 1-line Reading View and 5-line Drum Staff View via View Mode toggle', () => {

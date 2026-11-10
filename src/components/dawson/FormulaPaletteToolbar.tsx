@@ -113,6 +113,16 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
               key={dur.id}
               type="button"
               disabled={disabled || activeTool === 'eraser'}
+              draggable={!disabled && activeTool === 'note'}
+              onDragStart={(e) => {
+                const payload = JSON.stringify({
+                  type: 'palette-note',
+                  durationRatio: dur.ratio,
+                  dynamic: selectedDynamic,
+                });
+                e.dataTransfer.setData('application/json', payload);
+                e.dataTransfer.setData('text/plain', payload);
+              }}
               onClick={() => onSelectDuration(dur.ratio)}
               className={cn(
                 'px-2 py-1 rounded-md font-mono text-[11px] font-semibold transition-colors',

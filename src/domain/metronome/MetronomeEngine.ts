@@ -45,6 +45,17 @@ export interface DropoutConfig {
   seed?: number;
 }
 
+// The one voice mix a fresh Metronome starts with: a bright downbeat, a softer
+// regular beat, and a quiet subdivision voice held undivided until a drummer
+// asks for gap clicks. Shared so a click player built without a config agrees.
+export function createDefaultClickConfig(): MetronomeClickConfig {
+  return {
+    downbeat: { pitch: 'A6', volume: 1.0 },
+    regular: { pitch: 'E5', volume: 0.7 },
+    subdivision: { pitch: 'C5', volume: 0.5, divisions: 1 },
+  };
+}
+
 // A whole-number division count within the supported range; anything unusable
 // falls back to one part, which means no gap clicks.
 function clampBeatDivisions(value: number): number {
@@ -76,11 +87,7 @@ export class MetronomeEngine {
 
   private beatMask: boolean[] = [true, true, true, true];
 
-  private clickConfig: MetronomeClickConfig = {
-    downbeat: { pitch: 'A6', volume: 1.0 },
-    regular: { pitch: 'E5', volume: 0.7 },
-    subdivision: { pitch: 'C5', volume: 0.5, divisions: MetronomeEngine.MIN_BEAT_DIVISIONS },
-  };
+  private clickConfig: MetronomeClickConfig = createDefaultClickConfig();
 
   private rampConfig: TempoRampConfig = {
     enabled: false,

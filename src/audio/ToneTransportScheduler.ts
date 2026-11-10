@@ -8,6 +8,7 @@ import {
   MetronomeClickConfig,
   TempoRampConfig,
   DropoutConfig,
+  createDefaultClickConfig,
 } from '../domain/metronome/MetronomeEngine';
 import {
   IAudioClockTransport,
@@ -50,11 +51,7 @@ export class ToneClickPlayer implements IClickPlayer {
   ) {
     this.outputNode = outputNode;
     this.auditionNode = auditionNode;
-    this.clickConfig = initialConfig ?? {
-      downbeat: { pitch: 'A6', volume: 1.0 },
-      regular: { pitch: 'E5', volume: 0.7 },
-      subdivision: { pitch: 'C5', volume: 0.5, divisions: 1 },
-    };
+    this.clickConfig = initialConfig ?? createDefaultClickConfig();
 
     this.mixVoices = {
       downbeat: this.buildVoice('downbeat', outputNode, 'click:downbeat'),

@@ -42,7 +42,7 @@ describe('DawsonOrchestrationSection', () => {
     } as unknown as ToneTransportScheduler;
   });
 
-  it('renders system selector, mixer channels, and drum pads', () => {
+  it('renders system selector and drum pads, without any loudness control', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
     expect(screen.getByText(/Alan Dawson Orchestration/i)).toBeInTheDocument();
@@ -50,16 +50,33 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.getByText(/Inverted Bop/i)).toBeInTheDocument();
     expect(screen.getByText(/Straight Rock/i)).toBeInTheDocument();
 
-    // 3 Mixer channels
-    expect(screen.getByText(/Metronome Click/i)).toBeInTheDocument();
-    expect(screen.getByText(/3-Channel Audio Mixer/i)).toBeInTheDocument();
-    expect(screen.getByText(/Orchestrated Line/i)).toBeInTheDocument();
-
     // 4 Drum pads
     expect(screen.getByTestId('drum-pad-kick')).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-snare')).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-ride')).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-hihat')).toBeInTheDocument();
+
+    // The embedded mixer card is gone: loudness belongs to the Mixer Panel (ticket 05).
+    expect(screen.queryByText(/3-Channel Audio Mixer/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Metronome Click/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Orchestrated Line/i)).not.toBeInTheDocument();
+    for (const label of ['Master Volume', 'Click Volume', 'Ostinato Volume', 'Orchestrated Line Volume']) {
+      expect(screen.queryByLabelText(new RegExp(label, 'i'))).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: /^(Mute|Unmute) (Click|Ostinato|Orchestrated Line)$/i })).not.toBeInTheDocument();
+  });
+
+  it('offers "No Ostinato" in the ostinato selector, and it still means no Ostinato layer', () => {
+    render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+    const noOstinatoBtn = screen.getByRole('button', { name: 'No Ostinato' });
+    expect(noOstinatoBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Silenced' })).not.toBeInTheDocument();
+
+    fireEvent.click(noOstinatoBtn);
+    expect(engine.getOstinato()).toBe('none');
+    // Muting the Ostinato Mixing Channel is a different thing entirely.
+    expect(mixer.isChannelMuted('ostinato')).toBe(false);
   });
 
   it('switches between Dawson orchestration modes', () => {
@@ -77,23 +94,6 @@ describe('DawsonOrchestrationSection', () => {
     const classicBtn = screen.getByRole('button', { name: /Classic Bop/i });
     fireEvent.click(classicBtn);
     expect(engine.getMode()).toBe('classic_bop');
-  });
-
-  it('controls channel volume and mute toggles via mixer panel', () => {
-    render(<DawsonOrchestrationSection scheduler={scheduler} />);
-
-    const clickSlider = screen.getByLabelText(/Click Volume/i);
-    fireEvent.change(clickSlider, { target: { value: '0.4' } });
-    expect(mixer.getChannelVolume('click')).toBe(0.4);
-
-    const ostinatoMuteBtn = screen.getByRole('button', { name: /Mute Ostinato/i });
-    fireEvent.click(ostinatoMuteBtn);
-    expect(mixer.isChannelMuted('ostinato')).toBe(true);
-
-    // Unmute
-    const ostinatoUnmuteBtn = screen.getByRole('button', { name: /Unmute Ostinato/i });
-    fireEvent.click(ostinatoUnmuteBtn);
-    expect(mixer.isChannelMuted('ostinato')).toBe(false);
   });
 
   it('triggers voice audition when clicking drum pads', () => {

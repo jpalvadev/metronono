@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Metronome } from './components/Metronome';
 import { ReadingTrainingSection } from './components/ReadingTrainingSection';
 import { DawsonOrchestrationSection } from './components/DawsonOrchestrationSection';
+import { MixerPanel } from './components/MixerPanel';
 import { ToneTransportScheduler } from './audio/ToneTransportScheduler';
 import { StorageManager } from './storage/StorageManager';
 import { SampleBankModal } from './components/storage/SampleBankModal';
@@ -81,7 +82,12 @@ export function App() {
           <Metronome scheduler={scheduler} />
         </div>
 
-        {/* Alan Dawson Orchestration Engine, 3-Channel Mixer & Drum Monitor */}
+        {/* Mixing Channels & Mixer Panel: channel volumes, mutes and practice presets */}
+        <div className="w-full max-w-md">
+          <MixerPanel scheduler={scheduler} />
+        </div>
+
+        {/* Alan Dawson Orchestration Engine & Drum Monitor */}
         <div className="w-full">
           <DawsonOrchestrationSection scheduler={scheduler} />
         </div>

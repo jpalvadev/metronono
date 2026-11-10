@@ -12,14 +12,10 @@ import {
   DawsonPresetManager,
   resolveStrokeOffsets,
 } from '../domain/dawson/SubdivisionFormula';
-import { MixerChannelId, AudioMixerState } from '../audio/AudioMixer';
 import { DrumLane } from '../audio/DrumKitPlayer';
 import { Button } from './ui/button';
-import { Slider } from './ui/slider';
 import { Badge } from './ui/badge';
 import {
-  Volume2,
-  VolumeX,
   Disc,
   Sliders,
   Activity,
@@ -43,7 +39,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   className,
 }) => {
   const engine = useMemo(() => scheduler.getDawsonEngine(), [scheduler]);
-  const mixer = useMemo(() => scheduler.getAudioMixer(), [scheduler]);
   const player = useMemo(() => scheduler.getDrumKitPlayer(), [scheduler]);
 
   const presetManager = useMemo(
@@ -56,7 +51,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   const [activeSystemId, setActiveSystemId] = useState<string>(() => engine.getSystem()?.id ?? 'classic_bop');
   const [shortFormula, setShortFormula] = useState<SubdivisionFormula>(() => engine.getShortFormula());
   const [longFormula, setLongFormula] = useState<SubdivisionFormula>(() => engine.getLongFormula());
-  const [mixerState, setMixerState] = useState<AudioMixerState>(() => mixer.getState());
 
   // Modal dialog states
   const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
@@ -69,14 +63,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   const [activeSnare, setActiveSnare] = useState(false);
   const [activeRide, setActiveRide] = useState(false);
   const [activeHihat, setActiveHihat] = useState(false);
-
-  // Sync mixer state
-  useEffect(() => {
-    const unsub = mixer.onStateChange((state) => {
-      setMixerState(state);
-    });
-    return unsub;
-  }, [mixer]);
 
   // Listen for scheduled real-time drum hits
   useEffect(() => {
@@ -138,20 +124,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       engine.setOstinato(newOstinato);
     },
     [engine]
-  );
-
-  const handleVolumeChange = useCallback(
-    (channel: MixerChannelId, val: number) => {
-      mixer.setChannelVolume(channel, val);
-    },
-    [mixer]
-  );
-
-  const handleMuteToggle = useCallback(
-    (channel: MixerChannelId) => {
-      mixer.toggleChannelMute(channel);
-    },
-    [mixer]
   );
 
   const handlePadAudition = useCallback(
@@ -237,7 +209,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
-                Alan Dawson Orchestration & Mixer
+                Alan Dawson Orchestration & Drum Monitor
               </h3>
               <Badge variant="outline" className="text-[10px] font-mono border-teal-500/40 text-teal-400">
                 100% Offline Tone.js
@@ -274,7 +246,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             className={cn('h-7 px-2.5 text-xs', ostinato === 'none' && 'bg-rose-600 text-white hover:bg-rose-700')}
             onClick={() => handleOstinatoChange('none')}
           >
-            Silenced
+            No Ostinato
           </Button>
         </div>
       </div>
@@ -538,10 +510,8 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
         </div>
       </div>
 
-      {/* Middle Row: Visual Drum Monitor & 3-Channel Audio Mixer */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-1">
-        {/* Visual Drum Kit Monitor (5 Cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-2.5">
+      {/* Visual Drum Kit Monitor: pad illumination plus audition taps per Mixing Channel */}
+      <div className="flex flex-col gap-2.5 pt-1">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-teal-400" />
@@ -663,132 +633,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               <span className="text-[10px] text-muted-foreground">Beats 2 & 4 Chick</span>
             </button>
           </div>
-        </div>
-
-        {/* 3-Channel Audio Mixer Panel (7 Cols) */}
-        <div className="lg:col-span-7 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-teal-400" />
-              3-Channel Audio Mixer
-            </label>
-            <span className="text-[10px] text-muted-foreground">Independent gain & mute</span>
-          </div>
-
-          <div className="flex flex-col gap-3 bg-muted/20 p-3 rounded-xl border border-border/60">
-            {/* Channel 1: Metronome Click */}
-            <div className="flex items-center gap-3 bg-card/60 p-2.5 rounded-lg border border-border/60">
-              <Button
-                variant={mixerState.click.muted ? 'destructive' : 'ghost'}
-                size="sm"
-                aria-label={mixerState.click.muted ? 'Unmute Click' : 'Mute Click'}
-                onClick={() => handleMuteToggle('click')}
-                className={cn('w-9 h-9 p-0 rounded-lg shrink-0', !mixerState.click.muted && 'text-muted-foreground hover:text-foreground')}
-              >
-                {mixerState.click.muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </Button>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-medium text-foreground">Metronome Click</span>
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {mixerState.click.muted ? (
-                      <span className="text-rose-400 font-semibold">MUTED</span>
-                    ) : (
-                      `${Math.round(mixerState.click.volume * 100)}%`
-                    )}
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={mixerState.click.volume}
-                  onChange={(val) => handleVolumeChange('click', val)}
-                  ariaLabel="Click Volume"
-                  className={cn(mixerState.click.muted && 'opacity-40')}
-                />
-              </div>
-            </div>
-
-            {/* Channel 2: Ostinato */}
-            <div className="flex items-center gap-3 bg-card/60 p-2.5 rounded-lg border border-border/60">
-              <Button
-                variant={mixerState.ostinato.muted ? 'destructive' : 'ghost'}
-                size="sm"
-                aria-label={mixerState.ostinato.muted ? 'Unmute Ostinato' : 'Mute Ostinato'}
-                onClick={() => handleMuteToggle('ostinato')}
-                className={cn('w-9 h-9 p-0 rounded-lg shrink-0', !mixerState.ostinato.muted && 'text-muted-foreground hover:text-foreground')}
-              >
-                {mixerState.ostinato.muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </Button>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-medium text-foreground">
-                    Ostinato <span className="text-[10px] text-muted-foreground font-normal">(Ride / Hi-Hat)</span>
-                  </span>
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {mixerState.ostinato.muted ? (
-                      <span className="text-rose-400 font-semibold">MUTED</span>
-                    ) : (
-                      `${Math.round(mixerState.ostinato.volume * 100)}%`
-                    )}
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={mixerState.ostinato.volume}
-                  onChange={(val) => handleVolumeChange('ostinato', val)}
-                  ariaLabel="Ostinato Volume"
-                  className={cn(mixerState.ostinato.muted && 'opacity-40')}
-                />
-              </div>
-            </div>
-
-            {/* Channel 3: Orchestrated Line */}
-            <div className="flex items-center gap-3 bg-card/60 p-2.5 rounded-lg border border-border/60">
-              <Button
-                variant={mixerState.orchestration.muted ? 'destructive' : 'ghost'}
-                size="sm"
-                aria-label={mixerState.orchestration.muted ? 'Unmute Orchestrated Line' : 'Mute Orchestrated Line'}
-                onClick={() => handleMuteToggle('orchestration')}
-                className={cn(
-                  'w-9 h-9 p-0 rounded-lg shrink-0',
-                  !mixerState.orchestration.muted && 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {mixerState.orchestration.muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </Button>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-medium text-foreground">
-                    Orchestrated Line <span className="text-[10px] text-muted-foreground font-normal">(Snare / Kick)</span>
-                  </span>
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {mixerState.orchestration.muted ? (
-                      <span className="text-rose-400 font-semibold">MUTED</span>
-                    ) : (
-                      `${Math.round(mixerState.orchestration.volume * 100)}%`
-                    )}
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={mixerState.orchestration.volume}
-                  onChange={(val) => handleVolumeChange('orchestration', val)}
-                  ariaLabel="Orchestrated Line Volume"
-                  className={cn(mixerState.orchestration.muted && 'opacity-40')}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Preset Manager Modal Dialog */}

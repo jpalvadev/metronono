@@ -4,19 +4,33 @@
 
 **Blocked by:** 02 (Eagerly-Built Audio Graph With a Single Master). Can run in parallel with 03 and 04.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The Mixer Panel renders below the Metronome panel with Master, Click, Ostinato and Orchestration rows, each channel row offering a volume slider and a mute toggle
-- [ ] Pressing a Practice Preset mutes and unmutes the right channels: Click Only (Ostinato + Orchestration muted), Drums Only (Click muted, channels with composed content unmuted), Full Mix (nothing muted)
-- [ ] A preset press never changes any volume value
-- [ ] The lit preset is derived from the mixer's live state on every render; Custom appears when no preset matches, and hand-tuned mutes re-light a preset when they happen to match one
-- [ ] Master control exists in the panel; the mixer state's master carries volume only
-- [ ] The embedded mixer card is removed from the Alan Dawson section, which keeps its ostinato selector, systems, Subdivision Formulas and drum monitor
-- [ ] The ostinato selector's third option reads "No Ostinato", and it still means no Ostinato layer is composed — distinct from muting the Ostinato Mixing Channel
-- [ ] When the active Dawson System composes no Ostinato, the Ostinato Mixing Channel row renders inert rather than offering a control with nothing behind it
-- [ ] The panel is tested at the React component seam against a fake scheduler, following the pattern of the existing Metronome and Dawson section component suites
-- [ ] The mixer assertions that lived in the Dawson section suite move into the new Mixer Panel suite rather than being deleted
-- [ ] All pre-existing suites still pass
+- [x] The Mixer Panel renders below the Metronome panel with Master, Click, Ostinato and Orchestration rows, each channel row offering a volume slider and a mute toggle
+- [x] Pressing a Practice Preset mutes and unmutes the right channels: Click Only (Ostinato + Orchestration muted), Drums Only (Click muted, channels with composed content unmuted), Full Mix (nothing muted)
+- [x] A preset press never changes any volume value
+- [x] The lit preset is derived from the mixer's live state on every render; Custom appears when no preset matches, and hand-tuned mutes re-light a preset when they happen to match one
+- [x] Master control exists in the panel; the mixer state's master carries volume only
+- [x] The embedded mixer card is removed from the Alan Dawson section, which keeps its ostinato selector, systems, Subdivision Formulas and drum monitor
+- [x] The ostinato selector's third option reads "No Ostinato", and it still means no Ostinato layer is composed — distinct from muting the Ostinato Mixing Channel
+- [x] When the active Dawson System composes no Ostinato, the Ostinato Mixing Channel row renders inert rather than offering a control with nothing behind it
+- [x] The panel is tested at the React component seam against a fake scheduler, following the pattern of the existing Metronome and Dawson section component suites
+- [x] The mixer assertions that lived in the Dawson section suite move into the new Mixer Panel suite rather than being deleted
+- [x] All pre-existing suites still pass
+
+## Answer
+
+**A panel of rows, mounted below the Metronome.** `src/components/MixerPanel.tsx` is mounted in `src/App.tsx` in the slot directly after the Metronome panel: a Master row (`data-testid="mixer-row-master"`, `aria-label="Master Volume"`, volume only - the mixer state's `master` carries no mute concept and the row holds no mute button) plus one row per Mixing Channel (`mixer-row-click`, `mixer-row-ostinato`, `mixer-row-orchestration`), each with a mute button whose accessible name flips between `Mute Click` and `Unmute Click` (and the same pair per channel) and a volume slider labelled `Click Volume`, `Ostinato Volume`, `Orchestrated Line Volume`. The panel owns no audio value of its own: it reads `mixer.getState()` on mount and thereafter `mixer.onStateChange`, so every slider and readout is the level the graph actually plays at - `80%`, `MUTED`, or `SILENT` when a slider was dragged to zero.
+
+**Practice Presets are mute combinations, never a volume.** `src/audio/PracticePresets.ts` holds the whole rule as pure functions: `PRACTICE_PRESETS` (`click-only`, `drums-only`, `full-mix`), `derivePracticePreset(state, composed)` - which reads the live mute flags, treating a channel whose slider sits at zero as silent in the same way a mute does, exactly as `AudioMixer.isChannelAudible` does since ticket 04 - and `applyPracticePreset(mixer, preset, composed)`, which only ever calls `setChannelMute`. No volume value is read, written or reset by a preset press, so a balance tuned by ear survives every press. `Custom` is derived, never applied: it is what `derivePracticePreset` returns when no preset matches, and its button is inert. The row lights on every render, so hand-tuning mutes into a preset's pattern re-lights that preset and muting one extra channel drops it back to `Custom`.
+
+**Only composed channels are pressed or judged.** `composedChannels(engine)` derives which Mixing Channels the active Dawson System actually composes into; the Ostinato Line is the only composition choice (`engine.getOstinato() !== 'none'`). A channel with nothing behind it is skipped by `applyPracticePreset` and dropped from the derivation, and its row renders inert: `data-composed="false"`, no slider, no mute button, and the text `No Ostinato composed`. The panel follows the Dawson System live through `DawsonEngine.onChange`, so switching to No Ostinato turns the row inert without a remount - and switching back restores its controls.
+
+**The Alan Dawson section lost its mixer card.** The embedded `3-Channel Audio Mixer` card and the mixer plumbing behind it are gone from `src/components/DawsonOrchestrationSection.tsx`: the `getAudioMixer()` memo, `mixerState` plus its `mixer.onStateChange` effect, `handleVolumeChange`, `handleMuteToggle`, and the `Slider`, `Volume2`, `VolumeX`, `MixerChannelId`, `AudioMixerState` imports. The section keeps the ostinato quick selector, the Interpretation System selector, the Subdivision Formula rows and the Real-Time Drum Monitor, which now takes the full width of the row it shared with the card; the heading reads `Alan Dawson Orchestration & Drum Monitor`, and the third ostinato button reads `No Ostinato` instead of `Silenced`. Choosing No Ostinato composes no Ostinato layer; the Ostinato Mixing Channel's own mute is a separate thing, which the section suite now asserts stays untouched.
+
+**Tests** - `src/components/__tests__/MixerPanel.test.tsx` (20 tests, written red first against an absent component; fake scheduler wrapping the real `AudioMixer` and `DawsonEngine`, the pattern of the existing component suites) and `src/audio/__tests__/PracticePresets.test.ts` (19 tests on the pure seam): rows and their controls exist for Master and each channel; a slider write lands on its own channel only; a mute flips and flips back; the Master row carries volume only; readouts show what the channel actually plays at; each preset mutes and unmutes the right channels; volume values survive preset presses and slider changes survive preset presses; exactly one preset is lit at a time; hand-tuned mutes light `Custom` and re-light a preset when they match one; a channel dragged to zero lights the same preset as muting it; the lit preset re-derives when the mixer moves away from the panel; the preset row holds no slider, no mute and no volume text; an uncomposed Ostinato row is inert, is left alone by every preset press, and does not stop the row from lighting the preset the audible channels match. The mixer assertions that used to live in the Dawson section suite (slider write, mute and unmute) are covered by these tests rather than deleted; the section suite keeps its seven other tests and gains the "No Ostinato" selector test plus an assertion that it renders no loudness control at all. `src/__tests__/App.test.tsx` asserts the panel sits between the Metronome panel and the orchestration section, and that Master/Click/Ostinato/Orchestrated-Line volume controls and channel mute buttons each appear exactly once in the app.
+
+**Checks** - `npx vitest run`: 31 files / 326 tests pass. `npx tsc --noEmit`: clean.
 
 ## Comments
 

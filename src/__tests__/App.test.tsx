@@ -24,11 +24,36 @@ describe('App', () => {
     expect(screen.getByTestId('reading-view-root')).toBeInTheDocument();
 
     // Alan Dawson Orchestration Section
-    expect(screen.getByText(/Alan Dawson Orchestration & Mixer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Alan Dawson Orchestration & Drum Monitor/i)).toBeInTheDocument();
     expect(screen.getByText(/Classic Bop/i)).toBeInTheDocument();
     expect(screen.getByText(/Inverted Bop/i)).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-kick')).toBeInTheDocument();
     expect(screen.getByTestId('drum-pad-snare')).toBeInTheDocument();
+  });
+
+  it('mounts the Mixer Panel directly below the Metronome panel', () => {
+    render(<App />);
+
+    const mixerPanel = screen.getByRole('heading', { name: /Mixer Panel/i });
+    const metronomePanel = screen.getByText(/Smart Drum Metronome/i);
+    const orchestrationSection = screen.getByRole('heading', { name: /Alan Dawson Orchestration/i });
+
+    expect(mixerPanel).toBeInTheDocument();
+    // The Mixer Panel sits after the Metronome panel and before the orchestration section.
+    expect(mixerPanel.compareDocumentPosition(metronomePanel) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(mixerPanel.compareDocumentPosition(orchestrationSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('exposes the mixing-channel loudness controls exactly once, in the Mixer Panel', () => {
+    render(<App />);
+
+    for (const label of ['Master Volume', 'Click Volume', 'Ostinato Volume', 'Orchestrated Line Volume']) {
+      expect(screen.getAllByLabelText(label)).toHaveLength(1);
+    }
+    for (const channel of ['Click', 'Ostinato', 'Orchestrated Line']) {
+      expect(screen.getAllByRole('button', { name: `Mute ${channel}` })).toHaveLength(1);
+    }
+    expect(screen.getByTestId('mixer-preset-row')).toBeInTheDocument();
   });
 
   it('switches between 1-line Reading View and 5-line Drum Staff View via View Mode toggle', () => {

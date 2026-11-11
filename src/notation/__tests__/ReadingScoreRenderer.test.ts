@@ -314,6 +314,57 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
+  // x anchor and y span of every explicit barline path.
+  const barlineSpans = (svg: Element | null): Array<{ x: number; top: number; bottom: number }> => {
+    if (!svg) return [];
+    const spans: Array<{ x: number; top: number; bottom: number }> = [];
+    for (const g of svg!.querySelectorAll('g[class="vf-barline"]')) {
+      for (const path of g.querySelectorAll('path')) {
+        const nums = (path.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g)?.map(Number);
+        if (!nums || nums.length < 4) continue;
+        spans.push({
+          x: nums[0],
+          top: Math.min(...nums.filter((_, i) => i % 2 === 1)),
+          bottom: Math.max(...nums.filter((_, i) => i % 2 === 1)),
+        });
+      }
+    }
+    return spans;
+  };
+
+  it('brackets the whole music block with start and dividing barlines', () => {
+    const measure = createTestMeasure(0, [0.5, 0.5, 0.5, 0.5, 1.0, 1.0]);
+    const readingLine: ReadingLine = {
+      id: 'test-barline-extent',
+      title: 'Barlines Bracket The Block',
+      tier: 1,
+      measures: [measure, createTestMeasure(1, [0.5, 0.5, 0.5, 0.5, 1.0, 1.0])],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 800 });
+
+    const svg = container.querySelector('svg');
+    const rects = beamRects(svg);
+    expect(rects.length).toBe(4); // two beam pairs per measure
+    const beamTop = Math.min(...rects.map((r) => r.top));
+
+    const spans = barlineSpans(svg);
+    expect(spans.length).toBe(4); // start, divider, thin final, thick final
+    spans.forEach((s) => {
+      // ~4 px of clearance above the highest beam of the system.
+      expect(s.top).toBeGreaterThanOrEqual(beamTop - 6);
+      expect(s.top).toBeLessThanOrEqual(beamTop - 2);
+    });
+
+    const figureCenterY = layout.measures[0].eventCoordinates[0].y;
+    spans.forEach((s) => {
+      // ~4 px below the notehead bottoms (glyph half-height ≈ 10 px).
+      expect(s.bottom).toBeGreaterThanOrEqual(figureCenterY + 10);
+      expect(s.bottom).toBeLessThanOrEqual(figureCenterY + 18);
+    });
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

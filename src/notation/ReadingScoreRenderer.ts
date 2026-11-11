@@ -12,8 +12,13 @@ import VexFlow, {
 
 // On a 1-line stave VexFlow's built-in barlines collapse to a 1px rect (they
 // span first-to-last line), so dividing bars are drawn explicitly instead.
-const BARLINE_HALF_HEIGHT = 14;
 const FINAL_BARLINE_THICKNESS = 3;
+
+// Explicit barlines run from ~4 px above the system's highest beam/flag down
+// to ~4 px below the notehead/rest bottoms instead of a fixed ±14 px stub.
+const BARLINE_MARGIN = 4;
+const STEM_REACH = 35; // 3.5 stave spaces above the line (stem/flag top)
+const FIGURE_HALF_HEIGHT = 10; // ≈ half-height of notehead/rest glyphs
 
 // The Reading View is a one-line percussion bar, but notes, rests, clefs and
 // time signatures are placed by VexFlow inside a five-line box (key 'b/4'
@@ -32,6 +37,9 @@ const BEAM_STACK = 7.5;   // secondary beam step, beamWidth * 1.5 like VexFlow
 // A flagged stem path is drawn 3 px short of its extents tip (VexFlow
 // Stem.adjustHeightForFlag), so the visible beam-bottom/tip pair lines up.
 const STEM_FLAG_INSET = 3;
+
+// Top of a beamed system's music block relative to the stave line.
+const BEAM_REACH = STEM_REACH + BEAM_THICKNESS - STEM_FLAG_INSET;
 import { Measure, ReadingLine, RhythmicEvent } from '../domain/rhythm/types';
 import {
   ScoreRenderOptions,
@@ -112,12 +120,12 @@ export class ReadingScoreRenderer {
     renderer.resize(width, totalHeight);
     const context = renderer.getContext();
 
-    const drawBarlineAt = (x: number, centerY: number, lineWidth: number): void => {
+    const drawBarlineAt = (x: number, topY: number, bottomY: number, lineWidth: number): void => {
       context.openGroup('barline');
       context.setLineWidth(lineWidth);
       context.beginPath();
-      context.moveTo(x, centerY - BARLINE_HALF_HEIGHT);
-      context.lineTo(x, centerY + BARLINE_HALF_HEIGHT);
+      context.moveTo(x, topY);
+      context.lineTo(x, bottomY);
       context.stroke();
       context.closeGroup();
     };
@@ -178,13 +186,24 @@ export class ReadingScoreRenderer {
       systemIndex: number;
     }> = [];
 
+    interface SystemInfo {
+      lineY: number;
+      barlineXs: number[];
+      rightX: number;
+      anyBeam: boolean;
+      anyShort: boolean;
+    }
+    const systemInfos: SystemInfo[] = [];
+    for (let s = 0; s < systemCount; s++) {
+      systemInfos.push({ lineY: 0, barlineXs: [], rightX: 0, anyBeam: false, anyShort: false });
+    }
+
     // Pass 1: Render staves, notes, beams, and collect coordinates
     for (let i = 0; i < totalMeasures; i++) {
       const measure = readingLine.measures[i];
       const col = i % cols;
       const row = Math.floor(i / cols);
       const isFirstInSystem = col === 0;
-      const isLastOverall = i === totalMeasures - 1;
 
       const staveX = paddingLeft + col * measureWidth;
       const staveY = paddingTop + row * staveSpacing;
@@ -212,16 +231,14 @@ export class ReadingScoreRenderer {
 
       stave.setContext(context).draw();
 
-      // Dividing bar at the start of every measure (system start or bar line)
+      // Barlines are drawn at the end of the pass so their extent can
+      // bracket the whole music block of the system; here we just record
+      // their x positions and the system's line.
       const staveLineY = stave.getYForLine(VISIBLE_LINE_INDEX);
-      drawBarlineAt(staveX, staveLineY, 1);
-
-      if (isLastOverall) {
-        // Final barline: thin line followed by a thick one at the score end
-        const staveRightX = staveX + measureWidth;
-        drawBarlineAt(staveRightX - 5, staveLineY, 1);
-        drawBarlineAt(staveRightX - 1, staveLineY, FINAL_BARLINE_THICKNESS);
-      }
+      const system = systemInfos[row];
+      system.lineY = staveLineY;
+      system.barlineXs.push(staveX);
+      system.rightX = staveX + measureWidth;
 
       // Convert measure events to StaveNotes
       const staveNotes: Array<{ note: StaveNote; event: RhythmicEvent; beatOffset: number }> = [];
@@ -252,9 +269,11 @@ export class ReadingScoreRenderer {
       // beamed notes, and isolated short notes keep their flag.
       const beams: Beam[] = [];
       let currentBeamGroup: StaveNote[] = [];
+      let anyShortNote = false;
       for (const { note, event } of staveNotes) {
         if (!event.isRest && (event.durationType === '8th' || event.durationType === '16th')) {
           currentBeamGroup.push(note);
+          anyShortNote = true;
         } else {
           if (currentBeamGroup.length > 1) {
             // Force stems up: VexFlow's auto direction reads b/4 as below-center
@@ -282,6 +301,9 @@ export class ReadingScoreRenderer {
       for (const beam of beams) {
         drawBeamRects(beam);
       }
+
+      system.anyBeam = system.anyBeam || beams.length > 0;
+      system.anyShort = system.anyShort || anyShortNote;
 
       measureDataList.push({
         measure,
@@ -319,6 +341,32 @@ export class ReadingScoreRenderer {
 
       measureCoordinates.push(measureCoord);
       measureCoordsMap.set(measure.index, measureCoord);
+    }
+
+    // Pass 1.5: draw the explicit barlines so they bracket each system's
+    // music block: ~4 px above the highest beam/flag down to ~4 px below
+    // the notehead/rest bottoms.
+    const systemBarlineSpan = (system: SystemInfo): { topY: number; bottomY: number } => {
+      const reach = system.anyBeam ? BEAM_REACH : system.anyShort ? STEM_REACH : FIGURE_HALF_HEIGHT;
+      return {
+        topY: system.lineY - reach - BARLINE_MARGIN,
+        bottomY: system.lineY + FIGURE_HALF_HEIGHT + BARLINE_MARGIN,
+      };
+    };
+
+    for (const system of systemInfos) {
+      if (system.barlineXs.length === 0) {
+        continue;
+      }
+      const span = systemBarlineSpan(system);
+      system.barlineXs.forEach((x) => drawBarlineAt(x, span.topY, span.bottomY, 1));
+    }
+
+    if (totalMeasures > 0) {
+      const lastSystem = systemInfos[Math.floor((totalMeasures - 1) / cols)];
+      const finalSpan = systemBarlineSpan(lastSystem);
+      drawBarlineAt(lastSystem.rightX - 5, finalSpan.topY, finalSpan.bottomY, 1);
+      drawBarlineAt(lastSystem.rightX - 1, finalSpan.topY, finalSpan.bottomY, FINAL_BARLINE_THICKNESS);
     }
 
     // Pass 2: Connect Ties (intra-measure and cross-measure)

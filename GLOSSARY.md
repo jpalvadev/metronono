@@ -71,3 +71,21 @@ _Avoid_: Preview, solo, test sound
 **No Ostinato**:
 A Dawson System configuration in which no Ostinato layer is composed at all, so no ostinato strokes are ever resolved. Distinct from muting the Ostinato Mixing Channel, which keeps the strokes and silences only their sound.
 _Avoid_: Silenced ostinato, muted ostinato
+
+### Interface
+
+**Accent**:
+The single warm-orange identity color shared by all interactive elements, active states, and the Playhead. One accent app-wide; there is no second decorative color.
+_Avoid_: Teal, highlight color, secondary color
+
+**Status Colors**:
+The three semantic hues with fixed meaning — Success (valid), Warning (attention), Destructive (danger/invalid) — used only where that meaning genuinely holds. Difficulty tiers borrow them by hue.
+_Avoid_: Decorative color, traffic light; a neutral label (e.g. Custom Practice Preset) is never Warning
+
+**Modal Scrim**:
+The one dimmed ink overlay behind every modal dialog — a single dimming treatment shared by all modals.
+_Avoid_: Backdrop, blackout, frosted panel
+
+**Playhead**:
+The Accent-colored marker showing the current sounding position in notation and formula views; every view renders the same Playhead.
+_Avoid_: Cursor, scrubber, position line, play head (two words)

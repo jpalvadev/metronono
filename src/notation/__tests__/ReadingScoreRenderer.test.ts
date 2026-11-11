@@ -512,6 +512,120 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
+  it('renders the capture scene clean: 16 Tier-1 bars, 4 per system', () => {
+    // The user's capture: procedural Tier 1 exercise, alternating bars of
+    // [8 8 8 8 q 8 8] (all paired eighths) and [8 q 8 8 q 8r] (lone eighth,
+    // a pair, an eighth rest).
+    const bars = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((i) =>
+      i % 2 === 0
+        ? createTestMeasure(i, [0.5, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5])
+        : createTestMeasure(i, [0.5, 1.0, 0.5, 0.5, 1.0, 0.5], [false, false, false, false, false, true])
+    );
+    const readingLine: ReadingLine = {
+      id: 'test-capture-regression',
+      title: 'Capture Scene Regression',
+      tier: 1,
+      measures: bars,
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 800, measuresPerSystem: 4 });
+    expect(layout.systemCount).toBe(4);
+    expect(layout.measures).toHaveLength(16);
+
+    const svg = container.querySelector('svg');
+
+    // Ticket 01: every notehead/rest centered on the single stave line.
+    // Systems are 100 px apart, so compare each glyph to its own line.
+    const line = staveLineY(svg);
+    const nearestLine = (y: number) => line + Math.round((y - line) / 100) * 100;
+    figureGlyphYs(svg).forEach((y) => expect(Math.abs(y - nearestLine(y))).toBeLessThanOrEqual(1.5));
+
+    // Ticket 02: one stem per note (duplicates would collapse the set), tips
+    // up at standard reach; 7 stem notes in even bars, 5 in odd bars.
+    const stems = stemPaths(svg);
+    expect(stems.length).toBe(96); // 8 * 7 + 8 * 5
+    const seenStems = new Set(stems.map((s) => `${s.x}:${s.tip}`));
+    expect(seenStems.size).toBe(stems.length);
+    stems.forEach((s) => {
+      expect(s.tip).toBeLessThanOrEqual(nearestLine(s.tip) - 30);
+      expect(s.tip).toBeGreaterThanOrEqual(nearestLine(s.tip) - 40);
+    });
+
+    // Ticket 02/03: 3 beam pairs in even bars, 1 in odd bars; beams rest on
+    // tips and no flag is stranded beside a beam.
+    const rects = beamRects(svg);
+    expect(rects.length).toBe(32); // 8 * 3 + 8 * 1
+    rects.forEach((r) => {
+      // Systems share x columns, so restrict covered stems to the rect's row.
+      const covered = stems.filter(
+        (s) => s.x >= r.x0 - 0.5 && s.x <= r.x1 + 0.5 && Math.abs(s.tip - r.bottom) <= 10,
+      );
+      expect(covered.length).toBe(2);
+      covered.forEach((s) => expect(Math.abs(s.tip - r.bottom)).toBeLessThanOrEqual(0.5));
+    });
+    const flagGlyphs = Array.from(svg!.querySelectorAll('g[class="vf-flag"] text')).map((t) => ({
+      x: parseFloat(t.getAttribute('x') ?? ''),
+      y: parseFloat(t.getAttribute('y') ?? ''),
+    }));
+    expect(flagGlyphs.length).toBe(8); // the lone eighths only
+    rects.forEach((r) => {
+      flagGlyphs.forEach((f) => {
+        const overlapsX = f.x >= r.x0 - 4 && f.x <= r.x1 + 4;
+        const sameRow = Math.abs(f.y - r.bottom) <= 12;
+        expect(overlapsX && sameRow).toBe(false);
+      });
+    });
+
+    // Ticket 04: barlines bracket the block of their own system (rows are
+    // 100 px apart, so y/100 rounding assigns elements to systems).
+    const spans = barlineSpans(svg);
+    expect(spans.length).toBe(18); // 16 starts/dividers + thin + thick final
+    const rowOf = (y: number) => Math.round((y - line) / 100);
+    for (let row = 0; row < 4; row++) {
+      const rowRects = rects.filter((r) => rowOf(r.top) === row);
+      expect(rowRects.length).toBeGreaterThan(0);
+      const rectTop = Math.min(...rowRects.map((r) => r.top));
+      const rowSpans = spans.filter((s) => rowOf(s.top) === row);
+      expect(rowSpans.length).toBe(row === 3 ? 6 : 4); // 4 measure starts (+ final pair on last row)
+      rowSpans.forEach((s) => {
+        expect(s.top).toBeGreaterThanOrEqual(rectTop - 6);
+        expect(s.top).toBeLessThanOrEqual(rectTop - 2);
+        const figCenter = line + row * 100;
+        expect(s.bottom).toBeGreaterThanOrEqual(figCenter + 10);
+        expect(s.bottom).toBeLessThanOrEqual(figCenter + 18);
+      });
+    }
+
+    // Ticket 05: one number per system above the first note, clear of beams.
+    const numbers = measureNumbers(svg);
+    expect(numbers.length).toBe(4);
+    [0, 4, 8, 12].forEach((mi, row) => {
+      const colX = layout.measures[mi].eventCoordinates[0].x;
+      expect(Math.abs(numbers[row].x - colX)).toBeLessThanOrEqual(2);
+      const rowRectTop = Math.min(...rects.filter((r) => rowOf(r.top) === row).map((r) => r.top));
+      expect(numbers[row].y).toBeLessThan(rowRectTop);
+    });
+
+    // Ticket 06: clef clears each system's start barline by ~10–12 px.
+    const clefs = clefXs(svg);
+    expect(clefs.length).toBe(4);
+    [0, 4, 8, 12].forEach((mi, row) => {
+      const gap = clefs[row] - layout.measures[mi].x;
+      expect(gap).toBeGreaterThanOrEqual(9);
+      expect(gap).toBeLessThanOrEqual(13);
+    });
+
+    // Ticket 07: flush thin+thick final pair at the stave line end.
+    const thick = spans.filter((s) => s.width >= 2);
+    expect(thick.length).toBe(1);
+    expect(Math.abs(thick[0].x - staveLineEndX(svg))).toBeLessThanOrEqual(0.6);
+    const thinOnly = spans.filter((s) => s.width < 2);
+    const thinFinal = thinOnly.reduce((a, b) => (a.x > b.x ? a : b), thinOnly[0]);
+    expect(thick[0].x - thinFinal.x).toBeGreaterThanOrEqual(5);
+    expect(thick[0].x - thinFinal.x).toBeLessThanOrEqual(7);
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

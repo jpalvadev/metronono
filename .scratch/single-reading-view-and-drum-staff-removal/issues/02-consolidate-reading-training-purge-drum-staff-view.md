@@ -5,12 +5,12 @@ Consolidate the Single-Line Reading Training section to use `ReadingView` as its
 
 **Blocked by:** 01: Decouple notation constants and retire DrumStaffRenderer
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] In `ReadingTrainingSection.tsx`, the view mode toggle container and the buttons for `Reading View` and `Drum Staff (5 Lines)` are removed.
-- [ ] In `ReadingTrainingSection.tsx`, only the exercise mode switcher tabs (`Procedural Generator` and `Library`) remain in the header controls area.
-- [ ] `ReadingTrainingSection.tsx` renders `<ReadingView readingLine={activeLine} scheduler={scheduler} />` unconditionally, removing `activeViewMode` and conditional rendering branches.
-- [ ] In `App.tsx`, the `viewMode` state, `setViewMode`, and the `NotationViewMode` import are removed, and `ReadingTrainingSection` is called without view mode props.
-- [ ] `src/components/notation/DrumStaffView.tsx` and `src/components/notation/__tests__/DrumStaffView.test.tsx` are deleted from the repository.
-- [ ] In `src/__tests__/App.test.tsx`, tests asserting toggle interactions between Reading View and Drum Staff are replaced with assertions verifying that `ReadingView` is always rendered and that no view mode buttons matching `/drum staff/i` or `/reading view/i` are present in the DOM.
-- [ ] The full test suite (`npm test`) passes with 0 failures, and style/token checks (`npm run check`) exit with code 0.
+- [x] In `ReadingTrainingSection.tsx`, the view mode toggle container and the buttons for `Reading View` and `Drum Staff (5 Lines)` are removed.
+- [x] In `ReadingTrainingSection.tsx`, only the exercise mode switcher tabs (`Procedural Generator` and `Library`) remain in the header controls area.
+- [x] `ReadingTrainingSection.tsx` renders `<ReadingView readingLine={activeLine} scheduler={scheduler} />` unconditionally, removing `activeViewMode` and conditional rendering branches.
+- [x] In `App.tsx`, the `viewMode` state, `setViewMode`, and the `NotationViewMode` import are removed, and `ReadingTrainingSection` is called without view mode props.
+- [x] `src/components/notation/DrumStaffView.tsx` and `src/components/notation/__tests__/DrumStaffView.test.tsx` are deleted from the repository.
+- [x] In `src/__tests__/App.test.tsx`, tests asserting toggle interactions between Reading View and Drum Staff are replaced with assertions verifying that `ReadingView` is always rendered and that no view mode buttons matching `/drum staff/i` or `/reading view/i` are present in the DOM.
+- [x] The full test suite (`npm test`) passes with 0 failures, and style/token checks (`npm run check`) exit with code 0.

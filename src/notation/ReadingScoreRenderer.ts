@@ -8,6 +8,7 @@ import VexFlow, {
   StaveTie,
   Dot,
   Stem,
+  StaveModifierPosition,
 } from 'vexflow';
 
 // On a 1-line stave VexFlow's built-in barlines collapse to a 1px rect (they
@@ -40,6 +41,11 @@ const STEM_FLAG_INSET = 3;
 
 // Top of a beamed system's music block relative to the stave line.
 const BEAM_REACH = STEM_REACH + BEAM_THICKNESS - STEM_FLAG_INSET;
+
+// VexFlow anchors the clef ~5 px right of the stave x; shift the header
+// (clef, time signature, first note) so the gap to the start barline is
+// ~10–12 px instead of a crowded 5 px.
+const CLEF_CLEARANCE = 6;
 import { Measure, ReadingLine, RhythmicEvent } from '../domain/rhythm/types';
 import {
   ScoreRenderOptions,
@@ -223,6 +229,13 @@ export class ReadingScoreRenderer {
         if (i === 0) {
           stave.addTimeSignature('4/4');
         }
+        // Format first so the header modifiers have their natural x, then
+        // shift clef/time signature right and push the note area with them.
+        stave.format();
+        stave.getModifiers(StaveModifierPosition.BEGIN).forEach((modifier) => {
+          modifier.setX(modifier.getX() + CLEF_CLEARANCE);
+        });
+        stave.setNoteStartX(stave.getNoteStartX() + CLEF_CLEARANCE);
       }
 
       // Measure numbers are drawn after the pass (not via stave.setMeasure,

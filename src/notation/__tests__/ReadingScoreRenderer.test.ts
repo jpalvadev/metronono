@@ -420,6 +420,49 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
+  // Left-edge anchor x of each system's percussion clef glyph.
+  const clefXs = (svg: Element | null): number[] => {
+    if (!svg) return [];
+    const xs: number[] = [];
+    for (const g of svg!.querySelectorAll('g[class="vf-clef"]')) {
+      const t = g.querySelector('text');
+      const x = parseFloat(t?.getAttribute('x') ?? '');
+      if (!isNaN(x)) xs.push(x);
+    }
+    return xs;
+  };
+
+  it('clears the clef, time signature and first note from the start barline', () => {
+    const readingLine: ReadingLine = {
+      id: 'test-clef-clearance',
+      title: 'Clef Clears The Start Barline',
+      tier: 1,
+      measures: [0, 1, 2].map((i) => createTestMeasure(i, [1, 1, 1, 1])),
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 800, measuresPerSystem: 2 });
+
+    const svg = container.querySelector('svg');
+    const xs = clefXs(svg);
+    // One clef per system (3 measures at 2 per system).
+    expect(xs.length).toBe(2);
+
+    const systemStartXs = [layout.measures[0].x, layout.measures[2].x];
+    xs.forEach((x, idx) => {
+      const gap = x - systemStartXs[idx];
+      // ~10–12 px between the start barline and the clef's left edge.
+      expect(gap).toBeGreaterThanOrEqual(9);
+      expect(gap).toBeLessThanOrEqual(13);
+    });
+
+    // Layout contract reflects the shift: the header measures' note columns
+    // start after the cleared header, so playhead anchors do too.
+    [layout.measures[0], layout.measures[2]].forEach((m) => {
+      expect(m.noteStartX).toBeGreaterThanOrEqual(m.x + 10);
+    });
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

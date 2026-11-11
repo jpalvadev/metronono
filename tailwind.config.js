@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
+  // ADR 0007: one light theme. `false` makes any `dark:` variant a compile error.
+  darkMode: false,
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -36,6 +37,14 @@ export default {
           DEFAULT: "var(--accent)",
           foreground: "var(--accent-foreground)",
         },
+        success: {
+          DEFAULT: "var(--success)",
+          foreground: "var(--success-foreground)",
+        },
+        warning: {
+          DEFAULT: "var(--warning)",
+          foreground: "var(--warning-foreground)",
+        },
         popover: {
           DEFAULT: "var(--popover)",
           foreground: "var(--popover-foreground)",
@@ -43,19 +52,6 @@ export default {
         card: {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
-        },
-        teal: {
-          50: "hsl(166 76% 97% / <alpha-value>)",
-          100: "hsl(168 80% 90% / <alpha-value>)",
-          200: "hsl(170 78% 80% / <alpha-value>)",
-          300: "hsl(172 81% 60% / <alpha-value>)",
-          400: "hsl(173 85% 45% / <alpha-value>)",
-          500: "hsl(174 100% 33% / <alpha-value>)",
-          600: "hsl(174 100% 29% / <alpha-value>)",
-          700: "hsl(176 100% 24% / <alpha-value>)",
-          800: "hsl(177 100% 19% / <alpha-value>)",
-          900: "hsl(178 100% 14% / <alpha-value>)",
-          950: "hsl(180 100% 8% / <alpha-value>)",
         },
       },
       borderRadius: {

@@ -10,6 +10,14 @@ Pin geometry, not counts: DOM assertions must compare coordinates or relationshi
 
 Keep engraving geometry (spacing, stem reach, beam thickness, clearances) as module-level named consts in the renderer, not inline literals — tests import them to assert real coordinates, and a test that re-types a literal drifts silently from the code it checks.
 
+## One style (judgement call)
+
+Reach for this section whenever a diff adds or repaints color. Every surface draws from a token role: `bg-primary`/`text-primary` for the Accent (interactive elements, active states, the Playhead), Success/Warning/Destructive for state, `bg-card`/`text-foreground`/`border-border` for surfaces, `secondary`/`muted` for neutral chrome. The names and their fixed meanings live in `GLOSSARY.md` § Interface — read it before reviewing a restyle.
+
+Judge the *role*, not the spelling: Warning marks genuine attention, Destructive marks danger or an invalid state, Success marks a confirmed one. A label that carries no caution stays neutral; difficulty tiers borrow the three by hue; the Playhead is one Accent treatment in every view. `npm run check:style` already settles the mechanical half (raw palettes, `dark:` variants, `rgba(` glows, radii other than `rounded-none`, dead theme blocks), so spend review effort on whether the meaning holds.
+
+The theme's single definition point is `src/index.css` (tokens and the named utilities) plus `tailwind.config.js` (role registration); the decision and its rejected alternatives are in `docs/adr/0007-single-light-theme-token-palette.md`.
+
 ## Checks
 
 `npm run check` (`node scripts/one-style.mjs && tsc --noEmit && vitest run`) is the repo's guardrail, enforced by a pre-commit hook and by CI (`.github/workflows/check.yml`, on pushes to `main` and `feat/**`). Diff review should confirm the changed files pass it; run it rather than assuming.

@@ -274,6 +274,46 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
+  // Anchor x of every flag glyph group.
+  const flagXs = (svg: Element | null): number[] => {
+    if (!svg) return [];
+    const xs: number[] = [];
+    for (const g of svg!.querySelectorAll('g[class="vf-flag"]')) {
+      const t = g.querySelector('text');
+      const x = parseFloat(t?.getAttribute('x') ?? '');
+      if (!isNaN(x)) xs.push(x);
+    }
+    return xs;
+  };
+
+  it('keeps flags on lone short notes and never on beamed ones', () => {
+    // 8th(lone) q 8th 8th(beam pair) q 8th-rest = one 4/4 bar.
+    const measure = createTestMeasure(0, [0.5, 1.0, 0.5, 0.5, 1.0, 0.5], [false, false, false, false, false, true]);
+    const readingLine: ReadingLine = {
+      id: 'test-flags-lone-only',
+      title: 'Flags On Lone Short Notes',
+      tier: 2,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 500 });
+
+    const svg = container.querySelector('svg');
+    const xs = flagXs(svg);
+
+    // The isolated eighth keeps its flag...
+    const loneEighthX = layout.measures[0].eventCoordinates[0].x;
+    expect(xs.some((x) => x >= loneEighthX - 4 && x <= loneEighthX + 20)).toBe(true);
+
+    // ...and no flag sits beside a beamed pair's beam.
+    const rects = beamRects(svg);
+    expect(rects.length).toBe(1); // the eighth-eighth pair only
+    rects.forEach((r) => {
+      expect(xs.every((x) => x < r.x0 - 4 || x > r.x1 + 4)).toBe(true);
+    });
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

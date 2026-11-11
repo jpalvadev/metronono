@@ -1,6 +1,6 @@
 # Remove Real-Time Drum Monitor Spec
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

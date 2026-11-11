@@ -41,6 +41,7 @@ Multi-context repo (presence of `GLOSSARY-MAP.md` at the root):
 ## Navigation pointers
 
 - **Partiture / score rendering**: `src/notation/` holds the VexFlow renderers (`ReadingScoreRenderer` = 1-line Reading View, `DrumStaffRenderer` = 5-line Drum Staff View); the React views live in `src/components/notation/` and are mounted by `src/components/ReadingTrainingSection.tsx`, not directly by `App.tsx` (which only imports view types).
+- **VexFlow 5 engraving gotchas**: before touching any notation renderer, read `docs/agents/vexflow5-engraving.md` — figure anchors, stem spacing, and beam↔flag suppression behavior that the minified npm bundle hides.
 
 ## Use the glossary's vocabulary
 

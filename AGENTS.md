@@ -10,6 +10,8 @@ When a skill (implement-spec, code-review) orchestrates subagents/worktrees, run
 
 Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, `Select-String`, `Remove-Item`); the grep/glob tools cover content search, so reach for the shell only for test/build runs and file ops.
 
+In `npm run check` output, jsdom `Error: Not implemented: navigation` and React `act()` warnings are benign test noise — trust the pass summary and exit code, don't chase them.
+
 ## Agent skills
 
 ### Issue tracker

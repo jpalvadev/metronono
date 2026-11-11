@@ -234,43 +234,78 @@ export class DrumStaffFormulaRenderer {
     const availableWidth = stave.getNoteEndX() - stave.getNoteStartX();
     formatter.joinVoices(voicesToFormat).format(voicesToFormat, availableWidth);
 
-    // Draw voices
+    // Build stroke offsets first so we can group beams by beat
+    const strokeOffsets = resolveStrokeOffsets(effectiveStrokes, 0);
+
+    // Generate beams for rapid subdivisions BEFORE drawing voices
+    // In VexFlow, Beam.generateBeams attaches note.beam so the note knows NOT to render individual flags
+    const beams: Beam[] = [];
+    try {
+      // Group Voice 1 beamable notes by beat bucket
+      const v1BeatGroups = new Map<number, StaveNote[]>();
+      for (let i = 0; i < voice1Notes.length; i++) {
+        const n = voice1Notes[i];
+        if (n && !n.isRest()) {
+          const dur = n.getDuration();
+          if (dur === '8' || dur === '16' || dur === '32') {
+            const offset = strokeOffsets[i]?.offset ?? 0;
+            const beatBucket = Math.floor(offset / 1.0);
+            if (!v1BeatGroups.has(beatBucket)) v1BeatGroups.set(beatBucket, []);
+            v1BeatGroups.get(beatBucket)!.push(n);
+          }
+        }
+      }
+
+      v1BeatGroups.forEach((group) => {
+        if (group.length > 1) {
+          const v1Beams = Beam.generateBeams(group, {
+            stemDirection: Stem.UP,
+            beamRests: false,
+          });
+          beams.push(...v1Beams);
+        }
+      });
+
+      if (hasFeetHits && voice2Notes.length > 0) {
+        // Group Voice 2 beamable notes by beat bucket
+        const v2BeatGroups = new Map<number, StaveNote[]>();
+        for (let i = 0; i < voice2Notes.length; i++) {
+          const n = voice2Notes[i];
+          if (n && !n.isRest()) {
+            const dur = n.getDuration();
+            if (dur === '8' || dur === '16' || dur === '32') {
+              const offset = strokeOffsets[i]?.offset ?? 0;
+              const beatBucket = Math.floor(offset / 1.0);
+              if (!v2BeatGroups.has(beatBucket)) v2BeatGroups.set(beatBucket, []);
+              v2BeatGroups.get(beatBucket)!.push(n);
+            }
+          }
+        }
+
+        v2BeatGroups.forEach((group) => {
+          if (group.length > 1) {
+            const v2Beams = Beam.generateBeams(group, {
+              stemDirection: Stem.DOWN,
+              beamRests: false,
+            });
+            beams.push(...v2Beams);
+          }
+        });
+      }
+    } catch {
+      // Safe fallback if notes can't be auto-beamed
+    }
+
+    // Draw voices AFTER beams are attached so no stray flags are drawn under beams
     v1.draw(context, stave);
     if (hasFeetHits && voice2Notes.length > 0) {
       voicesToFormat[1].draw(context, stave);
     }
 
-    // Generate beams for rapid subdivisions
-    const beams: Beam[] = [];
-    try {
-      const beamableV1 = voice1Notes.filter((n) => !n.isRest());
-      if (beamableV1.length > 1) {
-        const v1Beams = Beam.generateBeams(beamableV1, {
-          stemDirection: Stem.UP,
-          beamRests: false,
-        });
-        v1Beams.forEach((b) => {
-          b.setContext(context).draw();
-          beams.push(b);
-        });
-      }
-
-      if (hasFeetHits) {
-        const beamableV2 = voice2Notes.filter((n) => !n.isRest());
-        if (beamableV2.length > 1) {
-          const v2Beams = Beam.generateBeams(beamableV2, {
-            stemDirection: Stem.DOWN,
-            beamRests: false,
-          });
-          v2Beams.forEach((b) => {
-            b.setContext(context).draw();
-            beams.push(b);
-          });
-        }
-      }
-    } catch {
-      // Safe fallback if notes can't be auto-beamed
-    }
+    // Draw beams onto context
+    beams.forEach((b) => {
+      b.setContext(context).draw();
+    });
 
     // Re-enforce explicit stem directions after drawing / beaming
     voice1Notes.forEach((n) => {
@@ -281,7 +316,6 @@ export class DrumStaffFormulaRenderer {
     });
 
     // Build stroke coordinates
-    const strokeOffsets = resolveStrokeOffsets(effectiveStrokes, 0);
     const strokeCoordinates: FormulaStrokeCoordinate[] = [];
 
     for (let i = 0; i < effectiveStrokes.length; i++) {

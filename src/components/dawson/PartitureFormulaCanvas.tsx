@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useLayoutEffect, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useLayoutEffect, useCallback, useState, useMemo } from 'react';
 import {
   DrumVoice,
   Dynamic,
@@ -12,6 +12,7 @@ import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumStaffRenderer';
 import { resolveStrokeOffsets } from '../../domain/dawson/SubdivisionFormula';
 import { IDrumKitPlayer } from '../../audio/types';
 import { EntryTool } from './FormulaPaletteToolbar';
+import { cn } from '../../lib/utils';
 
 export interface PartitureFormulaCanvasProps {
   strokes: OrchestratedStroke[];
@@ -44,10 +45,40 @@ export function dynamicToVelocity(dynamic: Dynamic): number {
   }
 }
 
+export function getSlotLabels(totalSlots: number, slotDuration: number, _targetBeats?: number): string[] {
+  const labels: string[] = [];
+  for (let s = 0; s < totalSlots; s++) {
+    const beatOffset = s * slotDuration;
+    const beatNum = Math.floor(beatOffset) + 1;
+    const subOffset = beatOffset - Math.floor(beatOffset);
+
+    if (Math.abs(slotDuration - 0.25) < 0.03) {
+      // 16th note subdivision: 1, e, &, a
+      const step4 = Math.round(subOffset * 4);
+      const names = [`${beatNum}`, 'e', '&', 'a'];
+      labels.push(names[step4 % 4] || `${s + 1}`);
+    } else if (Math.abs(slotDuration - 0.5) < 0.05) {
+      // 8th note subdivision: 1, &
+      const step2 = Math.round(subOffset * 2);
+      const names = [`${beatNum}`, '&'];
+      labels.push(names[step2 % 2] || `${s + 1}`);
+    } else if (Math.abs(slotDuration - 1 / 3) < 0.03 || Math.abs(slotDuration - 1 / 6) < 0.02) {
+      // Triplet subdivision: 1, trip, let
+      const step3 = Math.round(subOffset * 3);
+      const names = [`${beatNum}`, 'trip', 'let'];
+      labels.push(names[step3 % 3] || `${s + 1}`);
+    } else {
+      labels.push(`${s + 1}`);
+    }
+  }
+  return labels;
+}
+
 interface DragGuideState {
   x: number;
   y: number;
   voice: DrumVoice | null;
+  slotLabel?: string;
   isOffStave: boolean;
 }
 
@@ -68,6 +99,17 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<DrumStaffFormulaRenderer>(new DrumStaffFormulaRenderer());
   const layoutRef = useRef<DrumStaffFormulaLayout | null>(null);
+
+  // Subdivision slots calculation
+  const slotDuration = selectedDuration > 0 ? selectedDuration : 0.25;
+  const totalSlots = Math.max(1, Math.round(targetBeats / slotDuration));
+  const slotLabels = useMemo(
+    () => getSlotLabels(totalSlots, slotDuration, targetBeats),
+    [totalSlots, slotDuration, targetBeats]
+  );
+
+  // Hover state for interactive slot guidelines
+  const [hoverSlot, setHoverSlot] = useState<{ slotIndex: number; voice: DrumVoice | null } | null>(null);
 
   // Dragging state
   const [dragGuide, setDragGuide] = useState<DragGuideState | null>(null);
@@ -140,6 +182,27 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     renderStave();
   }, [renderStave]);
 
+  // Track hover over slot and voice line
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly || !containerRef.current || !layoutRef.current || dragStateRef.current.isDragging) {
+      if (hoverSlot) setHoverSlot(null);
+      return;
+    }
+    const { x, y } = getEventCoords(e);
+    const layout = layoutRef.current;
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const noteWidth = Math.max(10, endX - startX);
+    const slotWidth = noteWidth / totalSlots;
+    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const voice = layout.getDrumVoiceForY(y);
+    setHoverSlot({ slotIndex, voice });
+  };
+
+  const handleMouseLeave = () => {
+    setHoverSlot(null);
+  };
+
   // Click-to-stamp handler (only if not dragging)
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !containerRef.current || !layoutRef.current) return;
@@ -151,14 +214,23 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || 'snare';
-    const beatOffset = layout.getBeatOffsetForX(x, targetBeats);
+
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const noteWidth = Math.max(10, endX - startX);
+    const slotWidth = noteWidth / totalSlots;
+    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const targetOffset = Math.round(slotIndex * slotDuration * 1000) / 1000;
 
     const resolved = resolveStrokeOffsets(strokes, 0);
 
     let strokeIndex = -1;
     for (let i = 0; i < resolved.length; i++) {
       const { stroke, offset } = resolved[i];
-      if (beatOffset >= offset - 0.05 && beatOffset < offset + stroke.durationRatio) {
+      if (
+        Math.abs(offset - targetOffset) < 0.05 ||
+        (targetOffset >= offset - 0.02 && targetOffset < offset + stroke.durationRatio - 0.02)
+      ) {
         strokeIndex = i;
         break;
       }
@@ -167,8 +239,8 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     if (strokeIndex === -1 && resolved.length > 0) {
       let closestDist = Infinity;
       resolved.forEach(({ offset }, idx) => {
-        const dist = Math.abs(beatOffset - offset);
-        if (dist < 0.25 && dist < closestDist) {
+        const dist = Math.abs(targetOffset - offset);
+        if (dist < 0.15 && dist < closestDist) {
           closestDist = dist;
           strokeIndex = idx;
         }
@@ -219,10 +291,21 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         );
         onChangeStrokes(next);
       } else {
-        onChangeStrokes([
-          ...strokes,
-          { durationRatio: selectedDuration, isRest: true, hits: [] },
-        ]);
+        if (strokes.length === 0 && slotIndex === 0) {
+          onChangeStrokes([
+            { durationRatio: selectedDuration, isRest: true, hits: [] },
+          ]);
+        } else if (slotIndex > 0 && strokes.length === 0) {
+          onChangeStrokes([
+            { durationRatio: targetOffset, isRest: true, hits: [] },
+            { durationRatio: selectedDuration, isRest: true, hits: [] },
+          ]);
+        } else {
+          onChangeStrokes([
+            ...strokes,
+            { durationRatio: selectedDuration, isRest: true, hits: [] },
+          ]);
+        }
       }
       return;
     }
@@ -242,24 +325,46 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       } else {
         const existingIdx = hits.findIndex((h) => h.voice === drumVoice);
         if (existingIdx >= 0) {
-          hits[existingIdx] = { voice: drumVoice, dynamic: selectedDynamic };
+          if (hits[existingIdx].dynamic === selectedDynamic && hits.length > 1) {
+            // Toggle hit off from unison chord
+            hits.splice(existingIdx, 1);
+          } else {
+            hits[existingIdx] = { voice: drumVoice, dynamic: selectedDynamic };
+          }
         } else {
           hits.push({ voice: drumVoice, dynamic: selectedDynamic });
         }
       }
 
       const next = strokes.map((s, i) =>
-        i === strokeIndex ? { ...s, isRest: false, hits } : s
+        i === strokeIndex ? { ...s, isRest: hits.length === 0, hits } : s
       );
       onChangeStrokes(next);
     } else {
-      onChangeStrokes([
-        ...strokes,
-        {
-          durationRatio: selectedDuration,
-          hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
-        },
-      ]);
+      if (strokes.length === 0 && slotIndex === 0) {
+        onChangeStrokes([
+          {
+            durationRatio: selectedDuration,
+            hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
+          },
+        ]);
+      } else if (slotIndex > 0 && strokes.length === 0) {
+        onChangeStrokes([
+          { durationRatio: targetOffset, isRest: true, hits: [] },
+          {
+            durationRatio: selectedDuration,
+            hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
+          },
+        ]);
+      } else {
+        onChangeStrokes([
+          ...strokes,
+          {
+            durationRatio: selectedDuration,
+            hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
+          },
+        ]);
+      }
     }
   };
 
@@ -272,10 +377,18 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const layout = layoutRef.current;
     const voice = layout.getDrumVoiceForY(y);
 
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const noteWidth = Math.max(10, endX - startX);
+    const slotWidth = noteWidth / totalSlots;
+    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const snappedX = startX + (slotIndex + 0.5) * slotWidth;
+
     setDragGuide({
-      x,
+      x: snappedX,
       y,
       voice,
+      slotLabel: slotLabels[slotIndex],
       isOffStave: y < 0 || y > height,
     });
   };
@@ -305,7 +418,13 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || 'snare';
-    const beatOffset = layout.getBeatOffsetForX(x, targetBeats);
+
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const noteWidth = Math.max(10, endX - startX);
+    const slotWidth = noteWidth / totalSlots;
+    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const targetOffset = Math.round(slotIndex * slotDuration * 1000) / 1000;
 
     // Audio feedback on drop
     if (player && drumVoice) {
@@ -316,7 +435,10 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     let strokeIndex = -1;
     for (let i = 0; i < resolved.length; i++) {
       const { stroke, offset } = resolved[i];
-      if (beatOffset >= offset - 0.05 && beatOffset < offset + stroke.durationRatio) {
+      if (
+        Math.abs(offset - targetOffset) < 0.05 ||
+        (targetOffset >= offset - 0.02 && targetOffset < offset + stroke.durationRatio - 0.02)
+      ) {
         strokeIndex = i;
         break;
       }
@@ -339,13 +461,30 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         strokes.map((s, i) => (i === strokeIndex ? { ...s, isRest: false, hits } : s))
       );
     } else {
-      onChangeStrokes([
-        ...strokes,
-        {
-          durationRatio,
-          hits: [{ voice: drumVoice, dynamic }],
-        },
-      ]);
+      if (strokes.length === 0 && slotIndex === 0) {
+        onChangeStrokes([
+          {
+            durationRatio,
+            hits: [{ voice: drumVoice, dynamic }],
+          },
+        ]);
+      } else if (slotIndex > 0 && strokes.length === 0) {
+        onChangeStrokes([
+          { durationRatio: targetOffset, isRest: true, hits: [] },
+          {
+            durationRatio,
+            hits: [{ voice: drumVoice, dynamic }],
+          },
+        ]);
+      } else {
+        onChangeStrokes([
+          ...strokes,
+          {
+            durationRatio,
+            hits: [{ voice: drumVoice, dynamic }],
+          },
+        ]);
+      }
     }
   };
 
@@ -491,6 +630,8 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     <div
       data-testid="partiture-formula-canvas"
       onClick={handleClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -498,18 +639,77 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      className={`relative w-full overflow-hidden select-none cursor-pointer rounded-xl bg-slate-950/70 border border-border/80 flex items-center justify-center ${
+      className={`relative w-full overflow-hidden select-none cursor-pointer rounded-xl bg-white dark:bg-white text-slate-950 border border-slate-200/90 shadow-sm flex flex-col items-center justify-center pt-2 ${
         className || ''
       }`}
       style={{ minHeight: height }}
     >
+      {/* Visual Subdivision Slot Grid Guidelines */}
+      {layoutRef.current && (
+        <div className="absolute inset-0 pointer-events-none">
+          {Array.from({ length: totalSlots }).map((_, s) => {
+            const startX = layoutRef.current!.stave.getNoteStartX();
+            const endX = layoutRef.current!.stave.getNoteEndX();
+            const noteWidth = Math.max(10, endX - startX);
+            const slotWidth = noteWidth / totalSlots;
+            const slotLeft = startX + s * slotWidth;
+            const slotLabel = slotLabels[s] || `${s + 1}`;
+            const isHovered = hoverSlot?.slotIndex === s;
+            const isDownbeat = (s * slotDuration) % 1.0 < 0.01;
+
+            return (
+              <React.Fragment key={s}>
+                {/* Slot Column Guideline */}
+                {s > 0 && (
+                  <div
+                    className={cn(
+                      'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
+                      isDownbeat ? 'border-slate-300' : 'border-dashed border-slate-200/80'
+                    )}
+                    style={{ left: `${slotLeft}px` }}
+                  />
+                )}
+
+                {/* Hover Column Wash */}
+                {isHovered && (
+                  <div
+                    className="absolute top-7 bottom-3 pointer-events-none bg-teal-500/10 border-x border-teal-500/30 rounded transition-all"
+                    style={{ left: `${slotLeft}px`, width: `${slotWidth}px` }}
+                  />
+                )}
+
+                {/* Slot Header Label */}
+                <div
+                  className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
+                  style={{ left: `${slotLeft}px`, width: `${slotWidth}px` }}
+                >
+                  <span
+                    className={cn(
+                      'px-1.5 py-0.2 rounded transition-colors',
+                      isHovered
+                        ? 'bg-teal-600 text-white font-bold shadow-xs'
+                        : isDownbeat
+                        ? 'text-teal-700 font-bold bg-teal-50 border border-teal-200/60'
+                        : 'text-slate-400'
+                    )}
+                  >
+                    {slotLabel}
+                  </span>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+
+      {/* VexFlow 5-Line Percussion Score Container */}
       <div ref={containerRef} className="w-full flex justify-center" />
 
       {/* Animated Audition Playhead */}
       {playheadBeat !== null && playheadBeat !== undefined && layoutRef.current && (
         <div
           data-testid="audition-playhead"
-          className="absolute top-0 bottom-0 w-[2px] bg-rose-400 shadow-[0_0_10px_rgba(251,113,133,0.9)] pointer-events-none transition-all duration-75"
+          className="absolute top-0 bottom-0 w-[2px] bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.9)] pointer-events-none transition-all duration-75"
           style={{
             left: `${layoutRef.current.getXForBeatOffset(playheadBeat, targetBeats)}px`,
           }}
@@ -524,7 +724,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         >
           {/* Vertical Snap Guide Line */}
           <div
-            className="absolute top-0 bottom-0 w-[2px] bg-teal-400/60 shadow-[0_0_8px_rgba(45,212,191,0.6)]"
+            className="absolute top-0 bottom-0 w-[2px] bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]"
             style={{ left: `${dragGuide.x}px` }}
           />
 
@@ -533,15 +733,19 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
             <div
               className={`absolute px-2 py-0.5 rounded text-[10px] font-mono font-bold shadow-md transition-all ${
                 dragGuide.isOffStave
-                  ? 'bg-rose-500/90 text-white'
-                  : 'bg-teal-500/90 text-slate-950'
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-teal-600 text-white'
               }`}
               style={{
                 left: `${dragGuide.x + 8}px`,
                 top: `${Math.max(4, Math.min(height - 24, dragGuide.y - 12))}px`,
               }}
             >
-              {dragGuide.isOffStave ? 'Remove' : dragGuide.voice}
+              {dragGuide.isOffStave
+                ? 'Remove'
+                : `${dragGuide.slotLabel ? `${dragGuide.slotLabel} • ` : ''}${
+                    DRUM_VOICE_PAS_MAP[dragGuide.voice]?.label || dragGuide.voice
+                  }`}
             </div>
           )}
         </div>

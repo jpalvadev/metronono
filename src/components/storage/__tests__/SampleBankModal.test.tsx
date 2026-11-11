@@ -59,7 +59,7 @@ describe('SampleBankModal', () => {
     expect(tokens.has('bg-primary/20')).toBe(true);
 
     // No raw palette classes, scrim literals, or dark: variants survive
-    const rawPalette = /(?:teal|rose|emerald|amber|slate)-\d|bg-black|bg-white|text-white|dark:/;
+    const rawPalette = /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-(?:white|black)|text-white|dark:|rgba\(|rounded(?!-none)/;
     for (const el of document.body.querySelectorAll('*')) {
       expect(rawPalette.test(el.getAttribute('class') ?? '')).toBe(false);
     }

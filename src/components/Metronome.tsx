@@ -485,7 +485,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   value={rampConfig.targetBpm}
                   onChange={(e) => handleRampTargetChange(Number(e.target.value))}
                   aria-label="Target BPM"
-                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                  className="w-full bg-muted/60 border border-border rounded-none px-2 py-1 font-mono text-center"
                 />
               </div>
               <div>
@@ -500,7 +500,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   value={rampConfig.durationBars}
                   onChange={(e) => handleRampBarsChange(Number(e.target.value))}
                   aria-label="Duration Bars"
-                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                  className="w-full bg-muted/60 border border-border rounded-none px-2 py-1 font-mono text-center"
                 />
               </div>
             </div>

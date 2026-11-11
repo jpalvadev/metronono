@@ -272,7 +272,7 @@ describe('FormulaEditorDialog Component (Partiture Drum Staff)', () => {
     // Zero raw palette classes anywhere in the rendered dialog (incl. embedded partiture)
     for (const el of document.body.querySelectorAll('*')) {
       expect(
-        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-(?:white|black)|text-white|dark:|rgba\(|rounded(?!-none)/.test(
           el.getAttribute('class') ?? ''
         )
       ).toBe(false);

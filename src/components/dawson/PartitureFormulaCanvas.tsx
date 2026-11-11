@@ -684,7 +684,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
                 >
                   <span
                     className={cn(
-                      'px-1.5 py-0.2 rounded transition-colors',
+                      'px-1.5 py-0.2 rounded-none transition-colors',
                       isHovered
                         ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                         : isDownbeat

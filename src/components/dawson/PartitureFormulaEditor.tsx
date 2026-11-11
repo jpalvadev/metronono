@@ -287,7 +287,7 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
                       <span
                         key={hIdx}
                         className={cn(
-                          'text-[8px] uppercase px-1 rounded font-bold',
+                          'text-[8px] uppercase px-1 rounded-none font-bold',
                           h.voice === activeVoice
                             ? 'bg-primary/70 text-primary-foreground'
                             : 'bg-muted-foreground/40 text-muted-foreground'

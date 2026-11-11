@@ -500,7 +500,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             {formula.strokes.map((s, idx) => (
                               <span
                                 key={idx}
-                                className="px-1.5 py-0.5 rounded bg-muted/50 border border-border/60 text-[10px] font-mono"
+                                className="px-1.5 py-0.5 rounded-none bg-muted/50 border border-border/60 text-[10px] font-mono"
                               >
                                 {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                               </span>
@@ -573,7 +573,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             {formula.strokes.map((s, idx) => (
                               <span
                                 key={idx}
-                                className="px-1.5 py-0.5 rounded bg-muted/50 border border-border/60 text-[10px] font-mono"
+                                className="px-1.5 py-0.5 rounded-none bg-muted/50 border border-border/60 text-[10px] font-mono"
                               >
                                 {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                               </span>

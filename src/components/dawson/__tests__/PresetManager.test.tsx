@@ -72,7 +72,7 @@ describe('PresetManager Component', () => {
     expect(customBadge).toHaveClass('text-warning');
 
     // Geometry: the app standard is square corners (rounded-none)
-    const rawPalette = /(?:teal|rose|emerald|amber|slate)-\d|bg-black|bg-white|text-white|dark:|rounded-(xl|lg)/;
+    const rawPalette = /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-(?:white|black)|text-white|dark:|rgba\(|rounded(?!-none)/;
     for (const el of document.body.querySelectorAll('*')) {
       expect(rawPalette.test(el.className)).toBe(false);
     }

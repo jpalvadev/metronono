@@ -325,10 +325,10 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
             </div>
 
             {/* Visual Budget Progress Bar */}
-            <div className="w-full h-2 rounded-full bg-muted/60 overflow-hidden relative">
+            <div className="w-full h-2 rounded-none bg-muted/60 overflow-hidden relative">
               <div
                 className={cn(
-                  'h-full transition-all duration-300 rounded-full',
+                  'h-full transition-all duration-300 rounded-none',
                   isBudgetMatched
                     ? 'bg-success'
                     : isOverBudget

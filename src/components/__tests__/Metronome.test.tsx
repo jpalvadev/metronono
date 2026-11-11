@@ -118,7 +118,7 @@ describe('Metronome Component', () => {
 
     for (const el of document.body.querySelectorAll('*')) {
       expect(
-        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-(?:white|black)|text-white|dark:|rgba\(|rounded(?!-none)/.test(
           el.getAttribute('class') ?? ''
         )
       ).toBe(false);

@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import {
   DawsonMode,
   OstinatoType,
-  DrumVoice,
-  ScheduledDrumEvent,
   SubdivisionFormula,
   DawsonSystem,
 } from '../domain/dawson/types';
@@ -12,13 +10,11 @@ import {
   DawsonPresetManager,
   resolveStrokeOffsets,
 } from '../domain/dawson/SubdivisionFormula';
-import { DrumLane } from '../audio/DrumKitPlayer';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
   Disc,
   Sliders,
-  Activity,
   Layers,
   Edit3,
   Play,
@@ -58,34 +54,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   const [editingFormula, setEditingFormula] = useState<SubdivisionFormula | null>(null);
   const [formulaDefaultTrigger, setFormulaDefaultTrigger] = useState<'short' | 'long'>('short');
 
-  // Pad illumination states
-  const [activeKick, setActiveKick] = useState(false);
-  const [activeSnare, setActiveSnare] = useState(false);
-  const [activeRide, setActiveRide] = useState(false);
-  const [activeHihat, setActiveHihat] = useState(false);
-
-  // Listen for scheduled real-time drum hits
-  useEffect(() => {
-    const unsub = scheduler.onDrumHit((event: ScheduledDrumEvent) => {
-      const v = event.voice;
-      if (v === 'kick') {
-        setActiveKick(true);
-        setTimeout(() => setActiveKick(false), 120);
-      } else if (v === 'snare' || v === 'snare_ghost') {
-        setActiveSnare(true);
-        setTimeout(() => setActiveSnare(false), 120);
-      } else if (v === 'ride' || v === 'ride_bell') {
-        setActiveRide(true);
-        setTimeout(() => setActiveRide(false), 120);
-      } else if (v.startsWith('hihat')) {
-        setActiveHihat(true);
-        setTimeout(() => setActiveHihat(false), 120);
-      }
-    });
-
-    return unsub;
-  }, [scheduler]);
-
   const handleModeChange = useCallback(
     (newMode: DawsonMode) => {
       setMode(newMode);
@@ -124,27 +92,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       engine.setOstinato(newOstinato);
     },
     [engine]
-  );
-
-  const handlePadAudition = useCallback(
-    (voice: DrumVoice, channel: DrumLane) => {
-      // A pad tap is an audition tap on the Mixing Channel that pad belongs to.
-      player.triggerVoice(voice, 0, 0.9, channel);
-      if (voice === 'kick') {
-        setActiveKick(true);
-        setTimeout(() => setActiveKick(false), 120);
-      } else if (voice === 'snare') {
-        setActiveSnare(true);
-        setTimeout(() => setActiveSnare(false), 120);
-      } else if (voice === 'ride') {
-        setActiveRide(true);
-        setTimeout(() => setActiveRide(false), 120);
-      } else if (voice === 'hihat_foot' || voice === 'hihat_closed') {
-        setActiveHihat(true);
-        setTimeout(() => setActiveHihat(false), 120);
-      }
-    },
-    [player]
   );
 
   const handleAuditionFormula = useCallback(
@@ -210,7 +157,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                Alan Dawson Orchestration & Drum Monitor
+                Alan Dawson Orchestration
               </h2>
               <Badge variant="outline" className="text-[10px] font-mono rounded-none">
                 Tone.js
@@ -510,131 +457,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           </div>
         </div>
       </div>
-
-      {/* Visual Drum Kit Monitor: pad illumination plus audition taps per Mixing Channel */}
-      <div className="flex flex-col gap-2.5 pt-1">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-primary" />
-              Real-Time Drum Monitor
-            </label>
-            <span className="text-[10px] text-muted-foreground font-mono">Click pad to audition</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5 bg-secondary/20 p-2.5 rounded-none border border-border">
-            {/* Ride Cymbal (RH) */}
-            <button
-              type="button"
-              data-testid="drum-pad-ride"
-              data-active={activeRide ? 'true' : 'false'}
-              onClick={() => handlePadAudition('ride', 'ostinato')}
-              className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
-                activeRide
-                  ? 'bg-amber-500/25 border-amber-400 scale-[1.02] shadow-sm'
-                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
-                  activeRide
-                    ? 'border-amber-400 bg-amber-400 text-black'
-                    : 'border-amber-500/40 text-amber-400 bg-amber-500/10'
-                )}
-              >
-                RH
-              </div>
-              <span className="text-xs font-semibold text-foreground">Ride Cymbal</span>
-              <span className="text-[10px] text-muted-foreground font-mono">Spang-a-lang</span>
-            </button>
-
-            {/* Snare Drum (LH) */}
-            <button
-              type="button"
-              data-testid="drum-pad-snare"
-              data-active={activeSnare ? 'true' : 'false'}
-              onClick={() => handlePadAudition('snare', 'orchestration')}
-              className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
-                activeSnare
-                  ? 'bg-primary/25 border-primary scale-[1.02] shadow-sm'
-                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
-                  activeSnare
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border text-primary bg-primary/10'
-                )}
-              >
-                LH
-              </div>
-              <span className="text-xs font-semibold text-foreground">Snare Drum</span>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {shortFormula.name}
-              </span>
-            </button>
-
-            {/* Bass Drum / Kick (RF) */}
-            <button
-              type="button"
-              data-testid="drum-pad-kick"
-              data-active={activeKick ? 'true' : 'false'}
-              onClick={() => handlePadAudition('kick', 'orchestration')}
-              className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
-                activeKick
-                  ? 'bg-rose-500/25 border-rose-400 scale-[1.02] shadow-sm'
-                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
-                  activeKick
-                    ? 'border-rose-400 bg-rose-400 text-white'
-                    : 'border-rose-500/40 text-rose-400 bg-rose-500/10'
-                )}
-              >
-                RF
-              </div>
-              <span className="text-xs font-semibold text-foreground">Bass Drum</span>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {longFormula.name}
-              </span>
-            </button>
-
-            {/* Hi-Hat Pedal (LF) */}
-            <button
-              type="button"
-              data-testid="drum-pad-hihat"
-              data-active={activeHihat ? 'true' : 'false'}
-              onClick={() => handlePadAudition('hihat_foot', 'ostinato')}
-              className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
-                activeHihat
-                  ? 'bg-purple-500/25 border-purple-400 scale-[1.02] shadow-sm'
-                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
-                  activeHihat
-                    ? 'border-purple-400 bg-purple-400 text-white'
-                    : 'border-purple-500/40 text-purple-400 bg-purple-500/10'
-                )}
-              >
-                LF
-              </div>
-              <span className="text-xs font-semibold text-foreground">Hi-Hat Pedal</span>
-              <span className="text-[10px] text-muted-foreground font-mono">Beats 2 & 4 Chick</span>
-            </button>
-          </div>
-        </div>
 
       {/* Preset Manager Modal Dialog */}
       {isPresetManagerOpen && (

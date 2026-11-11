@@ -87,7 +87,7 @@ export function App() {
           </div>
         </div>
 
-        {/* Alan Dawson Orchestration Engine & Drum Monitor */}
+        {/* Alan Dawson Orchestration Engine */}
         <div className="w-full">
           <DawsonOrchestrationSection scheduler={scheduler} />
         </div>

@@ -57,7 +57,7 @@ An individual sounding hit or rest within an orchestration formula defining a sp
 _Avoid_: Drum hit, note event, limb hit
 
 **Mixing Channel**:
-One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute under a single Master. A muted channel produces no sound and no drum-pad illumination, without stopping the Metronome or the notation.
+One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute under a single Master. A muted channel produces no sound, without stopping the Metronome or the notation.
 _Avoid_: Track, bus, stem, fader, channel strip
 
 **Practice Preset**:

@@ -24,11 +24,14 @@ describe('App', () => {
     expect(screen.getByTestId('reading-view-root')).toBeInTheDocument();
 
     // Alan Dawson Orchestration Section
-    expect(screen.getByText(/Alan Dawson Orchestration & Drum Monitor/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Alan Dawson Orchestration$/)).toBeInTheDocument();
     expect(screen.getByText(/Classic Bop/i)).toBeInTheDocument();
     expect(screen.getByText(/Inverted Bop/i)).toBeInTheDocument();
-    expect(screen.getByTestId('drum-pad-kick')).toBeInTheDocument();
-    expect(screen.getByTestId('drum-pad-snare')).toBeInTheDocument();
+    // The Real-Time Drum Monitor is gone from the dashboard.
+    for (const pad of ['drum-pad-kick', 'drum-pad-snare', 'drum-pad-ride', 'drum-pad-hihat']) {
+      expect(screen.queryByTestId(pad)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText(/Real-Time Drum Monitor/i)).not.toBeInTheDocument();
   });
 
   it('mounts the Mixer Panel directly below the Metronome panel', () => {

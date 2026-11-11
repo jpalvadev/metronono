@@ -32,6 +32,7 @@ Break the work into **tracer bullet** tickets.
 - A completed slice is demoable or verifiable on its own
 - Each slice is sized to fit in a single fresh context window
 - Any prefactoring should be done first
+- Slices must land green on their own: when retiring a module or symbol, either retire consumers in the same slice or sequence consumer retirements before deleting the core export, so every ticket compiles cleanly against guardrails
 
 </vertical-slice-rules>
 

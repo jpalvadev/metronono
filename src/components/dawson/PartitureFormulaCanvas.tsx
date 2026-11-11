@@ -8,7 +8,7 @@ import {
   DrumStaffFormulaRenderer,
   DrumStaffFormulaLayout,
 } from '../../notation/DrumStaffFormulaRenderer';
-import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumStaffRenderer';
+import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumVoicePAS';
 import {
   resolveStrokeOffsets,
   calculateFormulaDuration,

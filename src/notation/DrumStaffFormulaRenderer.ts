@@ -10,7 +10,7 @@ import VexFlow, {
   Articulation,
 } from 'vexflow';
 import { DrumVoice, OrchestratedStroke } from '../domain/dawson/types';
-import { DRUM_VOICE_PAS_MAP } from './DrumStaffRenderer';
+import { DRUM_VOICE_PAS_MAP } from './DrumVoicePAS';
 import { calculateFormulaDuration, resolveStrokeOffsets } from '../domain/dawson/SubdivisionFormula';
 
 export interface DrumStaffFormulaRenderOptions {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DRUM_VOICE_PAS_MAP } from '../DrumStaffRenderer';
+import { DRUM_VOICE_PAS_MAP } from '../DrumVoicePAS';
 
 describe('DRUM_VOICE_PAS_MAP', () => {
   it('maps all standard drum voices to correct PAS pitch heights, noteheads, and voices', () => {

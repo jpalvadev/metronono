@@ -6,8 +6,8 @@ import {
   DrumStaffRenderer,
   DrumScoreMeasure,
   DrumScoreLayout,
-  DRUM_VOICE_PAS_MAP,
-} from '../../notation/DrumStaffRenderer';
+} from './legacyDrumStaffRenderer';
+import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumStaffRenderer';
 import { PlayheadPosition, MeasureCoordinate } from '../../notation/types';
 import { PlayheadOverlay } from './PlayheadOverlay';
 import { ReadingView } from './ReadingView';

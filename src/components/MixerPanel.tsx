@@ -124,7 +124,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-accent" />
+          <Sliders className="w-4 h-4 text-primary" />
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
               Mixer Panel

@@ -51,7 +51,7 @@ export function App() {
         <header className="w-full flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
             <h1 className="text-base font-bold tracking-tight text-foreground uppercase flex items-center gap-2">
-              <span className="text-accent">METRONONO</span>
+              <span className="text-primary">METRONONO</span>
             </h1>
             <Badge variant="outline" className="border-border text-muted-foreground text-[10px]">
               Core
@@ -66,10 +66,10 @@ export function App() {
               aria-label="Open Sample Bank and Storage"
               className="text-xs gap-1.5 h-8 border-border"
             >
-              <FolderArchive className="w-3.5 h-3.5 text-accent" />
+              <FolderArchive className="w-3.5 h-3.5 text-primary" />
               <span>Sample Bank & Storage</span>
               {isLinked ? (
-                <HardDrive className="w-3 h-3 text-accent ml-0.5" />
+                <HardDrive className="w-3 h-3 text-primary ml-0.5" />
               ) : (
                 <Database className="w-3 h-3 text-muted-foreground ml-0.5" />
               )}
@@ -111,7 +111,7 @@ export function App() {
 
         <footer className="text-center text-xs text-muted-foreground/80 space-y-1 pt-4 border-t border-border w-full">
           <p>Sample-accurate Web Audio metronome & VexFlow 5 notation powered by Tone.js</p>
-          <p className="font-mono text-[10px] text-accent/80">Alan Dawson Drum Method & Rhythmic Trainer</p>
+          <p className="font-mono text-[10px] text-muted-foreground">Alan Dawson Drum Method & Rhythmic Trainer</p>
         </footer>
       </div>
     </main>

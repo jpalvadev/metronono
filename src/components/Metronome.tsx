@@ -271,11 +271,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   isDownbeat ? 'w-11 h-11 text-sm' : 'w-10 h-10 text-xs',
                   !isBeatAudible && 'opacity-30 border-dashed border-border',
                   isActiveBeat
-                    ? 'bg-accent text-accent-foreground border-accent scale-105 shadow-sm'
+                    ? 'bg-primary text-primary-foreground border-primary scale-105 shadow-sm'
                     : isBeatAudible
                       ? isDownbeat
-                        ? 'bg-secondary text-foreground border-border hover:border-accent'
-                        : 'bg-muted text-muted-foreground border-border hover:border-accent'
+                        ? 'bg-secondary text-foreground border-border hover:border-primary'
+                        : 'bg-muted text-muted-foreground border-border hover:border-primary'
                       : 'bg-transparent text-muted-foreground/40'
                 )}
               >
@@ -302,7 +302,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               <button
                 type="button"
                 onClick={() => handleSetPresetMask([false, true, false, true])}
-                className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-accent border border-border text-[11px] font-medium"
+                className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-primary border border-border text-[11px] font-medium"
               >
                 2 & 4 (Jazz)
               </button>
@@ -417,10 +417,10 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           onClick={handleTap}
           className={cn(
             'h-9 border-border font-medium text-xs flex items-center justify-center gap-2 rounded-none',
-            isTapActive && 'bg-accent/20 border-accent text-accent'
+            isTapActive && 'bg-primary/20 border-primary text-primary'
           )}
         >
-          <Activity className="w-3.5 h-3.5 text-accent" />
+          <Activity className="w-3.5 h-3.5 text-primary" />
           <span>TAP TEMPO</span>
         </Button>
 
@@ -456,7 +456,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-accent" />
+            <TrendingUp className="w-3.5 h-3.5 text-primary" />
             <span className="text-xs font-semibold uppercase tracking-wider">Tempo Ramp</span>
           </div>
           <Button
@@ -569,7 +569,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           className="flex items-center justify-between w-full text-left"
         >
           <div className="flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-accent" />
+            <Sliders className="w-3.5 h-3.5 text-primary" />
             <span className="text-xs font-semibold uppercase tracking-wider">Click Sounds & Pitches</span>
           </div>
           {showAccents ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

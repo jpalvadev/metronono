@@ -359,10 +359,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 {sys.name}
                               </span>
                               {sys.isCustom && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] border-warning/40 text-warning"
-                                >
+                                <Badge variant="outline" className="text-[10px]">
                                   Custom
                                 </Badge>
                               )}

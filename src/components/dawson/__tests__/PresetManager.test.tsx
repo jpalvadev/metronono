@@ -62,14 +62,15 @@ describe('PresetManager Component', () => {
     expect(deleteBtn).toHaveClass('text-destructive');
     expect(deleteBtn).toHaveClass('hover:bg-destructive/10');
 
-    // Active system chip: Accent ring; Custom badge: Warning attention token
+    // Active system chip: Accent ring; Custom badge: neutral chrome, never Warning
     const activeCard = document.body.querySelectorAll('[class*="ring-primary"]')[0];
     expect(activeCard).toBeDefined();
     expect(activeCard).toHaveClass('bg-primary/10');
     expect(activeCard).toHaveClass('border-primary/60');
     const customBadge = screen.getByText(/^Custom$/);
-    expect(customBadge).toHaveClass('border-warning/40');
-    expect(customBadge).toHaveClass('text-warning');
+    expect(customBadge).toHaveClass('border-border');
+    expect(customBadge).toHaveClass('text-muted-foreground');
+    expect(customBadge.className.includes('text-warning')).toBe(false);
 
     // Geometry: the app standard is square corners (rounded-none)
     const rawPalette = /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-(?:white|black)|text-white|dark:|rgba\(|rounded(?!-none)/;

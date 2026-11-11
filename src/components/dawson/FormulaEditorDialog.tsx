@@ -189,19 +189,19 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="formula-editor-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in-0"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 modal-scrim animate-in fade-in-0"
     >
       <div className="relative w-full max-w-4xl bg-card border border-border shadow-2xl rounded-none flex flex-col max-h-[90vh] overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-none bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400">
+            <div className="w-9 h-9 rounded-none bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
               <Layers className="w-5 h-5" />
             </div>
             <div>
               <h2 id="formula-editor-title" className="text-base font-bold text-foreground flex items-center gap-2">
                 Subdivision Formula Editor
-                <Badge variant="outline" className="text-[10px] font-mono border-teal-500/30 text-teal-400 rounded-none">
+                <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary rounded-none">
                   Partiture Drum Staff
                 </Badge>
               </h2>
@@ -233,7 +233,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Tony Williams Triplet / Kick + Crash Downbeat"
-                className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -246,7 +246,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                   className={cn(
                     'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
                     trigger === 'short'
-                      ? 'bg-teal-500/20 border-teal-500 text-teal-300 ring-1 ring-teal-500/40'
+                      ? 'bg-primary/20 border-primary text-primary ring-1 ring-primary/40'
                       : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
                   )}
                 >
@@ -258,7 +258,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                   className={cn(
                     'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
                     trigger === 'long'
-                      ? 'bg-rose-500/20 border-rose-500 text-rose-300 ring-1 ring-rose-500/40'
+                      ? 'bg-primary/20 border-primary text-primary ring-1 ring-primary/40'
                       : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
                   )}
                 >
@@ -278,7 +278,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. Accented Bass Drum and Crash Cymbal unison followed by syncopated snare fill"
-              className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
@@ -290,7 +290,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-foreground">Total Duration:</span>
-                <span className="font-mono text-teal-400 font-bold">{totalDuration} beats</span>
+                <span className="font-mono text-primary font-bold">{totalDuration} beats</span>
                 <span className="text-muted-foreground">
                   (target budget: {expectedDuration} {expectedDuration === 1.0 ? 'beat' : 'beats'})
                 </span>
@@ -299,7 +299,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               {isBudgetMatched && (
                 <Badge
                   variant="outline"
-                  className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 gap-1"
+                  className="bg-success/10 border-success/30 text-success gap-1"
                 >
                   <CheckCircle2 className="w-3 h-3" /> Budget Balanced
                 </Badge>
@@ -307,7 +307,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               {isUnderBudget && (
                 <Badge
                   variant="outline"
-                  className="bg-amber-500/10 border-amber-500/30 text-amber-400 gap-1"
+                  className="bg-warning/10 border-warning/30 text-warning gap-1"
                 >
                   <Info className="w-3 h-3" />
                   {Math.round((expectedDuration - totalDuration) * 1000) / 1000} beats remaining
@@ -316,7 +316,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               {isOverBudget && (
                 <Badge
                   variant="outline"
-                  className="bg-rose-500/10 border-rose-500/30 text-rose-400 gap-1"
+                  className="bg-destructive/10 border-destructive/30 text-destructive gap-1"
                 >
                   <AlertTriangle className="w-3 h-3" />
                   Overflow (+{Math.round((totalDuration - expectedDuration) * 1000) / 1000} beats)
@@ -330,10 +330,10 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                 className={cn(
                   'h-full transition-all duration-300 rounded-full',
                   isBudgetMatched
-                    ? 'bg-emerald-500'
+                    ? 'bg-success'
                     : isOverBudget
-                    ? 'bg-rose-500'
-                    : 'bg-amber-500'
+                    ? 'bg-destructive'
+                    : 'bg-warning'
                 )}
                 style={{ width: `${Math.min(100, budgetRatio * 100)}%` }}
               />
@@ -344,7 +344,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
                 Percussion Staff & Note Entry Palette
               </h3>
               <span className="text-[11px] text-muted-foreground">
@@ -374,7 +374,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               size="sm"
               onClick={handleAuditionFormula}
               disabled={isAuditioning || strokes.length === 0}
-              className="text-xs border-teal-500/30 text-teal-400 hover:bg-teal-500/10 gap-1.5"
+              className="text-xs border-primary/30 text-primary hover:bg-primary/10 gap-1.5"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
               {isAuditioning ? 'Auditioning...' : 'Audition Formula'}
@@ -385,7 +385,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                 variant="destructive"
                 size="sm"
                 onClick={handleDelete}
-                className="h-8 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+                className="h-8 px-3 text-xs bg-destructive hover:bg-destructive/80 text-destructive-foreground"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Formula
               </Button>
@@ -407,7 +407,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               size="sm"
               onClick={handleSave}
               disabled={strokes.length === 0}
-              className="text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold"
+              className="text-xs bg-primary hover:bg-primary/80 text-primary-foreground font-semibold"
             >
               Save Formula
             </Button>

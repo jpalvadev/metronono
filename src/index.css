@@ -4,69 +4,70 @@
 
 @layer base {
   :root {
-    /* Mauve light base */
     --background: 0 0% 100%;
-    --foreground: 300 14% 4%;
+    --foreground: 285 25% 4%;
 
     --card: 0 0% 100%;
-    --card-foreground: 300 14% 4%;
+    --card-foreground: 285 25% 4%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 300 14% 4%;
+    --popover-foreground: 285 25% 4%;
 
-    /* Teal theme */
-    --primary: 174 100% 29%;
+    --primary: 177 100% 19%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 6% 10%;
+    --secondary: 285 10% 96%;
+    --secondary-foreground: 285 25% 4%;
 
-    --muted: 300 8% 95%;
-    --muted-foreground: 293 8% 45%;
+    --muted: 285 10% 93%;
+    --muted-foreground: 285 8% 45%;
 
-    --accent: 300 8% 95%;
-    --accent-foreground: 293 15% 10%;
+    --accent: 174 100% 37%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 357 100% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 300 6% 90%;
-    --input: 300 6% 90%;
-    --ring: 295 6% 64%;
+    --border: 285 10% 88%;
+    --input: 285 10% 88%;
+    --ring: 174 100% 37%;
 
-    --radius: 0.625rem;
+    --radius: 0px;
   }
 
   .dark {
-    /* Mauve dark base (shadcn preset b5dMVCPy4) */
-    --background: 300 14% 4%;
-    --foreground: 0 0% 98%;
+    /* Exact Lyra Mauve Dark & Teal Theme from preset b5dMVCPy4 */
+    --background: 285 25% 4%;       /* #0c070d Deep Mauve Charcoal */
+    --foreground: 0 0% 98%;          /* #fafafa Crisp Off-White */
 
-    --card: 293 15% 10%;
+    --card: 285 13% 10%;             /* #1a171e Solid Dark Mauve Card */
     --card-foreground: 0 0% 98%;
 
-    --popover: 293 15% 10%;
+    --popover: 285 13% 10%;
     --popover-foreground: 0 0% 98%;
 
-    /* Vibrant Teal theme matching Capture 2 */
-    --primary: 174 100% 33%;
+    /* Primary Button Teal (#005f5b) */
+    --primary: 177 100% 19%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 4% 16%;
+    /* Vibrant Accent Teal (#00bba8) for indicators, active tabs, highlights */
+    --accent: 174 100% 37%;
+    --accent-foreground: 0 0% 100%;
+
+    --secondary: 285 10% 15%;        /* #242028 */
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 289 14% 15%;
-    --muted-foreground: 295 6% 64%;
-
-    --accent: 289 14% 15%;
-    --accent-foreground: 0 0% 98%;
+    --muted: 285 10% 13%;            /* #1e1b23 */
+    --muted-foreground: 285 8% 60%;  /* #9f97a5 */
 
     --destructive: 359 100% 70%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 289 10% 20%;
-    --input: 240 4% 16%;
-    --ring: 293 8% 45%;
+    --border: 285 10% 16%;           /* #252028 Crisp Hairline Border */
+    --input: 285 10% 18%;
+    --ring: 174 100% 37%;
+
+    --radius: 0px;
   }
 }
 
@@ -77,6 +78,41 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Lyra Slider: Thin dark track with sharp white square thumb matching picture 2 */
+input[type="range"].lyra-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: hsl(var(--secondary));
+  height: 4px;
+  border-radius: 0;
+  outline: none;
+}
+input[type="range"].lyra-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+input[type="range"].lyra-slider::-webkit-slider-thumb:hover {
+  background: hsl(var(--accent));
+}
+input[type="range"].lyra-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0;
+  cursor: pointer;
+}
+input[type="range"].lyra-slider::-moz-range-thumb:hover {
+  background: hsl(var(--accent));
 }
 
 /* Invert VexFlow black notation to crisp white in dark mode */

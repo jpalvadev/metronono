@@ -84,9 +84,9 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
   return (
     <div className={cn('w-full flex flex-col gap-4', className)}>
       {/* Top Section Header & Mode Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card/60 backdrop-blur border border-border/70 rounded-2xl p-3 md:p-4 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border border-border rounded-none p-3 md:p-4 shadow-sm">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
+          <div className="w-8 h-8 rounded-none bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
             {mode === 'generator' ? <Wand2 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
           </div>
           <div>
@@ -102,12 +102,12 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
         {/* Right side: View Mode Toggle & Exercise Mode Switcher */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {/* View Mode Switcher: 1-Line Reading vs 5-Line Drum Staff */}
-          <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/60">
+          <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
             <Button
               variant={activeViewMode === 'reading' ? 'default' : 'ghost'}
               size="sm"
               className={cn(
-                'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
+                'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                 activeViewMode === 'reading' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => handleViewModeChange('reading')}
@@ -119,7 +119,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               variant={activeViewMode === 'drum_staff' ? 'default' : 'ghost'}
               size="sm"
               className={cn(
-                'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
+                'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                 activeViewMode === 'drum_staff' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => handleViewModeChange('drum_staff')}
@@ -130,12 +130,12 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/60">
+          <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
             <Button
               variant={mode === 'generator' ? 'default' : 'ghost'}
               size="sm"
               className={cn(
-                'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
+                'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                 mode === 'generator' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => setMode('generator')}
@@ -147,7 +147,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               variant={mode === 'library' ? 'default' : 'ghost'}
               size="sm"
               className={cn(
-                'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
+                'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                 mode === 'library' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => setMode('library')}
@@ -161,7 +161,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
 
       {/* Mode Controls Bar */}
       {mode === 'generator' ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-card/40 border border-border/50 rounded-xl p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-none p-3">
           {/* Difficulty Tier Selector */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Difficulty:</span>
@@ -170,7 +170,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                 variant={tier === 1 ? 'secondary' : 'ghost'}
                 size="sm"
                 className={cn(
-                  'h-7 px-2.5 text-xs',
+                  'h-7 px-2.5 text-xs rounded-none',
                   tier === 1 && 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/40 font-semibold'
                 )}
                 onClick={() => setTier(1)}
@@ -181,7 +181,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                 variant={tier === 2 ? 'secondary' : 'ghost'}
                 size="sm"
                 className={cn(
-                  'h-7 px-2.5 text-xs',
+                  'h-7 px-2.5 text-xs rounded-none',
                   tier === 2 && 'bg-amber-950/40 text-amber-400 border border-amber-500/40 font-semibold'
                 )}
                 onClick={() => setTier(2)}
@@ -192,7 +192,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                 variant={tier === 3 ? 'secondary' : 'ghost'}
                 size="sm"
                 className={cn(
-                  'h-7 px-2.5 text-xs',
+                  'h-7 px-2.5 text-xs rounded-none',
                   tier === 3 && 'bg-rose-950/40 text-rose-400 border border-rose-500/40 font-semibold'
                 )}
                 onClick={() => setTier(3)}
@@ -212,7 +212,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                     key={count}
                     variant={measureCount === count ? 'secondary' : 'ghost'}
                     size="sm"
-                    className="h-6 px-2 text-[11px]"
+                    className="h-6 px-2 text-[11px] rounded-none"
                     onClick={() => setMeasureCount(count)}
                   >
                     {count}
@@ -224,7 +224,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 px-3 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+              className="h-7 px-3 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 rounded-none"
               onClick={handleRegenerate}
             >
               <RotateCw className="w-3.5 h-3.5" />
@@ -233,7 +233,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5 bg-card/40 border border-border/50 rounded-xl p-3">
+        <div className="flex flex-col gap-2.5 bg-card border border-border rounded-none p-3">
           {/* Page Selector */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Page:</span>
@@ -244,7 +244,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                   variant={selectedPage === page ? 'secondary' : 'ghost'}
                   size="sm"
                   className={cn(
-                    'h-7 px-2.5 text-xs font-medium',
+                    'h-7 px-2.5 text-xs font-medium rounded-none',
                     selectedPage === page && 'bg-primary/15 text-primary border border-primary/40 font-semibold'
                   )}
                   onClick={() => {
@@ -274,7 +274,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                   variant={selectedExerciseNum === num ? 'secondary' : 'ghost'}
                   size="sm"
                   className={cn(
-                    'h-6 w-7 p-0 text-[11px]',
+                    'h-6 w-7 p-0 text-[11px] rounded-none',
                     selectedExerciseNum === num && 'bg-primary/20 text-primary font-bold border border-primary/40'
                   )}
                   onClick={() => setSelectedExerciseNum(num)}

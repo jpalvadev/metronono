@@ -4,7 +4,7 @@
 
 - 3 [ ] ramp option should have 2 inputs, beginning and end tempo, and option if it should be up and down (or down and up) and if it should end the metronome or loop
 
-- 4 [ x ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite (root cause: app was rendering in light mode because `<html class="dark">` was not enabled and tokens were not configured for preset b5dMVCPy4; configured components.json with preset b5dMVCPy4, enabled dark mode, updated tailwind.config.js with alpha channel variables and mauve/teal color scales, tuned index.css with exact preset mauve and vibrant teal tokens, updated button/badge/slider components and added dark-mode VexFlow score inversion)
+- 4 [ x ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite (root cause: preset b5dMVCPy4 specifies Lyra style with mauve base and teal theme; app previously lacked the dark mode root class, exact sampled mauve charcoal `#1a171e` and canvas `#0c070d` tokens, Lyra sharp `rounded-none` edges on cards, buttons, badges, and square slider thumbs, as well as the dense modular dashboard grid. Fixed by installing preset tokens, converting all component cards, buttons, and dialogs to sharp Lyra styling, tuning slider thumbs to square 12px white blocks on thin tracks, applying inverted dark score rendering, and structuring the layout into high-density modular side-by-side cards matching the user reference capture)
 
 - 5 [ x ] config github
 

@@ -45,15 +45,15 @@ export function App() {
   }, [storageManager, scheduler]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 md:p-8 selection:bg-primary selection:text-primary-foreground">
-      <div className="w-full max-w-4xl flex flex-col items-center gap-8">
+    <main className="min-h-screen bg-background text-foreground p-4 md:p-6 lg:p-8 selection:bg-accent selection:text-accent-foreground">
+      <div className="w-full max-w-7xl mx-auto flex flex-col gap-6">
         {/* Navigation & Storage Quick Access */}
-        <header className="w-full flex items-center justify-between border-b border-border/40 pb-4">
+        <header className="w-full flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <span className="text-primary">Metronono</span>
+            <h1 className="text-base font-bold tracking-tight text-foreground uppercase flex items-center gap-2">
+              <span className="text-accent">METRONONO</span>
             </h1>
-            <Badge variant="outline" className="border-primary/30 text-primary text-[10px]">
+            <Badge variant="outline" className="border-border text-muted-foreground text-[10px]">
               Core
             </Badge>
           </div>
@@ -64,12 +64,12 @@ export function App() {
               size="sm"
               onClick={() => setIsSampleBankOpen(true)}
               aria-label="Open Sample Bank and Storage"
-              className="text-xs gap-1.5 h-8 border-border/80 hover:border-primary/50"
+              className="text-xs gap-1.5 h-8 border-border"
             >
-              <FolderArchive className="w-3.5 h-3.5 text-primary" />
+              <FolderArchive className="w-3.5 h-3.5 text-accent" />
               <span>Sample Bank & Storage</span>
               {isLinked ? (
-                <HardDrive className="w-3 h-3 text-primary ml-0.5" />
+                <HardDrive className="w-3 h-3 text-accent ml-0.5" />
               ) : (
                 <Database className="w-3 h-3 text-muted-foreground ml-0.5" />
               )}
@@ -77,14 +77,14 @@ export function App() {
           </div>
         </header>
 
-        {/* Metronome Engine & Click Controls */}
-        <div className="w-full max-w-md">
-          <Metronome scheduler={scheduler} />
-        </div>
-
-        {/* Mixing Channels & Mixer Panel: channel volumes, mutes and practice presets */}
-        <div className="w-full max-w-md">
-          <MixerPanel scheduler={scheduler} />
+        {/* Dashboard Top Grid: Metronome & Mixer Panel as side-by-side modules */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="lg:col-span-7 flex">
+            <Metronome scheduler={scheduler} />
+          </div>
+          <div className="lg:col-span-5 flex">
+            <MixerPanel scheduler={scheduler} />
+          </div>
         </div>
 
         {/* Alan Dawson Orchestration Engine & Drum Monitor */}
@@ -109,9 +109,9 @@ export function App() {
           scheduler={scheduler}
         />
 
-        <footer className="text-center text-xs text-muted-foreground/80 space-y-1 pt-4 border-t border-border/40 w-full">
+        <footer className="text-center text-xs text-muted-foreground/80 space-y-1 pt-4 border-t border-border w-full">
           <p>Sample-accurate Web Audio metronome & VexFlow 5 notation powered by Tone.js</p>
-          <p className="font-mono text-[10px] text-teal-400/80">Alan Dawson Drum Method & Rhythmic Trainer</p>
+          <p className="font-mono text-[10px] text-accent/80">Alan Dawson Drum Method & Rhythmic Trainer</p>
         </footer>
       </div>
     </main>

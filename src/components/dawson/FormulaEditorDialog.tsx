@@ -191,17 +191,17 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
       aria-labelledby="formula-editor-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in-0"
     >
-      <div className="relative w-full max-w-4xl bg-card border border-border shadow-2xl rounded-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="relative w-full max-w-4xl bg-card border border-border shadow-2xl rounded-none flex flex-col max-h-[90vh] overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400">
+            <div className="w-9 h-9 rounded-none bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400">
               <Layers className="w-5 h-5" />
             </div>
             <div>
               <h2 id="formula-editor-title" className="text-base font-bold text-foreground flex items-center gap-2">
                 Subdivision Formula Editor
-                <Badge variant="outline" className="text-[10px] font-mono border-teal-500/30 text-teal-400">
+                <Badge variant="outline" className="text-[10px] font-mono border-teal-500/30 text-teal-400 rounded-none">
                   Partiture Drum Staff
                 </Badge>
               </h2>
@@ -213,7 +213,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            className="w-8 h-8 rounded-none flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -233,7 +233,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Tony Williams Triplet / Kick + Crash Downbeat"
-                className="bg-muted/30 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
 
@@ -244,7 +244,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                   type="button"
                   onClick={() => setTrigger('short')}
                   className={cn(
-                    'py-1.5 px-3 rounded-lg text-xs font-semibold border transition-all text-center',
+                    'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
                     trigger === 'short'
                       ? 'bg-teal-500/20 border-teal-500 text-teal-300 ring-1 ring-teal-500/40'
                       : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
@@ -256,7 +256,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
                   type="button"
                   onClick={() => setTrigger('long')}
                   className={cn(
-                    'py-1.5 px-3 rounded-lg text-xs font-semibold border transition-all text-center',
+                    'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
                     trigger === 'long'
                       ? 'bg-rose-500/20 border-rose-500 text-rose-300 ring-1 ring-rose-500/40'
                       : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
@@ -278,14 +278,14 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. Accented Bass Drum and Crash Cymbal unison followed by syncopated snare fill"
-              className="bg-muted/30 border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
           {/* Real-time Duration Budget Indicator */}
           <div
             data-testid="duration-budget-indicator"
-            className="p-3.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-2.5"
+            className="p-3.5 rounded-none bg-card border border-border/80 shadow-sm flex flex-col gap-2.5"
           >
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">

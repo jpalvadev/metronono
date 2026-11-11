@@ -134,11 +134,11 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-        <div className="bg-card border border-border w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="bg-card border border-border w-full max-w-3xl rounded-none shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-4 md:p-5 border-b border-border/60">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+              <div className="w-10 h-10 rounded-none bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
                 <Sliders className="w-5 h-5" />
               </div>
               <div>
@@ -153,7 +153,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              className="w-8 h-8 rounded-none flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>

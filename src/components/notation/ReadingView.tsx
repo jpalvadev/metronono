@@ -224,14 +224,14 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     <section
       data-testid="reading-view-root"
       className={cn(
-        'w-full flex flex-col bg-card/60 backdrop-blur border border-border/70 rounded-2xl p-4 md:p-6 shadow-md transition-colors',
+        'w-full flex flex-col bg-card border border-border rounded-none p-4 md:p-6 shadow-sm transition-colors',
         className
       )}
     >
       {/* Header bar: Title, Tier, Measure & Beat indicator */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/40">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="flex items-center gap-2.5">
-          <Badge variant="outline" className={cn('text-xs font-semibold px-2 py-0.5', tierBadgeColor)}>
+          <Badge variant="outline" className={cn('text-xs font-semibold px-2 py-0.5 rounded-none', tierBadgeColor)}>
             Tier {readingLine.tier}
           </Badge>
           <h2 className="text-sm md:text-base font-semibold tracking-tight text-foreground truncate max-w-xs md:max-w-md">
@@ -243,21 +243,21 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           {/* Active Measure & Beat Indicator */}
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="text-muted-foreground">Bar:</span>
-            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-none">
               {normalizedMeasure + 1} / {totalMeasures}
             </span>
             <span className="text-muted-foreground ml-1">Beat:</span>
-            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-none">
               {activeBeat + 1}
             </span>
           </div>
 
           {/* Stave columns / measures per line selector */}
-          <div className="hidden sm:flex items-center gap-1 border border-border/60 rounded-lg p-0.5 bg-muted/30">
+          <div className="hidden sm:flex items-center gap-1 border border-border rounded-none p-0.5 bg-muted/20">
             <Button
               variant={systemCols === 1 ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[11px] rounded-none"
               onClick={() => setSystemCols(1)}
               title="1 measure per line"
             >
@@ -266,7 +266,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
             <Button
               variant={systemCols === 2 ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[11px] rounded-none"
               onClick={() => setSystemCols(2)}
               title="2 measures per line"
             >
@@ -275,7 +275,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
             <Button
               variant={systemCols === 4 ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[11px] rounded-none"
               onClick={() => setSystemCols(4)}
               title="4 measures per line"
             >

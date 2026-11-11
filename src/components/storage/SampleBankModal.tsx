@@ -235,11 +235,11 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
       aria-labelledby="sample-bank-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
     >
-      <div className="bg-card border border-border text-card-foreground rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95">
+      <div className="bg-card border border-border text-card-foreground rounded-none shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/60 bg-muted/20">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+            <div className="w-8 h-8 rounded-none bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
               <FolderArchive className="w-4 h-4" />
             </div>
             <div>
@@ -254,7 +254,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-none text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -266,7 +266,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
           {notification && (
             <div
               className={cn(
-                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium border animate-in fade-in',
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-none text-xs font-medium border animate-in fade-in',
                 notification.type === 'success'
                   ? 'bg-teal-500/10 border-teal-500/30 text-teal-300'
                   : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
@@ -282,9 +282,9 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
           )}
 
           {/* Storage Layer Status Card */}
-          <div className="bg-muted/30 border border-border/70 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="bg-muted/30 border border-border/70 rounded-none p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-background border border-border flex items-center justify-center text-muted-foreground shrink-0 mt-0.5 sm:mt-0">
+              <div className="w-9 h-9 rounded-none bg-background border border-border flex items-center justify-center text-muted-foreground shrink-0 mt-0.5 sm:mt-0">
                 {isLinked ? (
                   <HardDrive className="w-4 h-4 text-teal-400" />
                 ) : (
@@ -328,7 +328,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
           </div>
 
           {/* Backup & Restore Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-muted/15 border border-border/50 rounded-xl p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-muted/15 border border-border rounded-none p-3">
             <div className="text-xs font-medium text-foreground">Library Archive (.metronono)</div>
             <div className="flex items-center gap-2">
               <Button
@@ -336,7 +336,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
                 size="sm"
                 onClick={handleExportLibrary}
                 disabled={isExporting}
-                className="text-xs gap-1.5 h-8"
+                className="text-xs gap-1.5 h-8 rounded-none"
               >
                 <Download className="w-3.5 h-3.5 text-teal-400" />
                 {isExporting ? 'Exporting...' : 'Export Library'}
@@ -347,7 +347,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
                 onClick={() => importInputRef.current?.click()}
                 disabled={isImporting}
                 aria-label="Import Library"
-                className="inline-flex items-center justify-center rounded-lg text-xs font-medium border border-border bg-transparent text-foreground hover:bg-muted/50 h-8 px-3 gap-1.5 transition-colors disabled:opacity-50 select-none"
+                className="inline-flex items-center justify-center rounded-none text-xs font-medium border border-border bg-transparent text-foreground hover:bg-muted/50 h-8 px-3 gap-1.5 transition-colors disabled:opacity-50 select-none"
               >
                 <Upload className="w-3.5 h-3.5 text-teal-400" />
                 {isImporting ? 'Importing...' : 'Import Library'}
@@ -368,7 +368,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
               <Music className="w-3.5 h-3.5 text-teal-400" />
               Drum Kit Voices
             </h3>
-            <div className="border border-border/70 rounded-xl divide-y divide-border/50 overflow-hidden bg-card">
+            <div className="border border-border/70 rounded-none divide-y divide-border/50 overflow-hidden bg-card">
               {drumVoices.map((voice) => (
                 <VoiceRow
                   key={voice.id}
@@ -388,7 +388,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
               <Volume2 className="w-3.5 h-3.5 text-teal-400" />
               Metronome Click Sounds
             </h3>
-            <div className="border border-border/70 rounded-xl divide-y divide-border/50 overflow-hidden bg-card">
+            <div className="border border-border/70 rounded-none divide-y divide-border/50 overflow-hidden bg-card">
               {metronomeVoices.map((voice) => (
                 <VoiceRow
                   key={voice.id}
@@ -482,7 +482,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
           onClick={() => fileInputRef.current?.click()}
           aria-label={`Upload sample for ${voice.label}`}
           title="Upload audio file (WAV/MP3/OGG)"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-teal-400 hover:bg-muted/50 transition-colors select-none"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-none text-muted-foreground hover:text-teal-400 hover:bg-muted/50 transition-colors select-none"
         >
           <Upload className="w-4 h-4" />
         </button>

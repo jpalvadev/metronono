@@ -641,16 +641,16 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
     return (
       <div className="w-full flex flex-col gap-3">
         {showViewToggle && (
-          <div className="flex items-center justify-between bg-card/60 backdrop-blur border border-border/70 rounded-xl p-2.5 shadow-xs">
+          <div className="flex items-center justify-between bg-card border border-border rounded-none p-2.5 shadow-xs">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-primary" />
               <span className="text-xs font-semibold text-foreground">Score Notation Mode:</span>
             </div>
-            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60">
+            <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
               <Button
                 variant="default"
                 size="sm"
-                className="h-7 px-2.5 text-xs gap-1.5 font-medium transition-all bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all bg-primary hover:bg-primary/90 text-primary-foreground"
                 onClick={() => handleToggleViewMode('reading')}
               >
                 <Music className="w-3.5 h-3.5" />
@@ -659,7 +659,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2.5 text-xs gap-1.5 font-medium transition-all"
+                className="h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all"
                 onClick={() => handleToggleViewMode('drum_staff')}
               >
                 <FileMusic className="w-3.5 h-3.5" />
@@ -689,14 +689,14 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
     <section
       data-testid="drum-staff-view-root"
       className={cn(
-        'w-full flex flex-col bg-card/60 backdrop-blur border border-border/70 rounded-2xl p-4 md:p-6 shadow-md transition-colors gap-4',
+        'w-full flex flex-col bg-card border border-border rounded-none p-4 md:p-6 shadow-sm transition-colors gap-4',
         className
       )}
     >
       {/* Top Header: Title, View Mode Switcher, Bar & Beat Display */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/40">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="flex items-center gap-2.5">
-          <Badge variant="outline" className="border-primary/40 text-primary bg-primary/10 text-xs font-semibold px-2 py-0.5">
+          <Badge variant="outline" className="border-primary/40 text-primary bg-primary/10 text-xs font-semibold px-2 py-0.5 rounded-none">
             PAS Standard
           </Badge>
           <div>
@@ -712,12 +712,12 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
         <div className="flex flex-wrap items-center gap-3">
           {/* View Mode Toggle Switch */}
           {showViewToggle && (
-            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl border border-border/60">
+            <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
               <Button
                 variant={activeViewMode === 'reading' ? 'default' : 'ghost'}
                 size="sm"
                 className={cn(
-                  'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
+                  'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                   activeViewMode === 'reading' && 'bg-primary hover:bg-primary/90 text-primary-foreground'
                 )}
                 onClick={() => handleToggleViewMode('reading')}
@@ -729,7 +729,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                 variant={activeViewMode === 'drum_staff' ? 'default' : 'ghost'}
                 size="sm"
                 className={cn(
-                  'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
+                  'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                   activeViewMode === 'drum_staff' && 'bg-primary hover:bg-primary/90 text-primary-foreground'
                 )}
                 onClick={() => handleToggleViewMode('drum_staff')}
@@ -743,21 +743,21 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
           {/* Bar & Beat Indicator */}
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="text-muted-foreground">Bar:</span>
-            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-none">
               {normalizedMeasure + 1} / {totalMeasures}
             </span>
             <span className="text-muted-foreground ml-1">Beat:</span>
-            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-none">
               {activeBeat + 1}
             </span>
           </div>
 
           {/* Stave columns / measures per line selector */}
-          <div className="hidden md:flex items-center gap-1 border border-border/60 rounded-lg p-0.5 bg-muted/30">
+          <div className="hidden md:flex items-center gap-1 border border-border rounded-none p-0.5 bg-muted/20">
             <Button
               variant={systemCols === 1 ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[11px] rounded-none"
               onClick={() => setSystemCols(1)}
               title="1 measure per line"
             >
@@ -766,7 +766,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
             <Button
               variant={systemCols === 2 ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[11px] rounded-none"
               onClick={() => setSystemCols(2)}
               title="2 measures per line"
             >
@@ -775,7 +775,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
             <Button
               variant={systemCols === 4 ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[11px] rounded-none"
               onClick={() => setSystemCols(4)}
               title="4 measures per line"
             >
@@ -788,7 +788,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
       {/* Interactive 5-Line Percussion Score Canvas with Playhead */}
       <div
         ref={scrollWrapperRef}
-        className="relative w-full overflow-x-auto overflow-y-auto max-h-[460px] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent py-2 bg-card/30 rounded-xl border border-border/40"
+        className="relative w-full overflow-x-auto overflow-y-auto max-h-[460px] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent py-2 bg-card rounded-none border border-border"
       >
         <div className="relative min-w-full inline-block">
           {/* VexFlow 5-line SVG rendered here */}
@@ -811,7 +811,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
       </div>
 
       {/* Interactive Editor Toolbar: Voice Palette, 16-Step Grid & Preset Grooves */}
-      <div className="flex flex-col gap-3 bg-muted/20 border border-border/60 rounded-xl p-3 md:p-4">
+      <div className="flex flex-col gap-3 bg-muted/10 border border-border rounded-none p-3 md:p-4">
         {/* Voice Palette Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-1.5">
@@ -887,7 +887,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                   data-testid={`grid-step-${step}`}
                   onClick={() => handleToggleStep(step)}
                   className={cn(
-                    'h-9 rounded-md border flex flex-col items-center justify-center transition-all duration-75 select-none text-[10px] font-mono',
+                    'h-9 rounded-none border flex flex-col items-center justify-center transition-all duration-75 select-none text-[10px] font-mono',
                     isActive
                       ? 'bg-primary border-primary text-primary-foreground font-bold shadow-xs scale-[1.02]'
                       : isBeatDownbeat
@@ -898,7 +898,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                 >
                   <span>{step + 1}</span>
                   {isBeatDownbeat && (
-                    <span className="w-1 h-1 rounded-full bg-primary mt-0.5" />
+                    <span className="w-1.5 h-0.5 rounded-none bg-primary mt-0.5" />
                   )}
                 </button>
               );

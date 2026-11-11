@@ -199,38 +199,36 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   return (
     <div
       className={cn(
-        'w-full flex flex-col gap-5 bg-card/60 backdrop-blur border border-border/70 rounded-2xl p-4 md:p-6 shadow-sm',
+        'w-full flex flex-col gap-4 bg-card border border-border rounded-none p-5 shadow-sm',
         className
       )}
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
-            <Disc className="w-5 h-5 animate-[spin_12s_linear_infinite]" />
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="flex items-center gap-2">
+          <Disc className="w-4 h-4 text-accent animate-[spin_12s_linear_infinite]" />
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-foreground tracking-tight">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
                 Alan Dawson Orchestration & Drum Monitor
-              </h3>
-              <Badge variant="outline" className="text-[10px] font-mono border-primary/40 text-primary">
-                100% Offline Tone.js
+              </h2>
+              <Badge variant="outline" className="text-[10px] font-mono rounded-none">
+                Tone.js
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Dynamic voice routing over continuous jazz and rock ostinatos
+              Dynamic voice routing over continuous ostinatos
             </p>
           </div>
         </div>
 
         {/* Ostinato Quick Selector */}
-        <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/60 self-start sm:self-auto">
-          <span className="text-[11px] font-medium text-muted-foreground px-2">Ostinato:</span>
+        <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-none border border-border self-start sm:self-auto">
+          <span className="text-[11px] font-medium text-muted-foreground px-1.5 uppercase font-mono">Ostinato:</span>
           <Button
             variant={ostinato === 'jazz_swing' ? 'default' : 'ghost'}
             size="sm"
-            className={cn('h-7 px-2.5 text-xs', ostinato === 'jazz_swing' && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+            className="h-6 px-2 text-[11px] rounded-none"
             onClick={() => handleOstinatoChange('jazz_swing')}
           >
             Jazz Swing
@@ -238,15 +236,15 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           <Button
             variant={ostinato === 'straight_rock' ? 'default' : 'ghost'}
             size="sm"
-            className={cn('h-7 px-2.5 text-xs', ostinato === 'straight_rock' && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+            className="h-6 px-2 text-[11px] rounded-none"
             onClick={() => handleOstinatoChange('straight_rock')}
           >
             Straight 8ths
           </Button>
           <Button
-            variant={ostinato === 'none' ? 'default' : 'ghost'}
+            variant={ostinato === 'none' ? 'destructive' : 'ghost'}
             size="sm"
-            className={cn('h-7 px-2.5 text-xs', ostinato === 'none' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
+            className="h-6 px-2 text-[11px] rounded-none"
             onClick={() => handleOstinatoChange('none')}
           >
             No Ostinato
@@ -258,7 +256,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-primary" />
+            <Layers className="w-3.5 h-3.5 text-accent" />
             Interpretation System
           </label>
           <Button
@@ -266,9 +264,9 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             variant="outline"
             size="sm"
             onClick={() => setIsPresetManagerOpen(true)}
-            className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10 gap-1.5"
+            className="h-6 text-[11px] border-border gap-1.5 rounded-none"
           >
-            <Sliders className="w-3.5 h-3.5" />
+            <Sliders className="w-3 h-3" />
             Manage Systems & Formulas
           </Button>
         </div>
@@ -280,20 +278,20 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             type="button"
             onClick={() => handleModeChange('classic_bop')}
             className={cn(
-              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
               activeSystemId === 'classic_bop' || (mode === 'classic_bop' && activeSystemId === 'classic_bop')
-                ? 'bg-primary/15 border-primary/60 shadow-xs ring-1 ring-primary/30'
-                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+                ? 'bg-secondary border-accent ring-1 ring-accent'
+                : 'bg-secondary/30 border-border hover:bg-secondary/60'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-sm font-semibold text-foreground">Classic Bop</span>
+              <span className="text-xs font-semibold uppercase text-foreground">Classic Bop</span>
               {activeSystemId === 'classic_bop' && (
-                <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                <span className="w-1.5 h-1.5 rounded-none bg-accent" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Shorts (≤ 8th) → <strong className="text-primary">Snare</strong>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Shorts (≤ 8th) → <strong className="text-accent">Snare</strong>
               <br />
               Longs (≥ Qtr) → <strong className="text-rose-400">Kick</strong>
             </p>
@@ -304,22 +302,22 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             type="button"
             onClick={() => handleModeChange('inverted_bop')}
             className={cn(
-              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
               activeSystemId === 'inverted_bop' || (mode === 'inverted_bop' && activeSystemId === 'inverted_bop')
-                ? 'bg-primary/15 border-primary/60 shadow-xs ring-1 ring-primary/30'
-                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+                ? 'bg-secondary border-accent ring-1 ring-accent'
+                : 'bg-secondary/30 border-border hover:bg-secondary/60'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-sm font-semibold text-foreground">Inverted Bop</span>
+              <span className="text-xs font-semibold uppercase text-foreground">Inverted Bop</span>
               {activeSystemId === 'inverted_bop' && (
-                <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                <span className="w-1.5 h-1.5 rounded-none bg-accent" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground leading-snug">
               Shorts (≤ 8th) → <strong className="text-rose-400">Kick</strong>
               <br />
-              Longs (≥ Qtr) → <strong className="text-primary">Snare</strong>
+              Longs (≥ Qtr) → <strong className="text-accent">Snare</strong>
             </p>
           </button>
 
@@ -328,22 +326,22 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             type="button"
             onClick={() => handleModeChange('straight_rock')}
             className={cn(
-              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
               activeSystemId === 'straight_rock'
-                ? 'bg-primary/15 border-primary/60 shadow-xs ring-1 ring-primary/30'
-                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+                ? 'bg-secondary border-accent ring-1 ring-accent'
+                : 'bg-secondary/30 border-border hover:bg-secondary/60'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-sm font-semibold text-foreground">Straight Rock</span>
+              <span className="text-xs font-semibold uppercase text-foreground">Straight Rock</span>
               {activeSystemId === 'straight_rock' && (
-                <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                <span className="w-1.5 h-1.5 rounded-none bg-accent" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground leading-snug">
               8th Hi-Hat Groove
               <br />
-              Shorts → <strong className="text-primary">Snare</strong>, Longs →{' '}
+              Shorts → <strong className="text-accent">Snare</strong>, Longs →{' '}
               <strong className="text-rose-400">Kick</strong>
             </p>
           </button>
@@ -357,20 +355,20 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               if (sys) handleSelectSystem(sys);
             }}
             className={cn(
-              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
               activeSystemId === 'tony_williams_flr'
-                ? 'bg-primary/15 border-primary/60 shadow-xs ring-1 ring-primary/30'
-                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+                ? 'bg-secondary border-accent ring-1 ring-accent'
+                : 'bg-secondary/30 border-border hover:bg-secondary/60'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-sm font-semibold text-foreground">Tony Williams</span>
+              <span className="text-xs font-semibold uppercase text-foreground">Tony Williams</span>
               {activeSystemId === 'tony_williams_flr' && (
-                <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                <span className="w-1.5 h-1.5 rounded-none bg-accent" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Shorts → <strong className="text-primary">F-L-R Triplet</strong>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Shorts → <strong className="text-accent">F-L-R Triplet</strong>
               <br />
               Longs → <strong className="text-rose-400">Kick</strong>
             </p>
@@ -385,20 +383,20 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               if (sys) handleSelectSystem(sys);
             }}
             className={cn(
-              'flex flex-col items-start p-3 rounded-xl border text-left transition-all',
+              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
               activeSystemId === 'linear_diddle_fusion'
-                ? 'bg-primary/15 border-primary/60 shadow-xs ring-1 ring-primary/30'
-                : 'bg-muted/30 border-border/60 hover:bg-muted/50 hover:border-border'
+                ? 'bg-secondary border-accent ring-1 ring-accent'
+                : 'bg-secondary/30 border-border hover:bg-secondary/60'
             )}
           >
             <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-sm font-semibold text-foreground">Linear Fusion</span>
+              <span className="text-xs font-semibold uppercase text-foreground">Linear Fusion</span>
               {activeSystemId === 'linear_diddle_fusion' && (
-                <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                <span className="w-1.5 h-1.5 rounded-none bg-accent" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Shorts → <strong className="text-primary">Snare</strong>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Shorts → <strong className="text-accent">Snare</strong>
               <br />
               Longs → <strong className="text-amber-400">Linear Diddle</strong>
             </p>
@@ -407,20 +405,20 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       </div>
 
       {/* Active Subdivision Formulas Display & Customization Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-muted/20 p-3.5 rounded-xl border border-border/60">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-secondary/20 p-3 rounded-none border border-border">
         {/* Short Note Formula Card */}
-        <div className="bg-card/70 border border-border/80 rounded-lg p-3 flex flex-col justify-between gap-2.5">
+        <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col justify-between gap-2.5">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider">
+                <span className="text-xs font-bold text-accent uppercase tracking-wider">
                   Short Formula
                 </span>
                 <span className="text-xs font-semibold text-foreground">
                   {shortFormula.name}
                 </span>
               </div>
-              <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
+              <Badge variant="outline" className="text-[10px] font-mono border-border text-muted-foreground rounded-none">
                 {shortFormula.strokes.length} stroke{shortFormula.strokes.length === 1 ? '' : 's'}
               </Badge>
             </div>
@@ -430,7 +428,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               {shortFormula.strokes.map((s, idx) => (
                 <span
                   key={idx}
-                  className="px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-[10px] font-mono text-foreground"
+                  className="px-1.5 py-0.5 rounded-none bg-secondary border border-border text-[10px] font-mono text-foreground"
                 >
                   {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                 </span>
@@ -438,13 +436,13 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/40">
+          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => handleAuditionFormula(shortFormula)}
-              className="h-7 px-2 text-xs text-primary hover:bg-primary/10 gap-1"
+              className="h-6 px-2 text-[11px] text-accent gap-1 rounded-none"
             >
               <Play className="w-3 h-3 fill-current" /> Audition
             </Button>
@@ -453,7 +451,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               variant="outline"
               size="sm"
               onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
-              className="h-7 px-2 text-xs border-border gap-1"
+              className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
             >
               <Edit3 className="w-3 h-3" /> Customize
             </Button>
@@ -461,7 +459,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
         </div>
 
         {/* Long Note Formula Card */}
-        <div className="bg-card/70 border border-border/80 rounded-lg p-3 flex flex-col justify-between gap-2.5">
+        <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col justify-between gap-2.5">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -472,7 +470,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   {longFormula.name}
                 </span>
               </div>
-              <Badge variant="outline" className="text-[10px] font-mono border-rose-500/30 text-rose-400">
+              <Badge variant="outline" className="text-[10px] font-mono border-border text-muted-foreground rounded-none">
                 {longFormula.strokes.length} stroke{longFormula.strokes.length === 1 ? '' : 's'}
               </Badge>
             </div>
@@ -482,7 +480,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               {longFormula.strokes.map((s, idx) => (
                 <span
                   key={idx}
-                  className="px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-[10px] font-mono text-foreground"
+                  className="px-1.5 py-0.5 rounded-none bg-secondary border border-border text-[10px] font-mono text-foreground"
                 >
                   {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
                 </span>
@@ -490,13 +488,13 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/40">
+          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => handleAuditionFormula(longFormula)}
-              className="h-7 px-2 text-xs text-rose-400 hover:bg-rose-500/10 gap-1"
+              className="h-6 px-2 text-[11px] text-rose-400 gap-1 rounded-none"
             >
               <Play className="w-3 h-3 fill-current" /> Audition
             </Button>
@@ -505,7 +503,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               variant="outline"
               size="sm"
               onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
-              className="h-7 px-2 text-xs border-border gap-1"
+              className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
             >
               <Edit3 className="w-3 h-3" /> Customize
             </Button>
@@ -517,13 +515,13 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       <div className="flex flex-col gap-2.5 pt-1">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-primary" />
+              <Activity className="w-3.5 h-3.5 text-accent" />
               Real-Time Drum Monitor
             </label>
-            <span className="text-[10px] text-muted-foreground">Click pad to audition</span>
+            <span className="text-[10px] text-muted-foreground font-mono">Click pad to audition</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 bg-muted/20 p-3 rounded-xl border border-border/60">
+          <div className="grid grid-cols-2 gap-2.5 bg-secondary/20 p-2.5 rounded-none border border-border">
             {/* Ride Cymbal (RH) */}
             <button
               type="button"
@@ -531,15 +529,15 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               data-active={activeRide ? 'true' : 'false'}
               onClick={() => handlePadAudition('ride', 'ostinato')}
               className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
+                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
                 activeRide
-                  ? 'bg-amber-500/25 border-amber-400 scale-[1.03] shadow-[0_0_18px_rgba(245,158,11,0.6)] ring-2 ring-amber-400/50'
-                  : 'bg-card/70 border-border/70 hover:border-amber-400/50 hover:bg-amber-500/5'
+                  ? 'bg-amber-500/25 border-amber-400 scale-[1.02] shadow-sm'
+                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
               )}
             >
               <div
                 className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center border font-bold text-xs mb-1.5 transition-colors',
+                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
                   activeRide
                     ? 'border-amber-400 bg-amber-400 text-black'
                     : 'border-amber-500/40 text-amber-400 bg-amber-500/10'
@@ -548,7 +546,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 RH
               </div>
               <span className="text-xs font-semibold text-foreground">Ride Cymbal</span>
-              <span className="text-[10px] text-muted-foreground">Spang-a-lang</span>
+              <span className="text-[10px] text-muted-foreground font-mono">Spang-a-lang</span>
             </button>
 
             {/* Snare Drum (LH) */}
@@ -558,24 +556,24 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               data-active={activeSnare ? 'true' : 'false'}
               onClick={() => handlePadAudition('snare', 'orchestration')}
               className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
+                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
                 activeSnare
-                  ? 'bg-primary/25 border-primary scale-[1.03] shadow-[0_0_18px_rgba(20,184,166,0.6)] ring-2 ring-primary/50'
-                  : 'bg-card/70 border-border/70 hover:border-primary/50 hover:bg-primary/5'
+                  ? 'bg-accent/25 border-accent scale-[1.02] shadow-sm'
+                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
               )}
             >
               <div
                 className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center border font-bold text-xs mb-1.5 transition-colors',
+                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
                   activeSnare
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-primary/40 text-primary bg-primary/10'
+                    ? 'border-accent bg-accent text-accent-foreground'
+                    : 'border-border text-accent bg-accent/10'
                 )}
               >
                 LH
               </div>
               <span className="text-xs font-semibold text-foreground">Snare Drum</span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 {shortFormula.name}
               </span>
             </button>
@@ -587,15 +585,15 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               data-active={activeKick ? 'true' : 'false'}
               onClick={() => handlePadAudition('kick', 'orchestration')}
               className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
+                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
                 activeKick
-                  ? 'bg-rose-500/25 border-rose-400 scale-[1.03] shadow-[0_0_18px_rgba(244,63,94,0.6)] ring-2 ring-rose-400/50'
-                  : 'bg-card/70 border-border/70 hover:border-rose-400/50 hover:bg-rose-500/5'
+                  ? 'bg-rose-500/25 border-rose-400 scale-[1.02] shadow-sm'
+                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
               )}
             >
               <div
                 className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center border font-bold text-xs mb-1.5 transition-colors',
+                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
                   activeKick
                     ? 'border-rose-400 bg-rose-400 text-white'
                     : 'border-rose-500/40 text-rose-400 bg-rose-500/10'
@@ -604,7 +602,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 RF
               </div>
               <span className="text-xs font-semibold text-foreground">Bass Drum</span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 {longFormula.name}
               </span>
             </button>
@@ -616,27 +614,27 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               data-active={activeHihat ? 'true' : 'false'}
               onClick={() => handlePadAudition('hihat_foot', 'ostinato')}
               className={cn(
-                'flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-75 select-none',
+                'flex flex-col items-center justify-center p-3 rounded-none border transition-all duration-75 select-none',
                 activeHihat
-                  ? 'bg-violet-500/25 border-violet-400 scale-[1.03] shadow-[0_0_18px_rgba(168,85,247,0.6)] ring-2 ring-violet-400/50'
-                  : 'bg-card/70 border-border/70 hover:border-violet-400/50 hover:bg-violet-500/5'
+                  ? 'bg-purple-500/25 border-purple-400 scale-[1.02] shadow-sm'
+                  : 'bg-secondary/40 border-border hover:bg-secondary/70'
               )}
             >
               <div
                 className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center border font-bold text-xs mb-1.5 transition-colors',
+                  'w-8 h-8 rounded-none flex items-center justify-center border font-bold text-xs mb-1 transition-colors',
                   activeHihat
-                    ? 'border-violet-400 bg-violet-400 text-white'
-                    : 'border-violet-500/40 text-violet-400 bg-violet-500/10'
+                    ? 'border-purple-400 bg-purple-400 text-white'
+                    : 'border-purple-500/40 text-purple-400 bg-purple-500/10'
                 )}
               >
                 LF
               </div>
               <span className="text-xs font-semibold text-foreground">Hi-Hat Pedal</span>
-              <span className="text-[10px] text-muted-foreground">Beats 2 & 4 Chick</span>
+              <span className="text-[10px] text-muted-foreground font-mono">Beats 2 & 4 Chick</span>
             </button>
           </div>
-      </div>
+        </div>
 
       {/* Preset Manager Modal Dialog */}
       {isPresetManagerOpen && (

@@ -117,37 +117,35 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
   return (
     <div
       className={cn(
-        'w-full flex flex-col gap-4 bg-card/60 backdrop-blur border border-border/70 rounded-2xl p-4 md:p-6 shadow-sm',
+        'w-full h-full flex flex-col justify-between gap-4 bg-card border border-border rounded-none p-5 shadow-sm',
         className
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/50 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
-            <Sliders className="w-5 h-5" />
-          </div>
+      <div className="flex items-center justify-between border-b border-border pb-3">
+        <div className="flex items-center gap-2">
+          <Sliders className="w-4 h-4 text-accent" />
           <div>
-            <h3 className="text-base font-semibold text-foreground tracking-tight">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
               Mixer Panel
-            </h3>
+            </h2>
             <p className="text-xs text-muted-foreground">
-              Master and the three Mixing Channels
+              Master & channel loudness controls
             </p>
           </div>
         </div>
-        <span className="text-[10px] text-muted-foreground">
-          The app&apos;s only loudness controls
+        <span className="text-[10px] font-mono text-muted-foreground uppercase">
+          Loudness
         </span>
       </div>
 
       {/* Practice Preset row: mute flags only, never a volume value */}
       <div
         data-testid="mixer-preset-row"
-        className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1.5 rounded-xl border border-border/60"
+        className="flex flex-wrap items-center gap-1 bg-secondary/40 p-1 rounded-none border border-border"
       >
-        <span className="text-[11px] font-medium text-muted-foreground px-2">
-          Practice Preset:
+        <span className="text-[11px] font-medium text-muted-foreground px-1.5 uppercase font-mono">
+          Preset:
         </span>
         {PRACTICE_PRESETS.map((practicePreset) => (
           <Button
@@ -157,10 +155,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
             size="sm"
             aria-pressed={preset === practicePreset}
             onClick={() => handlePresetPress(practicePreset)}
-            className={cn(
-              'h-7 px-2.5 text-xs',
-              preset === practicePreset && 'bg-primary text-primary-foreground hover:bg-primary/90'
-            )}
+            className="h-6 px-2 text-[11px] rounded-none"
           >
             {PRESET_LABELS[practicePreset]}
           </Button>
@@ -172,7 +167,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
           disabled
           aria-pressed={preset === 'custom'}
           className={cn(
-            'h-7 px-2.5 text-xs',
+            'h-6 px-2 text-[11px] rounded-none',
             preset === 'custom' && 'bg-amber-500/20 text-amber-300'
           )}
         >
@@ -184,10 +179,10 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
       <div
         data-testid="mixer-row-master"
         data-composed="true"
-        className="flex items-center gap-3 bg-muted/20 p-2.5 rounded-xl border border-border/60"
+        className="flex items-center gap-3 bg-secondary/30 p-2.5 rounded-none border border-border"
       >
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
               Master
             </span>
@@ -207,7 +202,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
       </div>
 
       {/* One row per Mixing Channel */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {CHANNEL_ROWS.map(({ channel, title, muteName, detail, ariaLabel }) => {
           const isComposed = composed[channel];
           const state = mixerState[channel];
@@ -218,7 +213,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
                 key={channel}
                 data-testid={`mixer-row-${channel}`}
                 data-composed="false"
-                className="flex items-center justify-between gap-3 bg-card/40 p-2.5 rounded-lg border border-border/40"
+                className="flex items-center justify-between gap-3 bg-secondary/10 p-2 rounded-none border border-border/40"
               >
                 <span className="text-xs font-medium text-muted-foreground">
                   {title} <span className="text-[10px] font-normal">{detail}</span>
@@ -235,7 +230,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
               key={channel}
               data-testid={`mixer-row-${channel}`}
               data-composed="true"
-              className="flex items-center gap-3 bg-card/60 p-2.5 rounded-lg border border-border/60"
+              className="flex items-center gap-3 bg-secondary/20 p-2.5 rounded-none border border-border"
             >
               <Button
                 type="button"
@@ -246,7 +241,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
                 }
                 onClick={() => handleMuteToggle(channel)}
                 className={cn(
-                  'w-9 h-9 p-0 rounded-lg shrink-0',
+                  'w-8 h-8 p-0 rounded-none shrink-0',
                   !state.muted && 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -258,7 +253,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
               </Button>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium text-foreground">
                     {title}{' '}
                     <span className="text-[10px] text-muted-foreground font-normal">

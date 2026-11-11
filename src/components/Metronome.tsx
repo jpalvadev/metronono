@@ -229,37 +229,31 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const rampProgress = scheduler.getRampProgress(currentMeasure, activeBeat ?? 0);
 
   return (
-    <div className="w-full max-w-lg mx-auto p-6 bg-card border border-border rounded-xl shadow-xl flex flex-col gap-6 text-foreground">
+    <div className="w-full h-full p-5 bg-card border border-border rounded-none shadow-sm flex flex-col justify-between gap-5 text-foreground">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/60 pb-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-primary flex items-center gap-2">
-            METRONONO
-          </h1>
-          <p className="text-xs text-muted-foreground font-medium">Smart Drum Metronome & Training</p>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+            Metronome Engine
+          </h2>
+          <p className="text-xs text-muted-foreground">Smart Drum Metronome &middot; Clock timing, tempo and subdivision</p>
         </div>
-        <Badge variant={isPlaying ? 'default' : 'secondary'} className="gap-1.5 py-1">
-          <span
-            className={cn('w-2 h-2 rounded-full', {
-              'bg-primary animate-pulse': isPlaying,
-              'bg-muted-foreground': !isPlaying,
-            })}
-          />
+        <Badge variant={isPlaying ? 'default' : 'outline'} className="rounded-none">
           {isPlaying ? 'ACTIVE' : 'STOPPED'}
         </Badge>
       </div>
 
       {/* Prominent Dropout Mode Banner when active measure is silenced */}
       {isDropout && (
-        <div className="bg-amber-500/20 border-2 border-amber-500 text-amber-300 font-extrabold text-sm py-2 px-4 rounded-xl text-center tracking-widest uppercase animate-pulse shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
-          <VolumeX className="w-5 h-5 text-amber-400 animate-bounce" />
+        <div className="bg-amber-500/20 border border-amber-500 text-amber-300 font-bold text-xs py-1.5 px-3 rounded-none text-center tracking-wider uppercase animate-pulse flex items-center justify-center gap-2">
+          <VolumeX className="w-4 h-4 text-amber-400" />
           <span>DROPOUT / SILENT BAR</span>
         </div>
       )}
 
       {/* Beat Selector Buttons & Visual Playhead */}
       <div className="flex flex-col gap-2 items-center">
-        <div className="flex justify-center items-center gap-3 py-1">
+        <div className="flex justify-center items-center gap-2 py-1">
           {Array.from({ length: timeSignature.beats }).map((_, idx) => {
             const isDownbeat = idx === 0;
             const isActiveBeat = activeBeat === idx;
@@ -273,18 +267,16 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                 aria-label={`Beat ${idx + 1}: ${isBeatAudible ? 'Active' : 'Muted'}`}
                 title={`Beat ${idx + 1} (${isBeatAudible ? 'Click to Mute' : 'Click to Activate'})`}
                 className={cn(
-                  'relative transition-all duration-100 rounded-full flex flex-col items-center justify-center font-bold text-xs border select-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary',
-                  isDownbeat ? 'w-12 h-12 text-sm' : 'w-10 h-10 text-xs',
-                  !isBeatAudible && 'opacity-40 border-dashed border-muted-foreground',
+                  'relative transition-all duration-100 rounded-none flex flex-col items-center justify-center font-bold text-xs border select-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring',
+                  isDownbeat ? 'w-11 h-11 text-sm' : 'w-10 h-10 text-xs',
+                  !isBeatAudible && 'opacity-30 border-dashed border-border',
                   isActiveBeat
-                    ? isDownbeat
-                      ? 'bg-primary text-primary-foreground border-primary scale-110 shadow-lg shadow-primary/40 ring-2 ring-primary'
-                      : 'bg-primary/90 text-primary-foreground border-primary scale-105 shadow-md shadow-primary/30 ring-2 ring-primary'
+                    ? 'bg-accent text-accent-foreground border-accent scale-105 shadow-sm'
                     : isBeatAudible
                       ? isDownbeat
-                        ? 'bg-muted/70 text-foreground border-primary/40 hover:border-primary'
-                        : 'bg-muted/40 text-muted-foreground border-border/60 hover:border-primary/50'
-                      : 'bg-muted/20 text-muted-foreground/60'
+                        ? 'bg-secondary text-foreground border-border hover:border-accent'
+                        : 'bg-muted text-muted-foreground border-border hover:border-accent'
+                      : 'bg-transparent text-muted-foreground/40'
                 )}
               >
                 <span>{idx + 1}</span>
@@ -297,11 +289,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
         </div>
 
         {/* Quick Beat Presets */}
-        <div className="flex gap-2 text-xs text-muted-foreground">
+        <div className="flex gap-1.5 text-xs text-muted-foreground">
           <button
             type="button"
             onClick={() => handleSetPresetMask(Array(timeSignature.beats).fill(true))}
-            className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-foreground border border-border/40 font-medium"
+            className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium"
           >
             All
           </button>
@@ -310,14 +302,14 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               <button
                 type="button"
                 onClick={() => handleSetPresetMask([false, true, false, true])}
-                className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-primary border border-primary/30 font-medium"
+                className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-accent border border-border text-[11px] font-medium"
               >
                 2 & 4 (Jazz)
               </button>
               <button
                 type="button"
                 onClick={() => handleSetPresetMask([true, false, true, false])}
-                className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-foreground border border-border/40 font-medium"
+                className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium"
               >
                 1 & 3
               </button>
@@ -330,7 +322,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               mask[0] = true;
               handleSetPresetMask(mask);
             }}
-            className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-foreground border border-border/40 font-medium"
+            className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium"
           >
             1 Only
           </button>
@@ -411,7 +403,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               onChange={(e) => setTempInputValue(e.target.value)}
               onBlur={handleInputBlur}
               onKeyDown={handleInputKeyDown}
-              className="w-full text-center py-1 px-2 text-sm bg-muted/60 border border-border rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full text-center py-1 px-2 text-xs bg-secondary/60 border border-input rounded-none font-mono focus:outline-none focus:border-ring"
               aria-label="Direct BPM input"
             />
           </div>
@@ -419,27 +411,27 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       </div>
 
       {/* Tap Tempo & Time Signatures */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <Button
           variant="outline"
           onClick={handleTap}
           className={cn(
-            'h-12 border-border font-semibold flex items-center justify-center gap-2 transition-transform active:scale-95',
-            isTapActive && 'bg-primary/20 border-primary text-primary'
+            'h-9 border-border font-medium text-xs flex items-center justify-center gap-2 rounded-none',
+            isTapActive && 'bg-accent/20 border-accent text-accent'
           )}
         >
-          <Activity className="w-4 h-4 text-primary" />
+          <Activity className="w-3.5 h-3.5 text-accent" />
           <span>TAP TEMPO</span>
         </Button>
 
-        <div className="flex bg-muted/50 p-1 rounded-lg border border-border">
+        <div className="flex bg-secondary/40 p-0.5 rounded-none border border-border">
           <button
             type="button"
             onClick={() => handleTimeSignatureChange('4/4')}
             className={cn(
-              'flex-1 py-2 text-sm font-bold rounded-md transition-all select-none',
+              'flex-1 py-1.5 text-xs font-bold rounded-none transition-all select-none',
               isCurrentTimeSig('4/4')
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -449,9 +441,9 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             type="button"
             onClick={() => handleTimeSignatureChange('3/4')}
             className={cn(
-              'flex-1 py-2 text-sm font-bold rounded-md transition-all select-none',
+              'flex-1 py-1.5 text-xs font-bold rounded-none transition-all select-none',
               isCurrentTimeSig('3/4')
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -461,18 +453,18 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       </div>
 
       {/* Advanced Training: Tempo Ramp Panel */}
-      <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
+      <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold">Tempo Ramp</span>
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-accent" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Tempo Ramp</span>
           </div>
           <Button
             size="sm"
             variant={rampConfig.enabled ? 'default' : 'outline'}
             onClick={handleToggleRamp}
             aria-label="Toggle Tempo Ramp"
-            className="text-xs font-semibold h-7 px-3"
+            className="text-[11px] font-semibold h-6 px-2.5 rounded-none"
           >
             {rampConfig.enabled ? 'ON' : 'OFF'}
           </Button>
@@ -526,13 +518,13 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       </div>
 
       {/* Advanced Training: Stochastic Dropout Mode Panel */}
-      <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
+      <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <VolumeX className="w-4 h-4 text-amber-400" />
+          <div className="flex items-center gap-1.5">
+            <VolumeX className="w-3.5 h-3.5 text-amber-400" />
             <div>
-              <span className="text-sm font-bold">Dropout Mode</span>
-              <span className="text-[11px] text-muted-foreground ml-2">Internal Clock Test</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Dropout Mode</span>
+              <span className="text-[10px] text-muted-foreground ml-2">Internal Clock Test</span>
             </div>
           </div>
           <Button
@@ -540,14 +532,14 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             variant={dropoutConfig.enabled ? 'default' : 'outline'}
             onClick={handleToggleDropout}
             aria-label="Toggle Dropout Mode"
-            className="text-xs font-semibold h-7 px-3"
+            className="text-[11px] font-semibold h-6 px-2.5 rounded-none"
           >
             {dropoutConfig.enabled ? 'ON' : 'OFF'}
           </Button>
         </div>
 
         {dropoutConfig.enabled && (
-          <div className="flex flex-col gap-2 pt-2 border-t border-border/40 text-xs">
+          <div className="flex flex-col gap-2 pt-2 border-t border-border text-xs">
             <div className="flex justify-between text-muted-foreground">
               <span>Silence Probability</span>
               <span className="font-mono text-amber-400 font-bold">
@@ -570,25 +562,25 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       </div>
 
       {/* Click Accents & Pitches Customization (Collapsible) */}
-      <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
+      <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col gap-2.5">
         <button
           type="button"
           onClick={() => setShowAccents(!showAccents)}
           className="flex items-center justify-between w-full text-left"
         >
-          <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold">Click Sounds & Pitches</span>
+          <div className="flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-accent" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Click Sounds & Pitches</span>
           </div>
-          {showAccents ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showAccents ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
 
         {showAccents && (
-          <div className="flex flex-col gap-3 pt-2 border-t border-border/40 text-xs">
+          <div className="flex flex-col gap-2.5 pt-2 border-t border-border text-xs">
             {/* Downbeat voice */}
             <div className="grid grid-cols-2 gap-3 items-center">
               <div>
-                <label htmlFor="downbeat-pitch-input" className="block text-muted-foreground mb-1 font-medium">
+                <label htmlFor="downbeat-pitch-input" className="block text-muted-foreground mb-1 text-[11px] font-medium">
                   Downbeat Pitch
                 </label>
                 <input
@@ -597,11 +589,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   value={clickConfig.downbeat.pitch}
                   onChange={(e) => handleVoicePitchChange('downbeat', e.target.value)}
                   aria-label="Downbeat pitch"
-                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                  className="w-full bg-secondary/50 border border-input rounded-none px-2 py-1 font-mono text-center text-xs"
                 />
               </div>
               <div>
-                <label className="block text-muted-foreground mb-1 font-medium">
+                <label className="block text-muted-foreground mb-1 text-[11px] font-medium">
                   Volume ({Math.round(clickConfig.downbeat.volume * 100)}%)
                 </label>
                 <Slider
@@ -617,7 +609,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             {/* Regular voice */}
             <div className="grid grid-cols-2 gap-3 items-center">
               <div>
-                <label htmlFor="regular-pitch-input" className="block text-muted-foreground mb-1 font-medium">
+                <label htmlFor="regular-pitch-input" className="block text-muted-foreground mb-1 text-[11px] font-medium">
                   Regular Pitch
                 </label>
                 <input
@@ -626,11 +618,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   value={clickConfig.regular.pitch}
                   onChange={(e) => handleVoicePitchChange('regular', e.target.value)}
                   aria-label="Regular pitch"
-                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                  className="w-full bg-secondary/50 border border-input rounded-none px-2 py-1 font-mono text-center text-xs"
                 />
               </div>
               <div>
-                <label className="block text-muted-foreground mb-1 font-medium">
+                <label className="block text-muted-foreground mb-1 text-[11px] font-medium">
                   Volume ({Math.round(clickConfig.regular.volume * 100)}%)
                 </label>
                 <Slider
@@ -646,7 +638,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             {/* Subdivision voice */}
             <div className="grid grid-cols-2 gap-3 items-center">
               <div>
-                <label htmlFor="subdivision-pitch-input" className="block text-muted-foreground mb-1 font-medium">
+                <label htmlFor="subdivision-pitch-input" className="block text-muted-foreground mb-1 text-[11px] font-medium">
                   Subdivision Pitch
                 </label>
                 <input
@@ -655,11 +647,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                   value={clickConfig.subdivision.pitch}
                   onChange={(e) => handleVoicePitchChange('subdivision', e.target.value)}
                   aria-label="Subdivision pitch"
-                  className="w-full bg-muted/60 border border-border rounded-md px-2 py-1 font-mono text-center"
+                  className="w-full bg-secondary/50 border border-input rounded-none px-2 py-1 font-mono text-center text-xs"
                 />
               </div>
               <div>
-                <label className="block text-muted-foreground mb-1 font-medium">
+                <label className="block text-muted-foreground mb-1 text-[11px] font-medium">
                   Volume ({Math.round(clickConfig.subdivision.volume * 100)}%)
                 </label>
                 <Slider
@@ -688,10 +680,10 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                       aria-label={`Gap clicks: ${getGapClicksLabel(divisions)}`}
                       title={divisions === 1 ? 'Beat clicks only' : 'Click the gaps between beats too'}
                       className={cn(
-                        'px-2 py-0.5 rounded text-xs font-mono border border-border/40 cursor-pointer select-none transition-all',
+                        'px-2 py-0.5 rounded-none text-xs font-mono border border-border cursor-pointer select-none transition-all',
                         isActive
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted/40 text-muted-foreground hover:bg-muted'
+                          : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
                       )}
                     >
                       {divisions === 1 ? 'None' : `${divisions}×`}
@@ -708,20 +700,21 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       <Button
         size="lg"
         onClick={handleTogglePlay}
+        aria-label={isPlaying ? 'Stop metronome' : 'Play metronome'}
         className={cn(
-          'w-full h-14 text-lg font-bold tracking-wider uppercase transition-all shadow-lg',
+          'w-full h-10 text-xs font-semibold tracking-wider uppercase transition-all rounded-none shadow-xs',
           isPlaying
-            ? 'bg-destructive/90 hover:bg-destructive text-destructive-foreground shadow-destructive/20'
-            : 'bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold shadow-primary/30'
+            ? 'bg-destructive/80 hover:bg-destructive text-destructive-foreground'
+            : 'bg-primary hover:bg-primary/90 text-primary-foreground'
         )}
       >
         {isPlaying ? (
-          <span className="flex items-center gap-2">
-            <Square className="w-5 h-5 fill-current" /> STOP
+          <span className="flex items-center gap-1.5">
+            <Square className="w-3.5 h-3.5 fill-current" /> STOP CLOCK
           </span>
         ) : (
-          <span className="flex items-center gap-2">
-            <Play className="w-5 h-5 fill-current" /> PLAY
+          <span className="flex items-center gap-1.5">
+            <Play className="w-3.5 h-3.5 fill-current" /> START CLOCK
           </span>
         )}
       </Button>

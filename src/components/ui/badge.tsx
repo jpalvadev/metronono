@@ -9,11 +9,11 @@ export function Badge({ className, variant = 'default', ...props }: BadgeProps) 
   return (
     <div
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide transition-colors uppercase',
+        'inline-flex items-center rounded-none border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider font-medium transition-colors select-none',
         {
           'border-transparent bg-primary text-primary-foreground': variant === 'default',
           'border-transparent bg-secondary text-secondary-foreground': variant === 'secondary',
-          'border-border text-foreground': variant === 'outline',
+          'border-border text-muted-foreground': variant === 'outline',
         },
         className
       )}

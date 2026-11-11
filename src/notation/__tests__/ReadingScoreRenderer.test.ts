@@ -626,6 +626,34 @@ describe('ReadingScoreRenderer', () => {
     expect(thick[0].x - thinFinal.x).toBeLessThanOrEqual(7);
   });
 
+  it('stacks a secondary beam over sixteenth pairs on the same tips', () => {
+    // q [16 16] [8 8] q -> sixteenth pair gets primary + secondary beam.
+    const measure = createTestMeasure(0, [1.0, 0.25, 0.25, 0.5, 0.5, 1.0, 0.5, 0.5]);
+    const readingLine: ReadingLine = {
+      id: 'test-secondary-beam',
+      title: 'Sixteenth Pairs Get A Secondary Beam',
+      tier: 2,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    renderer.render(container, readingLine, { width: 600 });
+
+    const svg = container.querySelector('svg');
+    const stems = stemPaths(svg);
+    expect(stems.length).toBe(8); // every event has a stem (two quarters, four short notes in the run split 3+1, trailing pair)
+    const rects = beamRects(svg);
+    expect(rects.length).toBe(3); // primary 16s, secondary 16s, primary 8s
+    const tips = stems.map((s) => s.tip);
+    const primaryBottom = Math.max(...tips); // stem path tips align with primary beam bottoms
+    const primaryRect = rects.find((r) => Math.abs(r.bottom - primaryBottom) <= 0.5);
+    expect(primaryRect).toBeTruthy();
+    // Secondary beam stacks one BEAM_STACK below the primary, in the gap.
+    const secondaryRects = rects.filter((r) => Math.abs(r.bottom - (primaryRect!.bottom + 7.5)) <= 0.5);
+    expect(secondaryRects.length).toBe(1);
+    expect(secondaryRects[0].top).toBeGreaterThan(primaryRect!.bottom);
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

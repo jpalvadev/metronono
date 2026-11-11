@@ -86,7 +86,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
       {/* Top Section Header & Mode Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card/60 backdrop-blur border border-border/70 rounded-2xl p-3 md:p-4 shadow-sm">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
             {mode === 'generator' ? <Wand2 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
           </div>
           <div>
@@ -108,7 +108,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               size="sm"
               className={cn(
                 'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
-                activeViewMode === 'reading' && 'bg-teal-600 hover:bg-teal-700 text-white shadow-xs'
+                activeViewMode === 'reading' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => handleViewModeChange('reading')}
             >
@@ -120,7 +120,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               size="sm"
               className={cn(
                 'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
-                activeViewMode === 'drum_staff' && 'bg-teal-600 hover:bg-teal-700 text-white shadow-xs'
+                activeViewMode === 'drum_staff' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => handleViewModeChange('drum_staff')}
             >
@@ -136,7 +136,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               size="sm"
               className={cn(
                 'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
-                mode === 'generator' && 'bg-teal-600 hover:bg-teal-700 text-white shadow-xs'
+                mode === 'generator' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => setMode('generator')}
             >
@@ -148,7 +148,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               size="sm"
               className={cn(
                 'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
-                mode === 'library' && 'bg-teal-600 hover:bg-teal-700 text-white shadow-xs'
+                mode === 'library' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               )}
               onClick={() => setMode('library')}
             >
@@ -224,7 +224,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 px-3 text-xs gap-1.5 border-teal-500/40 text-teal-400 hover:bg-teal-950/30"
+              className="h-7 px-3 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
               onClick={handleRegenerate}
             >
               <RotateCw className="w-3.5 h-3.5" />
@@ -245,7 +245,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                   size="sm"
                   className={cn(
                     'h-7 px-2.5 text-xs font-medium',
-                    selectedPage === page && 'bg-teal-950/40 text-teal-400 border border-teal-500/40 font-semibold'
+                    selectedPage === page && 'bg-primary/15 text-primary border border-primary/40 font-semibold'
                   )}
                   onClick={() => {
                     setSelectedPage(page);
@@ -275,7 +275,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                   size="sm"
                   className={cn(
                     'h-6 w-7 p-0 text-[11px]',
-                    selectedExerciseNum === num && 'bg-teal-500/20 text-teal-300 font-bold border border-teal-500/40'
+                    selectedExerciseNum === num && 'bg-primary/20 text-primary font-bold border border-primary/40'
                   )}
                   onClick={() => setSelectedExerciseNum(num)}
                 >

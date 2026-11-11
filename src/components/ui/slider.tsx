@@ -28,7 +28,7 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
         onChange={handleChange}
         aria-label={ariaLabel}
         className={cn(
-          'w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500',
+          'w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none focus:ring-1 focus:ring-ring',
           className
         )}
         {...props}

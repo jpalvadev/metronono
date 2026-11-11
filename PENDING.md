@@ -4,7 +4,7 @@
 
 - 3 [ ] ramp option should have 2 inputs, beginning and end tempo, and option if it should be up and down (or down and up) and if it should end the metronome or loop
 
-- 4 [ ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite
+- 4 [ x ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite (root cause: app was rendering in light mode because `<html class="dark">` was not enabled and tokens were not configured for preset b5dMVCPy4; configured components.json with preset b5dMVCPy4, enabled dark mode, updated tailwind.config.js with alpha channel variables and mauve/teal color scales, tuned index.css with exact preset mauve and vibrant teal tokens, updated button/badge/slider components and added dark-mode VexFlow score inversion)
 
 - 5 [ x ] config github
 

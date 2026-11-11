@@ -45,15 +45,15 @@ export function App() {
   }, [storageManager, scheduler]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 md:p-8 selection:bg-teal-500 selection:text-white">
+    <main className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 md:p-8 selection:bg-primary selection:text-primary-foreground">
       <div className="w-full max-w-4xl flex flex-col items-center gap-8">
         {/* Navigation & Storage Quick Access */}
         <header className="w-full flex items-center justify-between border-b border-border/40 pb-4">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <span className="text-teal-400">Metronono</span>
+              <span className="text-primary">Metronono</span>
             </h1>
-            <Badge variant="outline" className="border-teal-500/30 text-teal-400 text-[10px]">
+            <Badge variant="outline" className="border-primary/30 text-primary text-[10px]">
               Core
             </Badge>
           </div>
@@ -64,12 +64,12 @@ export function App() {
               size="sm"
               onClick={() => setIsSampleBankOpen(true)}
               aria-label="Open Sample Bank and Storage"
-              className="text-xs gap-1.5 h-8 border-border/80 hover:border-teal-500/50"
+              className="text-xs gap-1.5 h-8 border-border/80 hover:border-primary/50"
             >
-              <FolderArchive className="w-3.5 h-3.5 text-teal-400" />
+              <FolderArchive className="w-3.5 h-3.5 text-primary" />
               <span>Sample Bank & Storage</span>
               {isLinked ? (
-                <HardDrive className="w-3 h-3 text-teal-400 ml-0.5" />
+                <HardDrive className="w-3 h-3 text-primary ml-0.5" />
               ) : (
                 <Database className="w-3 h-3 text-muted-foreground ml-0.5" />
               )}

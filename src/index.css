@@ -5,68 +5,68 @@
 @layer base {
   :root {
     /* Mauve light base */
-    --background: 240 5% 98%;
-    --foreground: 240 6% 10%;
+    --background: 0 0% 100%;
+    --foreground: 300 14% 4%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 6% 10%;
+    --card-foreground: 300 14% 4%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 6% 10%;
+    --popover-foreground: 300 14% 4%;
 
     /* Teal theme */
-    --primary: 173 80% 36%;
+    --primary: 174 100% 29%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 5% 92%;
-    --secondary-foreground: 240 6% 15%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
 
-    --muted: 240 5% 92%;
-    --muted-foreground: 240 4% 46%;
+    --muted: 300 8% 95%;
+    --muted-foreground: 293 8% 45%;
 
-    --accent: 173 50% 92%;
-    --accent-foreground: 173 80% 25%;
+    --accent: 300 8% 95%;
+    --accent-foreground: 293 15% 10%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 357 100% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5% 88%;
-    --input: 240 5% 88%;
-    --ring: 173 80% 36%;
+    --border: 300 6% 90%;
+    --input: 300 6% 90%;
+    --ring: 295 6% 64%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
   }
 
   .dark {
-    /* Mauve dark base */
-    --background: 246 6% 9%;
-    --foreground: 240 7% 95%;
+    /* Mauve dark base (shadcn preset b5dMVCPy4) */
+    --background: 300 14% 4%;
+    --foreground: 0 0% 98%;
 
-    --card: 240 5% 12%;
-    --card-foreground: 240 7% 95%;
+    --card: 293 15% 10%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 240 5% 12%;
-    --popover-foreground: 240 7% 95%;
+    --popover: 293 15% 10%;
+    --popover-foreground: 0 0% 98%;
 
-    /* Teal theme */
-    --primary: 173 75% 42%;
-    --primary-foreground: 246 6% 9%;
+    /* Vibrant Teal theme matching Capture 2 */
+    --primary: 174 100% 33%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 5% 18%;
-    --secondary-foreground: 240 7% 95%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 5% 18%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 289 14% 15%;
+    --muted-foreground: 295 6% 64%;
 
-    --accent: 173 40% 18%;
-    --accent-foreground: 173 70% 75%;
+    --accent: 289 14% 15%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 62% 30%;
+    --destructive: 359 100% 70%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5% 20%;
-    --input: 240 5% 20%;
-    --ring: 173 75% 42%;
+    --border: 289 10% 20%;
+    --input: 240 4% 16%;
+    --ring: 293 8% 45%;
   }
 }
 
@@ -77,4 +77,11 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Invert VexFlow black notation to crisp white in dark mode */
+.dark [data-testid="reading-score-container"] svg,
+.dark [data-testid="drum-staff-container"] svg,
+.dark [data-testid="partiture-formula-canvas"] svg {
+  filter: invert(1) hue-rotate(180deg);
 }

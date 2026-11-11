@@ -229,11 +229,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const rampProgress = scheduler.getRampProgress(currentMeasure, activeBeat ?? 0);
 
   return (
-    <div className="w-full max-w-lg mx-auto p-6 bg-card border border-border rounded-2xl shadow-xl flex flex-col gap-6 text-foreground">
+    <div className="w-full max-w-lg mx-auto p-6 bg-card border border-border rounded-xl shadow-xl flex flex-col gap-6 text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/60 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-teal-400 flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-primary flex items-center gap-2">
             METRONONO
           </h1>
           <p className="text-xs text-muted-foreground font-medium">Smart Drum Metronome & Training</p>
@@ -241,7 +241,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
         <Badge variant={isPlaying ? 'default' : 'secondary'} className="gap-1.5 py-1">
           <span
             className={cn('w-2 h-2 rounded-full', {
-              'bg-teal-400 animate-pulse': isPlaying,
+              'bg-primary animate-pulse': isPlaying,
               'bg-muted-foreground': !isPlaying,
             })}
           />
@@ -273,17 +273,17 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                 aria-label={`Beat ${idx + 1}: ${isBeatAudible ? 'Active' : 'Muted'}`}
                 title={`Beat ${idx + 1} (${isBeatAudible ? 'Click to Mute' : 'Click to Activate'})`}
                 className={cn(
-                  'relative transition-all duration-100 rounded-full flex flex-col items-center justify-center font-bold text-xs border select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400',
+                  'relative transition-all duration-100 rounded-full flex flex-col items-center justify-center font-bold text-xs border select-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary',
                   isDownbeat ? 'w-12 h-12 text-sm' : 'w-10 h-10 text-xs',
                   !isBeatAudible && 'opacity-40 border-dashed border-muted-foreground',
                   isActiveBeat
                     ? isDownbeat
-                      ? 'bg-teal-400 text-teal-950 border-teal-300 scale-110 shadow-lg shadow-teal-500/40 ring-2 ring-teal-400'
-                      : 'bg-teal-500 text-teal-950 border-teal-400 scale-105 shadow-md shadow-teal-500/30 ring-2 ring-teal-500'
+                      ? 'bg-primary text-primary-foreground border-primary scale-110 shadow-lg shadow-primary/40 ring-2 ring-primary'
+                      : 'bg-primary/90 text-primary-foreground border-primary scale-105 shadow-md shadow-primary/30 ring-2 ring-primary'
                     : isBeatAudible
                       ? isDownbeat
-                        ? 'bg-muted/70 text-foreground border-teal-500/40 hover:border-teal-400'
-                        : 'bg-muted/40 text-muted-foreground border-border/60 hover:border-teal-500/50'
+                        ? 'bg-muted/70 text-foreground border-primary/40 hover:border-primary'
+                        : 'bg-muted/40 text-muted-foreground border-border/60 hover:border-primary/50'
                       : 'bg-muted/20 text-muted-foreground/60'
                 )}
               >
@@ -310,7 +310,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               <button
                 type="button"
                 onClick={() => handleSetPresetMask([false, true, false, true])}
-                className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-teal-400 border border-teal-500/30 font-medium"
+                className="px-2 py-0.5 rounded bg-muted/40 hover:bg-muted text-primary border border-primary/30 font-medium"
               >
                 2 & 4 (Jazz)
               </button>
@@ -368,7 +368,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                 BPM
               </span>
             </div>
-            <span className="text-xs font-medium text-teal-400 tracking-wider uppercase mt-1">
+            <span className="text-xs font-medium text-primary tracking-wider uppercase mt-1">
               {getTempoMarking(tempo)}
             </span>
           </div>
@@ -411,7 +411,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               onChange={(e) => setTempInputValue(e.target.value)}
               onBlur={handleInputBlur}
               onKeyDown={handleInputKeyDown}
-              className="w-full text-center py-1 px-2 text-sm bg-muted/60 border border-border rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full text-center py-1 px-2 text-sm bg-muted/60 border border-border rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-primary"
               aria-label="Direct BPM input"
             />
           </div>
@@ -425,10 +425,10 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           onClick={handleTap}
           className={cn(
             'h-12 border-border font-semibold flex items-center justify-center gap-2 transition-transform active:scale-95',
-            isTapActive && 'bg-teal-500/20 border-teal-500 text-teal-300'
+            isTapActive && 'bg-primary/20 border-primary text-primary'
           )}
         >
-          <Activity className="w-4 h-4 text-teal-400" />
+          <Activity className="w-4 h-4 text-primary" />
           <span>TAP TEMPO</span>
         </Button>
 
@@ -439,7 +439,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             className={cn(
               'flex-1 py-2 text-sm font-bold rounded-md transition-all select-none',
               isCurrentTimeSig('4/4')
-                ? 'bg-teal-600 text-white shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -451,7 +451,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             className={cn(
               'flex-1 py-2 text-sm font-bold rounded-md transition-all select-none',
               isCurrentTimeSig('3/4')
-                ? 'bg-teal-600 text-white shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -464,7 +464,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       <div className="bg-muted/20 border border-border/70 rounded-xl p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-teal-400" />
+            <TrendingUp className="w-4 h-4 text-primary" />
             <span className="text-sm font-bold">Tempo Ramp</span>
           </div>
           <Button
@@ -517,7 +517,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               <span>
                 {rampConfig.startBpm} → {rampConfig.targetBpm} BPM ({rampConfig.durationBars} bars)
               </span>
-              <span className="font-mono text-teal-400 font-semibold">
+              <span className="font-mono text-primary font-semibold">
                 {Math.round(rampProgress.progress * 100)}% progress
               </span>
             </div>
@@ -577,7 +577,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           className="flex items-center justify-between w-full text-left"
         >
           <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-teal-400" />
+            <Sliders className="w-4 h-4 text-primary" />
             <span className="text-sm font-bold">Click Sounds & Pitches</span>
           </div>
           {showAccents ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -690,7 +690,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                       className={cn(
                         'px-2 py-0.5 rounded text-xs font-mono border border-border/40 cursor-pointer select-none transition-all',
                         isActive
-                          ? 'bg-teal-600 text-white'
+                          ? 'bg-primary text-primary-foreground'
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -711,8 +711,8 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
         className={cn(
           'w-full h-14 text-lg font-bold tracking-wider uppercase transition-all shadow-lg',
           isPlaying
-            ? 'bg-red-500/90 hover:bg-red-600 text-white shadow-red-500/20'
-            : 'bg-teal-500 hover:bg-teal-400 text-teal-950 font-extrabold shadow-teal-500/30'
+            ? 'bg-destructive/90 hover:bg-destructive text-destructive-foreground shadow-destructive/20'
+            : 'bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold shadow-primary/30'
         )}
       >
         {isPlaying ? (

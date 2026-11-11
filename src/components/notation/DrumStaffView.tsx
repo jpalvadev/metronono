@@ -643,14 +643,14 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
         {showViewToggle && (
           <div className="flex items-center justify-between bg-card/60 backdrop-blur border border-border/70 rounded-xl p-2.5 shadow-xs">
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-teal-400" />
+              <Layers className="w-4 h-4 text-primary" />
               <span className="text-xs font-semibold text-foreground">Score Notation Mode:</span>
             </div>
             <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60">
               <Button
                 variant="default"
                 size="sm"
-                className="h-7 px-2.5 text-xs gap-1.5 font-medium transition-all bg-teal-600 hover:bg-teal-700 text-white"
+                className="h-7 px-2.5 text-xs gap-1.5 font-medium transition-all bg-primary hover:bg-primary/90 text-primary-foreground"
                 onClick={() => handleToggleViewMode('reading')}
               >
                 <Music className="w-3.5 h-3.5" />
@@ -696,7 +696,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
       {/* Top Header: Title, View Mode Switcher, Bar & Beat Display */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/40">
         <div className="flex items-center gap-2.5">
-          <Badge variant="outline" className="border-teal-500/40 text-teal-400 bg-teal-950/20 text-xs font-semibold px-2 py-0.5">
+          <Badge variant="outline" className="border-primary/40 text-primary bg-primary/10 text-xs font-semibold px-2 py-0.5">
             PAS Standard
           </Badge>
           <div>
@@ -718,7 +718,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                 size="sm"
                 className={cn(
                   'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
-                  activeViewMode === 'reading' && 'bg-teal-600 hover:bg-teal-700 text-white'
+                  activeViewMode === 'reading' && 'bg-primary hover:bg-primary/90 text-primary-foreground'
                 )}
                 onClick={() => handleToggleViewMode('reading')}
               >
@@ -730,7 +730,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                 size="sm"
                 className={cn(
                   'h-7 px-2.5 text-xs gap-1.5 font-medium transition-all',
-                  activeViewMode === 'drum_staff' && 'bg-teal-600 hover:bg-teal-700 text-white'
+                  activeViewMode === 'drum_staff' && 'bg-primary hover:bg-primary/90 text-primary-foreground'
                 )}
                 onClick={() => handleToggleViewMode('drum_staff')}
               >
@@ -743,11 +743,11 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
           {/* Bar & Beat Indicator */}
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="text-muted-foreground">Bar:</span>
-            <span className="font-bold text-teal-400 bg-teal-950/40 border border-teal-500/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
               {normalizedMeasure + 1} / {totalMeasures}
             </span>
             <span className="text-muted-foreground ml-1">Beat:</span>
-            <span className="font-bold text-teal-300 bg-teal-950/40 border border-teal-500/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
               {activeBeat + 1}
             </span>
           </div>
@@ -818,7 +818,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
               Active Voice:
             </span>
-            <span className="text-xs font-mono font-bold text-teal-400">
+            <span className="text-xs font-mono font-bold text-primary">
               {DRUM_VOICE_PAS_MAP[selectedVoice]?.label}
             </span>
           </div>
@@ -838,7 +838,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                 }}
                 className={cn(
                   'h-7 px-2 text-xs gap-1 border-border/70 transition-all',
-                  selectedVoice === voice && 'bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-xs ring-1 ring-teal-400'
+                  selectedVoice === voice && 'bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs ring-1 ring-primary'
                 )}
               >
                 <span>{label}</span>
@@ -889,16 +889,16 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
                   className={cn(
                     'h-9 rounded-md border flex flex-col items-center justify-center transition-all duration-75 select-none text-[10px] font-mono',
                     isActive
-                      ? 'bg-teal-500 border-teal-400 text-black font-bold shadow-xs scale-[1.02]'
+                      ? 'bg-primary border-primary text-primary-foreground font-bold shadow-xs scale-[1.02]'
                       : isBeatDownbeat
-                      ? 'bg-card border-border/80 hover:bg-teal-500/10 hover:border-teal-500/40 text-foreground'
-                      : 'bg-muted/40 border-border/40 hover:bg-teal-500/10 hover:border-teal-500/30 text-muted-foreground'
+                      ? 'bg-card border-border/80 hover:bg-primary/10 hover:border-primary/40 text-foreground'
+                      : 'bg-muted/40 border-border/40 hover:bg-primary/10 hover:border-primary/30 text-muted-foreground'
                   )}
                   title={`Beat ${beatNumber}.${(step % 4) + 1}`}
                 >
                   <span>{step + 1}</span>
                   {isBeatDownbeat && (
-                    <span className="w-1 h-1 rounded-full bg-teal-400 mt-0.5" />
+                    <span className="w-1 h-1 rounded-full bg-primary mt-0.5" />
                   )}
                 </button>
               );
@@ -954,7 +954,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
               variant="outline"
               size="sm"
               onClick={handleSyncFromDawson}
-              className="h-6 px-2 text-[11px] border-teal-500/40 text-teal-400 hover:bg-teal-950/30 gap-1"
+              className="h-6 px-2 text-[11px] border-primary/40 text-primary hover:bg-primary/10 gap-1"
               title="Reset score to Dawson Engine orchestration"
             >
               <RotateCcw className="w-3 h-3" />

@@ -11,8 +11,8 @@ export function Badge({ className, variant = 'default', ...props }: BadgeProps) 
       className={cn(
         'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide transition-colors uppercase',
         {
-          'border-transparent bg-teal-500/15 text-teal-400': variant === 'default',
-          'border-transparent bg-muted text-muted-foreground': variant === 'secondary',
+          'border-transparent bg-primary text-primary-foreground': variant === 'default',
+          'border-transparent bg-secondary text-secondary-foreground': variant === 'secondary',
           'border-border text-foreground': variant === 'outline',
         },
         className

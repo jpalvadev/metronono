@@ -243,11 +243,11 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           {/* Active Measure & Beat Indicator */}
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="text-muted-foreground">Bar:</span>
-            <span className="font-bold text-teal-400 bg-teal-950/40 border border-teal-500/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
               {normalizedMeasure + 1} / {totalMeasures}
             </span>
             <span className="text-muted-foreground ml-1">Beat:</span>
-            <span className="font-bold text-teal-300 bg-teal-950/40 border border-teal-500/30 px-2 py-0.5 rounded">
+            <span className="font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded">
               {activeBeat + 1}
             </span>
           </div>

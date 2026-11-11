@@ -124,7 +124,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/50 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
             <Sliders className="w-5 h-5" />
           </div>
           <div>
@@ -159,7 +159,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
             onClick={() => handlePresetPress(practicePreset)}
             className={cn(
               'h-7 px-2.5 text-xs',
-              preset === practicePreset && 'bg-teal-600 text-white hover:bg-teal-700'
+              preset === practicePreset && 'bg-primary text-primary-foreground hover:bg-primary/90'
             )}
           >
             {PRESET_LABELS[practicePreset]}

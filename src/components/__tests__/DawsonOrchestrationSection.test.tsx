@@ -25,7 +25,7 @@ describe('DawsonOrchestrationSection', () => {
       removeSampleBuffer: vi.fn(),
       hasCustomSample: vi.fn(() => false),
       clearAllCustomSamples: vi.fn(),
-    } as unknown as IDrumKitPlayer;
+    };
 
     scheduler = {
       getAudioMixer: () => mixer,

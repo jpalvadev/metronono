@@ -33,7 +33,6 @@ export interface IDrumKitPlayer {
     velocity?: number,
     source?: DrumLane
   ): void;
-  onDrumHit(listener: (event: ScheduledDrumEvent, time: number) => void): () => void;
   loadSampleBuffer?(voice: DrumVoice, buffer: any): void;
   removeSampleBuffer?(voice: DrumVoice): void;
   hasCustomSample?(voice: DrumVoice): boolean;
@@ -149,13 +148,12 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
  * sample buffers. Scheduled composed events play through the audible line of the channel
  * their source names; a tap on a voice plays through that channel's Audition node, which
  * is never silenced. A silent Mixing Channel, muted or turned all the way down, plays nothing
- * at all: its rig is not even triggered, and no Drum Hit is announced for it.
+ * at all: its rig is not even triggered.
  */
 export class DrumKitPlayer implements IDrumKitPlayer {
   private mixer: IAudioMixer;
   private rigs: Map<RigKey, DrumRig> = new Map();
   private customSampleBuffers: Map<DrumVoice, any> = new Map();
-  private hitListeners: Set<(event: ScheduledDrumEvent, time: number) => void> = new Set();
 
   constructor(mixer: IAudioMixer) {
     this.mixer = mixer;
@@ -197,7 +195,6 @@ export class DrumKitPlayer implements IDrumKitPlayer {
 
     const velocity = event.velocity ?? 0.8;
     this.executeVoiceSound(event.voice, time, velocity, lane, 'mix');
-    this.notifyHit(event, time);
   }
 
   public triggerVoice(
@@ -209,25 +206,9 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     const isOstinatoVoice = voice === 'ride' || voice === 'ride_bell' || voice.startsWith('hihat');
     const lane: DrumLane = source ?? (isOstinatoVoice ? 'ostinato' : 'orchestration');
 
-    const event: ScheduledDrumEvent = {
-      timeInMeasure: 0,
-      voice,
-      velocity,
-      dynamic: 'normal',
-      source: lane,
-    };
-
     // A manual tap is an Audition tap: it plays through the Audition node of its channel,
     // which is never silenced.
     this.executeVoiceSound(voice, time, velocity, lane, 'audition');
-    this.notifyHit(event, time);
-  }
-
-  public onDrumHit(listener: (event: ScheduledDrumEvent, time: number) => void): () => void {
-    this.hitListeners.add(listener);
-    return () => {
-      this.hitListeners.delete(listener);
-    };
   }
 
   public loadSampleBuffer(voice: DrumVoice, buffer: any): void {
@@ -269,7 +250,6 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   }
 
   public dispose(): void {
-    this.hitListeners.clear();
     this.customSampleBuffers.clear();
     this.disposeRigs();
   }
@@ -372,15 +352,5 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     } catch {
       // Graceful error isolation for headless audio
     }
-  }
-
-  private notifyHit(event: ScheduledDrumEvent, time: number): void {
-    this.hitListeners.forEach((listener) => {
-      try {
-        listener(event, time);
-      } catch {
-        // Safe listener dispatch
-      }
-    });
   }
 }

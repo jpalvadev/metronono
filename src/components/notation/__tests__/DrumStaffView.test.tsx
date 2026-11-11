@@ -54,7 +54,6 @@ describe('DrumStaffView', () => {
           beatCallback = null;
         };
       }),
-      onDrumHit: vi.fn(() => () => {}),
       onPlayStateChange: vi.fn(() => () => {}),
     };
   });

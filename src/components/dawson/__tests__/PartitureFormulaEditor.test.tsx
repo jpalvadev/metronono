@@ -13,7 +13,6 @@ describe('PartitureFormulaEditor', () => {
     const mockPlayer: IDrumKitPlayer = {
       play: vi.fn(),
       triggerVoice: vi.fn(),
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
 
     render(
@@ -35,7 +34,6 @@ describe('PartitureFormulaEditor', () => {
     const mockPlayer: IDrumKitPlayer = {
       play: vi.fn(),
       triggerVoice: mockTriggerVoice,
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
 
     render(
@@ -75,7 +73,6 @@ describe('PartitureFormulaEditor', () => {
     const mockPlayer: IDrumKitPlayer = {
       play: vi.fn(),
       triggerVoice: mockTriggerVoice,
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
 
     render(

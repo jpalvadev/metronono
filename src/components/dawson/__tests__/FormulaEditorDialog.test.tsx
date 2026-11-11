@@ -33,7 +33,6 @@ describe('FormulaEditorDialog Component (Partiture Drum Staff)', () => {
     mockPlayer = {
       play: vi.fn(),
       triggerVoice: mockTriggerVoice,
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
     mockOnSave = vi.fn();
     mockOnDelete = vi.fn();

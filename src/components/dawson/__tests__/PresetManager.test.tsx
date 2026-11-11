@@ -17,7 +17,6 @@ describe('PresetManager Component', () => {
     mockPlayer = {
       play: vi.fn(),
       triggerVoice: vi.fn(),
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
 
     mockOnSelectSystem = vi.fn();

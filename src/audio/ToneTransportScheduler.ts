@@ -17,7 +17,6 @@ import {
   ToneSchedulerOptions,
   IAudioMixer,
   IDrumKitPlayer,
-  ScheduledDrumEvent,
 } from './types';
 import { AudioMixer } from './AudioMixer';
 import { DrumKitPlayer } from './DrumKitPlayer';
@@ -213,7 +212,6 @@ export class ToneTransportScheduler {
   private beatListeners: Set<(event: BeatEvent) => void> = new Set();
   private dropoutListeners: Set<(isDropout: boolean) => void> = new Set();
   private playStateListeners: Set<(isPlaying: boolean) => void> = new Set();
-  private drumHitListeners: Set<(event: ScheduledDrumEvent) => void> = new Set();
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
   private storageManager?: any;
@@ -615,13 +613,6 @@ export class ToneTransportScheduler {
     };
   }
 
-  public onDrumHit(listener: (event: ScheduledDrumEvent) => void): () => void {
-    this.drumHitListeners.add(listener);
-    return () => {
-      this.drumHitListeners.delete(listener);
-    };
-  }
-
   public async start(): Promise<void> {
     if (this.playing) return;
 
@@ -682,7 +673,6 @@ export class ToneTransportScheduler {
     this.beatListeners.clear();
     this.dropoutListeners.clear();
     this.playStateListeners.clear();
-    this.drumHitListeners.clear();
   }
 
   private reschedule(): void {
@@ -761,14 +751,6 @@ export class ToneTransportScheduler {
             const eventTime = time + subOffset * beatDuration;
 
             this.drumKitPlayer.play(drumEvent, eventTime);
-
-            // Pad illumination follows the audio: a silent Mixing Channel announces nothing,
-            // while every beat and the playhead keep running underneath it.
-            if (this.drawSync && this.audioMixer.isChannelAudible(drumEvent.source)) {
-              this.drawSync(() => {
-                this.drumHitListeners.forEach((listener) => listener(drumEvent));
-              }, eventTime);
-            }
           }
         }
       }

@@ -46,7 +46,6 @@ describe('PartitureFormulaCanvas Drag-and-Drop & Transposition', () => {
     mockPlayer = {
       play: vi.fn(),
       triggerVoice: mockTriggerVoice,
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
   });
 

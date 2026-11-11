@@ -248,11 +248,26 @@ describe('Mixing Channel membership', () => {
     expect(triggerCountFor('rig:ostinato:mix:ride')).toBe(0);
   });
 
-  it('names a channel for every scheduled stroke a listener is handed', async () => {
-    const scheduler = await schedulerWithComposition();
+  it('names a Mixing Channel for every composed stroke it schedules', async () => {
+    const engine = new DawsonEngine();
+    engine.setMode('straight_rock');
+    engine.setOstinato('straight_rock');
 
     const sources: Array<ScheduledDrumEvent['source']> = [];
-    scheduler.onDrumHit((hit) => sources.push(hit.source));
+    const capturingPlayer = {
+      initSynths: vi.fn(() => true),
+      play: vi.fn((event: ScheduledDrumEvent) => {
+        sources.push(event.source);
+      }),
+      triggerVoice: vi.fn(),
+      dispose: vi.fn(),
+    };
+
+    const scheduler = new ToneTransportScheduler();
+    scheduler.setDawsonEngine(engine);
+    scheduler.setReadingLine(quarterNoteLine);
+    scheduler.setDrumKitPlayer(capturingPlayer);
+    await scheduler.start();
 
     fakeToneRecorder.transport.fireRepeats(4);
 

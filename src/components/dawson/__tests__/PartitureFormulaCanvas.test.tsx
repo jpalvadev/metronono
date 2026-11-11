@@ -13,7 +13,6 @@ describe('PartitureFormulaCanvas', () => {
     mockPlayer = {
       play: vi.fn(),
       triggerVoice: mockTriggerVoice,
-      onDrumHit: vi.fn().mockReturnValue(() => {}),
     };
   });
 

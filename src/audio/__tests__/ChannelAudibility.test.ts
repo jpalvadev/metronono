@@ -9,9 +9,9 @@ import { fakeAudioBuffer, fakeToneRecorder, FakeToneNode } from '../../test/fake
 
 // "Silent" is one thing in the whole app: a Mixing Channel is silent when the volume its
 // slider sets is zero, whether or not it is also muted. Everything a silent Channel drives
-// goes quiet with it: its voices, its uploaded samples and the Pads it illuminates. The
-// Reading Line, the beat pulses and the playhead keep running, and the Audition node the
-// Channel shares keeps sounding a tapped voice at the Channel volume.
+// goes quiet with it: its voices and its uploaded samples. The Reading Line, the beat pulses
+// and the playhead keep running, and the Audition node the Channel shares keeps sounding
+// a tapped voice at the Channel volume.
 vi.mock('tone', async () => {
   const fake = await import('../../test/fakeTone');
   return { ...fake.fakeToneModule, default: fake.fakeToneModule };
@@ -104,13 +104,6 @@ async function startScheduler(
   return scheduler;
 }
 
-/** The Mixing Channels the Drum Hits a listener was handed name. */
-function hitSources(scheduler: ToneTransportScheduler): Array<ScheduledDrumEvent['source']> {
-  const sources: Array<ScheduledDrumEvent['source']> = [];
-  scheduler.onDrumHit((event) => sources.push(event.source));
-  return sources;
-}
-
 describe('Silent Mixing Channels', () => {
   beforeEach(() => {
     fakeToneRecorder.reset();
@@ -130,26 +123,24 @@ describe('Silent Mixing Channels', () => {
     expect(routeIsAudible(nodeByLabel('rig:ostinato:mix:ride'))).toBe(true);
   });
 
-  it('announces no Drum Hit from a muted Mixing Channel', async () => {
+  it('plays no stroke on a muted Mixing Channel', async () => {
     const scheduler = await startScheduler();
     scheduler.getAudioMixer().setChannelMute('orchestration', true);
-    const sources = hitSources(scheduler);
 
     fakeToneRecorder.transport.fireRepeats(4);
 
-    expect(sources).toContain('ostinato');
-    expect(sources).not.toContain('orchestration');
+    expect(rigTriggers('orchestration')).toBe(0);
+    expect(rigTriggers('ostinato')).toBeGreaterThan(0);
   });
 
-  it('announces no Drum Hit from a Mixing Channel turned down to zero volume', async () => {
+  it('plays no stroke on a Mixing Channel turned down to zero volume', async () => {
     const scheduler = await startScheduler();
     scheduler.getAudioMixer().setChannelVolume('orchestration', 0);
-    const sources = hitSources(scheduler);
 
     fakeToneRecorder.transport.fireRepeats(4);
 
-    expect(sources).toContain('ostinato');
-    expect(sources).not.toContain('orchestration');
+    expect(rigTriggers('orchestration')).toBe(0);
+    expect(rigTriggers('ostinato')).toBeGreaterThan(0);
   });
 
   it('still schedules a silent Channel\u2019s events and keeps every beat and playhead pulse', async () => {
@@ -158,7 +149,6 @@ describe('Silent Mixing Channels', () => {
       initSynths: vi.fn(() => true),
       play: vi.fn((event: ScheduledDrumEvent) => played.push(event)),
       triggerVoice: vi.fn(),
-      onDrumHit: vi.fn(() => () => undefined),
       loadSampleBuffer: vi.fn(),
       removeSampleBuffer: vi.fn(),
       hasCustomSample: vi.fn(() => false),
@@ -169,7 +159,6 @@ describe('Silent Mixing Channels', () => {
     const scheduler = await startScheduler({ drumKitPlayer: mockDrumPlayer });
     scheduler.getAudioMixer().setChannelMute('orchestration', true);
 
-    const sources = hitSources(scheduler);
     const beats: number[] = [];
     scheduler.onBeat((beat) => beats.push(beat.beatIndex));
 
@@ -178,56 +167,47 @@ describe('Silent Mixing Channels', () => {
     // The composed strokes are still scheduled: the silent Channel is not cut out of the music.
     expect(played.some((event) => event.source === 'orchestration')).toBe(true);
     expect(played.some((event) => event.source === 'ostinato')).toBe(true);
-    // Only its Pads go dark.
-    expect(sources).not.toContain('orchestration');
     // Every beat still pulses, in order, one per tick.
     expect(beats).toEqual(fired.map((_, index) => index % 4));
     expect(scheduler.isPlaying()).toBe(true);
   });
 
-  it('leaves the other Channels\u2019 Pads illuminated while one is silent', async () => {
+  it('leaves the other Channels sounding while one is silent', async () => {
     const scheduler = await startScheduler();
     const mixer = scheduler.getAudioMixer();
     mixer.setChannelVolume('ostinato', 0);
-    const sources = hitSources(scheduler);
 
     fakeToneRecorder.transport.fireRepeats(4);
 
     expect(rigTriggers('ostinato')).toBe(0);
     expect(rigTriggers('orchestration')).toBeGreaterThan(0);
-    expect(sources).toContain('orchestration');
-    expect(sources).not.toContain('ostinato');
   });
 
-  it('announces Drum Hits again when a muted Channel is unmuted', async () => {
+  it('plays again when a muted Channel is unmuted', async () => {
     const scheduler = await startScheduler();
     const mixer = scheduler.getAudioMixer();
     mixer.setChannelMute('orchestration', true);
-    const sources = hitSources(scheduler);
 
     fakeToneRecorder.transport.fireRepeats(2);
-    expect(sources).not.toContain('orchestration');
+    expect(rigTriggers('orchestration')).toBe(0);
 
     mixer.setChannelMute('orchestration', false);
     fakeToneRecorder.transport.fireRepeats(2);
 
-    expect(sources).toContain('orchestration');
     expect(rigTriggers('orchestration')).toBeGreaterThan(0);
   });
 
-  it('announces Drum Hits again when a silent Channel\u2019s volume is turned back up', async () => {
+  it('plays again when a silent Channel\u2019s volume is turned back up', async () => {
     const scheduler = await startScheduler();
     const mixer = scheduler.getAudioMixer();
     mixer.setChannelVolume('orchestration', 0);
-    const sources = hitSources(scheduler);
 
     fakeToneRecorder.transport.fireRepeats(2);
-    expect(sources).not.toContain('orchestration');
+    expect(rigTriggers('orchestration')).toBe(0);
 
     mixer.setChannelVolume('orchestration', 0.6);
     fakeToneRecorder.transport.fireRepeats(2);
 
-    expect(sources).toContain('orchestration');
     expect(rigTriggers('orchestration')).toBeGreaterThan(0);
     expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:orchestration'))).toBe(0.6);
   });

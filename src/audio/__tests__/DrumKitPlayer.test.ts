@@ -50,8 +50,6 @@ describe('DrumKitPlayer', () => {
   describe('Event Playback & Channel Routing', () => {
     it('plays an orchestration drum event on the Orchestration channel instrument', () => {
       const event = drumEvent('kick', 'orchestration', 0.9);
-      const hitListener = vi.fn();
-      player.onDrumHit(hitListener);
 
       player.play(event, 2.5);
 
@@ -59,7 +57,6 @@ describe('DrumKitPlayer', () => {
       expect(fakeToneRecorder.triggers(kick)).toEqual([
         { method: 'triggerAttackRelease', args: ['C1', '8n', 2.5, 0.9] },
       ]);
-      expect(hitListener).toHaveBeenCalledWith(event, 2.5);
     });
 
     it('reaches the audio destination through the Orchestration Mixing Channel', () => {
@@ -81,8 +78,6 @@ describe('DrumKitPlayer', () => {
         dynamic: 'normal',
         source: 'ostinato',
       };
-      const hitListener = vi.fn();
-      player.onDrumHit(hitListener);
 
       player.play(event, 3.125);
 
@@ -90,22 +85,17 @@ describe('DrumKitPlayer', () => {
       expect(fakeToneRecorder.triggers(ride)).toEqual([
         { method: 'triggerAttackRelease', args: ['16n', 3.125, 0.8] },
       ]);
-      expect(hitListener).toHaveBeenCalledWith(event, 3.125);
       // The Orchestration line stayed silent: an event only plays on its own channel.
       expect(triggerCount('orchestration', 'mix', 'ride')).toBe(0);
     });
 
     it('plays nothing at all on a muted Mixing Channel', () => {
       mixer.setChannelMute('orchestration', true);
-      const hitListener = vi.fn();
-      player.onDrumHit(hitListener);
 
       player.play(drumEvent('kick', 'orchestration'), 2.5);
 
       expect(triggerCount('orchestration', 'mix', 'kick')).toBe(0);
       expect(fakeToneRecorder.totalTriggers()).toBe(0);
-      // No sound means no hit announcement: pad illumination follows audio.
-      expect(hitListener).not.toHaveBeenCalled();
     });
 
     it('still plays events on the channels that are not muted', () => {
@@ -120,22 +110,11 @@ describe('DrumKitPlayer', () => {
   });
 
   describe('Audition Voice Trigger', () => {
-    it('triggers a drum voice directly for manual UI pad auditioning', () => {
-      const hitListener = vi.fn();
-      player.onDrumHit(hitListener);
-
+    it('triggers a drum voice directly for audition taps', () => {
       player.triggerVoice('snare', 1.0, 0.85);
 
       expect(triggerCount('orchestration', 'audition', 'snare')).toBe(2);
       expect(triggerCount('orchestration', 'mix', 'snare')).toBe(0);
-      expect(hitListener).toHaveBeenCalledWith(
-        expect.objectContaining({
-          voice: 'snare',
-          velocity: 0.85,
-          source: 'orchestration',
-        }),
-        1.0
-      );
     });
 
     it('auditions through the Audition node the Mixing Channel shares, at the channel volume', () => {
@@ -262,20 +241,6 @@ describe('DrumKitPlayer', () => {
       expect(player.hasCustomSample('kick')).toBe(false);
       player.play(drumEvent('kick', 'orchestration'), 3.0);
       expect(triggerCount('orchestration', 'mix', 'kick')).toBe(1);
-    });
-  });
-
-  describe('Hit Listeners Subscription', () => {
-    it('subscribes and unsubscribes listeners cleanly', () => {
-      const listener = vi.fn();
-      const unsub = player.onDrumHit(listener);
-
-      player.triggerVoice('kick', 0);
-      expect(listener).toHaveBeenCalledTimes(1);
-
-      unsub();
-      player.triggerVoice('kick', 0);
-      expect(listener).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -213,7 +213,6 @@ describe('ToneTransportScheduler', () => {
         initSynths: vi.fn(() => true),
         play: vi.fn(),
         triggerVoice: vi.fn(),
-        onDrumHit: vi.fn(),
         loadSampleBuffer: vi.fn(),
         removeSampleBuffer: vi.fn(),
         hasCustomSample: vi.fn(() => false),
@@ -247,9 +246,6 @@ describe('ToneTransportScheduler', () => {
         ],
       });
 
-      const drumHitListener = vi.fn();
-      scheduler.onDrumHit(drumHitListener);
-
       await scheduler.start();
 
       // Trigger Beat 0 at time = 10.0s (tempo 120 bpm -> beatDuration = 0.5s)
@@ -264,8 +260,6 @@ describe('ToneTransportScheduler', () => {
         expect.objectContaining({ voice: 'kick', source: 'orchestration' }),
         10.0
       );
-      expect(drumHitListener).toHaveBeenCalledWith(expect.objectContaining({ voice: 'ride' }));
-      expect(drumHitListener).toHaveBeenCalledWith(expect.objectContaining({ voice: 'kick' }));
 
       mockDrumPlayer.play.mockClear();
 

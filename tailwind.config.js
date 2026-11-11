@@ -1,7 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  // ADR 0007: one light theme. `false` makes any `dark:` variant a compile error.
-  darkMode: false,
+  // ADR 0007: one light theme. Tailwind v3's media-query default is used (no `class`
+  // strategy, no `.dark` token block); the one-style invariant (zero `dark:` variants,
+  // zero raw palette classes) is kept by the repo-wide sweep and the per-suite assertions.
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",

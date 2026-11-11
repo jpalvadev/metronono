@@ -16,4 +16,6 @@
 
 - 9 [ ] the components are arrenged badly. The metronome should live inside the main container, as a module
 
-- 10 [ x ] the formula composer, instead of selecting the note value, the sound, etc, it should be a partiture editor, where i should select the not value, if its a rest, if its an accent, or ghost, etc. and in a partiture i could place the note whenever I want to select the sound source. Spec: .scratch/partiture-formula-editor/spec.md (root cause: replaced legacy card/dropdown form with interactive 5-line PAS PartitureFormulaEditor supporting polyphonic unisons, rests, and drag-and-drop) 
+- 10 [ x ] the formula composer, instead of selecting the note value, the sound, etc, it should be a partiture editor, where i should select the not value, if its a rest, if its an accent, or ghost, etc. and in a partiture i could place the note whenever I want to select the sound source. Spec: .scratch/partiture-formula-editor/spec.md (root cause: replaced legacy card/dropdown form with interactive 5-line PAS PartitureFormulaEditor supporting polyphonic unisons, rests, and drag-and-drop)
+
+- 11 [ ] playhead overlay has a style discrepancy with the notation: the teal cursor, locator diamond, and measure-highlight box are sized from the raw stave box (staveHeight 80 at staveY) instead of the rendered music block (barline extent from beam tops to notehead bottoms), so they tower over and misalign with the system 

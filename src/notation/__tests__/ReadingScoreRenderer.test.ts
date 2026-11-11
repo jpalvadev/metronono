@@ -150,6 +150,56 @@ describe('ReadingScoreRenderer', () => {
     stems!.tips.forEach((tip) => expect(tip).toBeLessThan(stems!.line - 10));
   });
 
+  // Geometry helpers: read what was actually drawn from the SVG DOM.
+  const staveLineY = (svg: Element | null): number => {
+    if (!svg) return NaN;
+    const linePath = svg!.querySelector('g[class="vf-stave"] path');
+    const nums = (linePath?.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g) ?? [];
+    return parseFloat(nums[1] ?? '');
+  };
+
+  // Glyph anchor y of every notehead and rest glyph (SMULF text glyphs).
+  const figureGlyphYs = (svg: Element | null): number[] => {
+    if (!svg) return [];
+    const ys: number[] = [];
+    for (const cls of ['vf-notehead', 'vf-rest']) {
+      for (const g of svg!.querySelectorAll(`g[class="${cls}"]`)) {
+        for (const t of g.querySelectorAll('text')) {
+          const y = parseFloat(t.getAttribute('y') ?? '');
+          if (!isNaN(y)) ys.push(y);
+        }
+      }
+    }
+    return ys;
+  };
+
+  it('centers noteheads and rests on the single stave line', () => {
+    // 8th, 8th rest, quarter rest, half rest = one 4/4 bar.
+    const measure = createTestMeasure(0, [0.5, 0.5, 1.0, 2.0], [false, true, true, true]);
+    const readingLine: ReadingLine = {
+      id: 'test-figures-on-line',
+      title: 'Figures On The Line',
+      tier: 1,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 500 });
+
+    const svg = container.querySelector('svg');
+    const line = staveLineY(svg);
+    expect(Number.isFinite(line)).toBe(true);
+
+    const ys = figureGlyphYs(svg);
+    expect(ys.length).toBe(4); // 1 notehead + 3 rests
+    ys.forEach((y) => expect(Math.abs(y - line)).toBeLessThanOrEqual(1.5));
+
+    // Reported coordinates match what is drawn.
+    layout.measures[0].eventCoordinates.forEach((coord) => {
+      expect(Math.abs(coord.y - line)).toBeLessThanOrEqual(1.5);
+    });
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

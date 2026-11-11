@@ -14,6 +14,14 @@ import VexFlow, {
 // span first-to-last line), so dividing bars are drawn explicitly instead.
 const BARLINE_HALF_HEIGHT = 14;
 const FINAL_BARLINE_THICKNESS = 3;
+
+// The Reading View is a one-line percussion bar, but notes, rests, clefs and
+// time signatures are placed by VexFlow inside a five-line box (key 'b/4'
+// resolves to its middle line). Draw a five-line stave with only the middle
+// line visible so the single line passes through the middle of every figure
+// instead of the notes hanging ~20 px below it.
+const STAVE_LINE_COUNT = 5;
+const VISIBLE_LINE_INDEX = 2;
 import { Measure, ReadingLine, RhythmicEvent } from '../domain/rhythm/types';
 import {
   ScoreRenderOptions,
@@ -126,7 +134,15 @@ export class ReadingScoreRenderer {
       const staveX = paddingLeft + col * measureWidth;
       const staveY = paddingTop + row * staveSpacing;
 
-      const stave = new Stave(staveX, staveY, measureWidth, { numLines: 1, leftBar: false, rightBar: false });
+      const stave = new Stave(
+        staveX,
+        staveY,
+        measureWidth,
+        { numLines: STAVE_LINE_COUNT, leftBar: false, rightBar: false }
+      );
+      stave.setConfigForLines(
+        [0, 1, 2, 3, 4].map((line) => ({ visible: line === VISIBLE_LINE_INDEX }))
+      );
 
       if (isFirstInSystem) {
         stave.addClef('percussion');
@@ -142,7 +158,7 @@ export class ReadingScoreRenderer {
       stave.setContext(context).draw();
 
       // Dividing bar at the start of every measure (system start or bar line)
-      const staveLineY = stave.getYForLine(0);
+      const staveLineY = stave.getYForLine(VISIBLE_LINE_INDEX);
       drawBarlineAt(staveX, staveLineY, 1);
 
       if (isLastOverall) {
@@ -221,7 +237,7 @@ export class ReadingScoreRenderer {
           beatOffset: bOffset,
           durationBeats: event.durationBeats,
           x: note.getAbsoluteX(),
-          y: stave.getYForLine(0),
+          y: staveLineY,
           isRest: event.isRest,
         };
       });

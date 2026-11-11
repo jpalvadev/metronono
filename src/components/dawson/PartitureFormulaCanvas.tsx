@@ -45,6 +45,75 @@ export function dynamicToVelocity(dynamic: Dynamic): number {
   }
 }
 
+export interface FormulaSlot {
+  slotIndex: number;
+  beatOffset: number;
+  durationRatio: number;
+  hits: import('../../domain/dawson/types').DrumHit[];
+  isRest: boolean;
+}
+
+export function strokesToSlots(
+  strokes: OrchestratedStroke[],
+  targetBeats: number,
+  slotDuration: number
+): FormulaSlot[] {
+  const totalSlots = Math.max(1, Math.round(targetBeats / slotDuration));
+  const slots: FormulaSlot[] = Array.from({ length: totalSlots }, (_, s) => ({
+    slotIndex: s,
+    beatOffset: Math.round(s * slotDuration * 1000) / 1000,
+    durationRatio: slotDuration,
+    hits: [],
+    isRest: true,
+  }));
+
+  const resolved = resolveStrokeOffsets(strokes, 0);
+
+  resolved.forEach(({ stroke, offset }) => {
+    const slotIdx = Math.min(
+      totalSlots - 1,
+      Math.max(0, Math.round(offset / slotDuration))
+    );
+
+    if (!stroke.isRest && stroke.hits && stroke.hits.length > 0) {
+      slots[slotIdx].hits = [...stroke.hits];
+      slots[slotIdx].isRest = false;
+    } else if (stroke.isRest) {
+      slots[slotIdx].isRest = true;
+      slots[slotIdx].hits = [];
+    }
+  });
+
+  return slots;
+}
+
+export function slotsToStrokes(slots: FormulaSlot[]): OrchestratedStroke[] {
+  let lastNonRestIdx = -1;
+  for (let i = slots.length - 1; i >= 0; i--) {
+    const slot = slots[i];
+    if (slot && !slot.isRest && slot.hits.length > 0) {
+      lastNonRestIdx = i;
+      break;
+    }
+  }
+  if (lastNonRestIdx === -1) {
+    const firstRest = slots[0];
+    return [
+      {
+        durationRatio: firstRest ? firstRest.durationRatio : 0.25,
+        isRest: true,
+        hits: [],
+      },
+    ];
+  }
+
+  return slots.slice(0, lastNonRestIdx + 1).map((s) => ({
+    durationRatio: s.durationRatio,
+    isRest: s.isRest || s.hits.length === 0,
+    hits: s.hits,
+  }));
+}
+
 export function getSlotLabels(totalSlots: number, slotDuration: number, _targetBeats?: number): string[] {
   const labels: string[] = [];
   for (let s = 0; s < totalSlots; s++) {
@@ -220,93 +289,39 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const noteWidth = Math.max(10, endX - startX);
     const slotWidth = noteWidth / totalSlots;
     const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
-    const targetOffset = Math.round(slotIndex * slotDuration * 1000) / 1000;
 
-    const resolved = resolveStrokeOffsets(strokes, 0);
-
-    let strokeIndex = -1;
-    for (let i = 0; i < resolved.length; i++) {
-      const { stroke, offset } = resolved[i];
-      if (
-        Math.abs(offset - targetOffset) < 0.05 ||
-        (targetOffset >= offset - 0.02 && targetOffset < offset + stroke.durationRatio - 0.02)
-      ) {
-        strokeIndex = i;
-        break;
-      }
-    }
-
-    if (strokeIndex === -1 && resolved.length > 0) {
-      let closestDist = Infinity;
-      resolved.forEach(({ offset }, idx) => {
-        const dist = Math.abs(targetOffset - offset);
-        if (dist < 0.15 && dist < closestDist) {
-          closestDist = dist;
-          strokeIndex = idx;
-        }
-      });
-    }
+    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
+    const targetSlot = slots[slotIndex];
+    if (!targetSlot) return;
 
     if (activeTool === 'eraser') {
-      if (strokeIndex !== -1) {
-        const stroke = strokes[strokeIndex];
-        if (stroke.hits && stroke.hits.length > 0) {
-          let targetHit = stroke.hits[0];
-          let minDiff = Infinity;
-          for (const hit of stroke.hits) {
-            const pas = DRUM_VOICE_PAS_MAP[hit.voice];
-            if (pas) {
-              const lineY = layout.stave.getYForLine(pas.line);
-              const diff = Math.abs(lineY - y);
-              if (diff < minDiff) {
-                minDiff = diff;
-                targetHit = hit;
-              }
+      if (targetSlot.hits && targetSlot.hits.length > 0) {
+        let minDiff = Infinity;
+        let targetHit = targetSlot.hits[0];
+        for (const hit of targetSlot.hits) {
+          const pas = DRUM_VOICE_PAS_MAP[hit.voice];
+          if (pas) {
+            const lineY = layout.stave.getYForLine(pas.line);
+            const diff = Math.abs(lineY - y);
+            if (diff < minDiff) {
+              minDiff = diff;
+              targetHit = hit;
             }
           }
-
-          const remaining = stroke.hits.filter((h) => h !== targetHit);
-          if (remaining.length > 0) {
-            const next = strokes.map((s, i) =>
-              i === strokeIndex ? { ...s, hits: remaining } : s
-            );
-            onChangeStrokes(next);
-          } else {
-            const next = strokes.map((s, i) =>
-              i === strokeIndex ? { ...s, isRest: true, hits: [] } : s
-            );
-            onChangeStrokes(next);
-          }
         }
+        targetSlot.hits = targetSlot.hits.filter((h) => h !== targetHit);
+        if (targetSlot.hits.length === 0) {
+          targetSlot.isRest = true;
+        }
+        onChangeStrokes(slotsToStrokes(slots));
       }
       return;
     }
 
     if (activeTool === 'rest') {
-      if (strokeIndex !== -1) {
-        const next = strokes.map((s, i) =>
-          i === strokeIndex
-            ? { durationRatio: selectedDuration, isRest: true, hits: [] }
-            : s
-        );
-        onChangeStrokes(next);
-      } else {
-        if (strokes.length === 0 && slotIndex === 0) {
-          onChangeStrokes([
-            { durationRatio: selectedDuration, isRest: true, hits: [] },
-          ]);
-        } else if (slotIndex > 0 && strokes.length === 0) {
-          onChangeStrokes([
-            { durationRatio: targetOffset, isRest: true, hits: [] },
-            { durationRatio: selectedDuration, isRest: true, hits: [] },
-          ]);
-        } else {
-          onChangeStrokes([
-            ...strokes,
-            { durationRatio: selectedDuration, isRest: true, hits: [] },
-          ]);
-        }
-      }
+      targetSlot.hits = [];
+      targetSlot.isRest = true;
+      onChangeStrokes(slotsToStrokes(slots));
       return;
     }
 
@@ -316,56 +331,26 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       player.triggerVoice(drumVoice, 0, vel, 'orchestration');
     }
 
-    if (strokeIndex !== -1) {
-      const stroke = strokes[strokeIndex];
-      let hits = stroke.hits ? [...stroke.hits] : [];
-
-      if (stroke.isRest || hits.length === 0) {
-        hits = [{ voice: drumVoice, dynamic: selectedDynamic }];
-      } else {
-        const existingIdx = hits.findIndex((h) => h.voice === drumVoice);
-        if (existingIdx >= 0) {
-          if (hits[existingIdx].dynamic === selectedDynamic && hits.length > 1) {
-            // Toggle hit off from unison chord
-            hits.splice(existingIdx, 1);
-          } else {
-            hits[existingIdx] = { voice: drumVoice, dynamic: selectedDynamic };
-          }
-        } else {
-          hits.push({ voice: drumVoice, dynamic: selectedDynamic });
-        }
-      }
-
-      const next = strokes.map((s, i) =>
-        i === strokeIndex ? { ...s, isRest: hits.length === 0, hits } : s
-      );
-      onChangeStrokes(next);
+    if (targetSlot.isRest || targetSlot.hits.length === 0) {
+      targetSlot.hits = [{ voice: drumVoice, dynamic: selectedDynamic }];
+      targetSlot.isRest = false;
     } else {
-      if (strokes.length === 0 && slotIndex === 0) {
-        onChangeStrokes([
-          {
-            durationRatio: selectedDuration,
-            hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
-          },
-        ]);
-      } else if (slotIndex > 0 && strokes.length === 0) {
-        onChangeStrokes([
-          { durationRatio: targetOffset, isRest: true, hits: [] },
-          {
-            durationRatio: selectedDuration,
-            hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
-          },
-        ]);
+      const existingIdx = targetSlot.hits.findIndex((h) => h.voice === drumVoice);
+      if (existingIdx >= 0) {
+        if (targetSlot.hits[existingIdx].dynamic === selectedDynamic && targetSlot.hits.length > 1) {
+          targetSlot.hits.splice(existingIdx, 1);
+        } else if (targetSlot.hits[existingIdx].dynamic === selectedDynamic) {
+          targetSlot.hits = [];
+          targetSlot.isRest = true;
+        } else {
+          targetSlot.hits[existingIdx] = { voice: drumVoice, dynamic: selectedDynamic };
+        }
       } else {
-        onChangeStrokes([
-          ...strokes,
-          {
-            durationRatio: selectedDuration,
-            hits: [{ voice: drumVoice, dynamic: selectedDynamic }],
-          },
-        ]);
+        targetSlot.hits.push({ voice: drumVoice, dynamic: selectedDynamic });
       }
     }
+
+    onChangeStrokes(slotsToStrokes(slots));
   };
 
   // HTML5 Drag-and-Drop (e.g. from palette)
@@ -412,9 +397,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       payload = null;
     }
 
-    const durationRatio = payload?.durationRatio || selectedDuration;
     const dynamic = payload?.dynamic || selectedDynamic;
-
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || 'snare';
@@ -424,68 +407,28 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const noteWidth = Math.max(10, endX - startX);
     const slotWidth = noteWidth / totalSlots;
     const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
-    const targetOffset = Math.round(slotIndex * slotDuration * 1000) / 1000;
 
-    // Audio feedback on drop
     if (player && drumVoice) {
       player.triggerVoice(drumVoice, 0, dynamicToVelocity(dynamic), 'orchestration');
     }
 
-    const resolved = resolveStrokeOffsets(strokes, 0);
-    let strokeIndex = -1;
-    for (let i = 0; i < resolved.length; i++) {
-      const { stroke, offset } = resolved[i];
-      if (
-        Math.abs(offset - targetOffset) < 0.05 ||
-        (targetOffset >= offset - 0.02 && targetOffset < offset + stroke.durationRatio - 0.02)
-      ) {
-        strokeIndex = i;
-        break;
+    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
+    const targetSlot = slots[slotIndex];
+    if (!targetSlot) return;
+
+    if (targetSlot.isRest || targetSlot.hits.length === 0) {
+      targetSlot.hits = [{ voice: drumVoice, dynamic }];
+      targetSlot.isRest = false;
+    } else {
+      const existingIdx = targetSlot.hits.findIndex((h) => h.voice === drumVoice);
+      if (existingIdx >= 0) {
+        targetSlot.hits[existingIdx] = { voice: drumVoice, dynamic };
+      } else {
+        targetSlot.hits.push({ voice: drumVoice, dynamic });
       }
     }
 
-    if (strokeIndex !== -1) {
-      const stroke = strokes[strokeIndex];
-      let hits = stroke.hits ? [...stroke.hits] : [];
-      if (stroke.isRest || hits.length === 0) {
-        hits = [{ voice: drumVoice, dynamic }];
-      } else {
-        const existingIdx = hits.findIndex((h) => h.voice === drumVoice);
-        if (existingIdx >= 0) {
-          hits[existingIdx] = { voice: drumVoice, dynamic };
-        } else {
-          hits.push({ voice: drumVoice, dynamic });
-        }
-      }
-      onChangeStrokes(
-        strokes.map((s, i) => (i === strokeIndex ? { ...s, isRest: false, hits } : s))
-      );
-    } else {
-      if (strokes.length === 0 && slotIndex === 0) {
-        onChangeStrokes([
-          {
-            durationRatio,
-            hits: [{ voice: drumVoice, dynamic }],
-          },
-        ]);
-      } else if (slotIndex > 0 && strokes.length === 0) {
-        onChangeStrokes([
-          { durationRatio: targetOffset, isRest: true, hits: [] },
-          {
-            durationRatio,
-            hits: [{ voice: drumVoice, dynamic }],
-          },
-        ]);
-      } else {
-        onChangeStrokes([
-          ...strokes,
-          {
-            durationRatio,
-            hits: [{ voice: drumVoice, dynamic }],
-          },
-        ]);
-      }
-    }
+    onChangeStrokes(slotsToStrokes(slots));
   };
 
   // Pointer drag gestures for existing notes (transposition & horizontal shifts)

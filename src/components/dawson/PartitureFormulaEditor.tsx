@@ -10,8 +10,9 @@ import {
   PartitureFormulaCanvas,
   dynamicToVelocity,
   getSlotLabels,
+  strokesToSlots,
+  slotsToStrokes,
 } from './PartitureFormulaCanvas';
-import { resolveStrokeOffsets } from '../../domain/dawson/SubdivisionFormula';
 import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumStaffRenderer';
 import { cn } from '../../lib/utils';
 import { RotateCcw, Volume2 } from 'lucide-react';
@@ -61,47 +62,29 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
     [totalSlots, slotDuration, targetBeats]
   );
 
-  const resolved = useMemo(() => resolveStrokeOffsets(strokes, 0), [strokes]);
+  const currentSlots = useMemo(
+    () => strokesToSlots(strokes, targetBeats, slotDuration),
+    [strokes, targetBeats, slotDuration]
+  );
 
   // Handle slot step click from the subdivision bar
   const handleToggleSlot = (slotIndex: number) => {
     if (readOnly) return;
-    const targetOffset = Math.round(slotIndex * slotDuration * 1000) / 1000;
-
-    let strokeIndex = -1;
-    for (let i = 0; i < resolved.length; i++) {
-      const { stroke, offset } = resolved[i];
-      if (
-        Math.abs(offset - targetOffset) < 0.05 ||
-        (targetOffset >= offset - 0.02 && targetOffset < offset + stroke.durationRatio - 0.02)
-      ) {
-        strokeIndex = i;
-        break;
-      }
-    }
+    const workingSlots = strokesToSlots(strokes, targetBeats, slotDuration);
+    const targetSlot = workingSlots[slotIndex];
+    if (!targetSlot) return;
 
     if (activeTool === 'eraser') {
-      if (strokeIndex !== -1) {
-        const next = strokes.map((s, i) =>
-          i === strokeIndex ? { ...s, isRest: true, hits: [] } : s
-        );
-        onChangeStrokes(next);
-      }
+      targetSlot.hits = [];
+      targetSlot.isRest = true;
+      onChangeStrokes(slotsToStrokes(workingSlots));
       return;
     }
 
     if (activeTool === 'rest') {
-      if (strokeIndex !== -1) {
-        const next = strokes.map((s, i) =>
-          i === strokeIndex ? { durationRatio: slotDuration, isRest: true, hits: [] } : s
-        );
-        onChangeStrokes(next);
-      } else {
-        onChangeStrokes([
-          ...strokes,
-          { durationRatio: slotDuration, isRest: true, hits: [] },
-        ]);
-      }
+      targetSlot.hits = [];
+      targetSlot.isRest = true;
+      onChangeStrokes(slotsToStrokes(workingSlots));
       return;
     }
 
@@ -110,58 +93,24 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
       player.triggerVoice(activeVoice, 0, dynamicToVelocity(selectedDynamic), 'orchestration');
     }
 
-    if (strokeIndex !== -1) {
-      const stroke = strokes[strokeIndex];
-      let hits = stroke.hits ? [...stroke.hits] : [];
-
-      if (stroke.isRest || hits.length === 0) {
-        hits = [{ voice: activeVoice, dynamic: selectedDynamic }];
-      } else {
-        const existingIdx = hits.findIndex((h) => h.voice === activeVoice);
-        if (existingIdx >= 0) {
-          if (hits.length > 1) {
-            hits.splice(existingIdx, 1);
-          } else {
-            hits = [];
-          }
-        } else {
-          hits.push({ voice: activeVoice, dynamic: selectedDynamic });
-        }
-      }
-
-      const next = strokes.map((s, i) =>
-        i === strokeIndex ? { ...s, isRest: hits.length === 0, hits } : s
-      );
-      onChangeStrokes(next);
+    if (targetSlot.isRest || targetSlot.hits.length === 0) {
+      targetSlot.hits = [{ voice: activeVoice, dynamic: selectedDynamic }];
+      targetSlot.isRest = false;
     } else {
-      if (strokes.length === 0 && slotIndex === 0) {
-        onChangeStrokes([
-          {
-            durationRatio: slotDuration,
-            isRest: false,
-            hits: [{ voice: activeVoice, dynamic: selectedDynamic }],
-          },
-        ]);
-      } else if (slotIndex > 0 && strokes.length === 0) {
-        onChangeStrokes([
-          { durationRatio: targetOffset, isRest: true, hits: [] },
-          {
-            durationRatio: slotDuration,
-            isRest: false,
-            hits: [{ voice: activeVoice, dynamic: selectedDynamic }],
-          },
-        ]);
+      const existingIdx = targetSlot.hits.findIndex((h) => h.voice === activeVoice);
+      if (existingIdx >= 0) {
+        if (targetSlot.hits.length > 1) {
+          targetSlot.hits.splice(existingIdx, 1);
+        } else {
+          targetSlot.hits = [];
+          targetSlot.isRest = true;
+        }
       } else {
-        onChangeStrokes([
-          ...strokes,
-          {
-            durationRatio: slotDuration,
-            isRest: false,
-            hits: [{ voice: activeVoice, dynamic: selectedDynamic }],
-          },
-        ]);
+        targetSlot.hits.push({ voice: activeVoice, dynamic: selectedDynamic });
       }
     }
+
+    onChangeStrokes(slotsToStrokes(workingSlots));
   };
 
   const handleClearAll = () => {
@@ -261,19 +210,12 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
               gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))`,
             }}
           >
-            {Array.from({ length: totalSlots }).map((_, s) => {
-              const targetOffset = Math.round(s * slotDuration * 1000) / 1000;
-              const matching = resolved.find(
-                (r) =>
-                  Math.abs(r.offset - targetOffset) < 0.05 ||
-                  (targetOffset >= r.offset - 0.02 &&
-                    targetOffset < r.offset + r.stroke.durationRatio - 0.02)
-              );
-
-              const hits = matching?.stroke?.hits || [];
+            {currentSlots.map((slot, s) => {
+              const hits = slot.isRest ? [] : slot.hits || [];
               const hasActiveVoice = hits.some((h) => h.voice === activeVoice);
               const isBeatDownbeat = (s * slotDuration) % 1.0 < 0.01;
               const slotLabel = slotLabels[s] || `${s + 1}`;
+              const targetOffset = slot.beatOffset;
 
               return (
                 <button

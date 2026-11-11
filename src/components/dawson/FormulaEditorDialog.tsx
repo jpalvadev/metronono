@@ -189,11 +189,11 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="formula-editor-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/85 backdrop-blur-md animate-in fade-in-0"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in-0"
     >
-      <div className="relative w-full max-w-4xl bg-card border border-border shadow-2xl rounded-2xl flex flex-col max-h-[95vh] overflow-hidden">
+      <div className="relative w-full max-w-4xl bg-card border border-border shadow-2xl rounded-2xl flex flex-col max-h-[90vh] overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400">
               <Layers className="w-5 h-5" />
@@ -365,7 +365,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-border bg-muted/20">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/20 shrink-0">
           <div className="flex items-center gap-2">
             <Button
               type="button"

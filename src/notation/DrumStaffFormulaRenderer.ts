@@ -131,7 +131,7 @@ export class DrumStaffFormulaRenderer {
         });
         voice1Notes.push(restV1);
 
-        // Voice 2 Rest (if feet voice active)
+        // Voice 2 Rest (if feet voice active): transparent to avoid visual double-rests
         if (hasFeetHits) {
           const restV2 = new StaveNote({
             clef: 'percussion',
@@ -139,6 +139,7 @@ export class DrumStaffFormulaRenderer {
             duration: `${vexDur}r`,
             stemDirection: Stem.DOWN,
           });
+          restV2.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
           voice2Notes.push(restV2);
         }
       } else {
@@ -169,7 +170,7 @@ export class DrumStaffFormulaRenderer {
 
           voice1Notes.push(noteV1);
         } else {
-          // Rest in Voice 1 while Voice 2 sounds
+          // Voice 1 has no hits while Voice 2 sounds: use transparent rest to prevent visual collision
           const restNote = new StaveNote({
             clef: 'percussion',
             keys: ['c/5/r'],
@@ -177,6 +178,7 @@ export class DrumStaffFormulaRenderer {
             stemDirection: Stem.UP,
           });
           restNote.setStemDirection(Stem.UP);
+          restNote.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
           voice1Notes.push(restNote);
         }
 
@@ -200,7 +202,7 @@ export class DrumStaffFormulaRenderer {
 
             voice2Notes.push(noteV2);
           } else {
-            // Rest in Voice 2 while Voice 1 sounds
+            // Voice 2 has no hits while Voice 1 sounds: use transparent rest to prevent visual collision
             const restNote = new StaveNote({
               clef: 'percussion',
               keys: ['d/4/r'],
@@ -208,6 +210,7 @@ export class DrumStaffFormulaRenderer {
               stemDirection: Stem.DOWN,
             });
             restNote.setStemDirection(Stem.DOWN);
+            restNote.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
             voice2Notes.push(restNote);
           }
         }

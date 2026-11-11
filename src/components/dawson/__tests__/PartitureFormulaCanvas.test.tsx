@@ -37,6 +37,49 @@ describe('PartitureFormulaCanvas', () => {
     expect(screen.getByTestId('partiture-formula-canvas')).toBeInTheDocument();
   });
 
+  it('renders the canvas container with one-style token roles', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 0.5, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+    ];
+    const onChangeStrokes = vi.fn();
+
+    render(
+      <PartitureFormulaCanvas
+        strokes={strokes}
+        onChangeStrokes={onChangeStrokes}
+        activeTool="note"
+        selectedDuration={0.5}
+        selectedDynamic="normal"
+        player={mockPlayer}
+        width={500}
+        playheadBeat={0.5}
+      />
+    );
+
+    // Card surface replaces the hardcoded white/slate container
+    const canvas = screen.getByTestId('partiture-formula-canvas');
+    expect(canvas).toHaveClass('bg-card');
+    expect(canvas).toHaveClass('text-foreground');
+    expect(canvas).toHaveClass('border-border');
+    expect(canvas).toHaveClass('rounded-none');
+
+    // Playhead (when laid out) is the Accent with the one shared glow
+    const playhead = screen.queryByTestId('audition-playhead');
+    if (playhead) {
+      expect(playhead).toHaveClass('bg-primary');
+      expect(playhead).toHaveClass('playhead-glow');
+    }
+
+    // Zero raw palette classes, scrim literals, or rgba glow literals
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('stamps a note on the clicked drum voice line and plays one-shot audio', () => {
     const strokes: OrchestratedStroke[] = [];
     const onChangeStrokes = vi.fn();

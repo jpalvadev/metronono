@@ -49,6 +49,39 @@ describe('PartitureFormulaCanvas Drag-and-Drop & Transposition', () => {
     };
   });
 
+  it('renders drag affordances with the Accent Playhead and shared glow', () => {
+    const strokes: OrchestratedStroke[] = [];
+    const onChangeStrokes = vi.fn();
+
+    render(
+      <PartitureFormulaCanvas
+        strokes={strokes}
+        onChangeStrokes={onChangeStrokes}
+        activeTool="note"
+        selectedDuration={0.25}
+        selectedDynamic="accent"
+        player={mockPlayer}
+        width={500}
+      />
+    );
+
+    const canvas = screen.getByTestId('partiture-formula-canvas');
+    dispatchDragOver(canvas, { clientX: 80, clientY: 55 });
+
+    // The snap guide is the Playhead treatment: Accent + shared glow utility
+    const guides = document.body.querySelectorAll('[class*="playhead-glow"]');
+    expect(guides.length).toBeGreaterThanOrEqual(1);
+    expect(guides[0].className.includes('bg-primary')).toBe(true);
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('drops a palette token onto the stave inserting note at targeted line and column', () => {
     const strokes: OrchestratedStroke[] = [];
     const onChangeStrokes = vi.fn();

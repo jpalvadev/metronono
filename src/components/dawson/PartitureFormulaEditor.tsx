@@ -183,15 +183,15 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
       />
 
       {/* Interactive Subdivision Slot Grid Bar */}
-      <div className="flex flex-col gap-2.5 p-3 rounded-xl bg-card/90 border border-border/80 shadow-xs text-xs">
+      <div className="flex flex-col gap-2.5 p-3 rounded-none bg-card/90 border border-border/80 shadow-xs text-xs">
         {/* Voice Selector Row */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <Volume2 className="w-3.5 h-3.5 text-teal-400" />
+            <Volume2 className="w-3.5 h-3.5 text-primary" />
             <span className="font-semibold text-foreground text-[11px] uppercase tracking-wider">
               Active Voice:
             </span>
-            <span className="font-mono font-bold text-teal-400 text-xs">
+            <span className="font-mono font-bold text-primary text-xs">
               {DRUM_VOICE_PAS_MAP[activeVoice]?.label || activeVoice}
             </span>
           </div>
@@ -219,9 +219,9 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
                   }
                 }}
                 className={cn(
-                  'cursor-grab active:cursor-grabbing px-2 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-1 border',
+                  'cursor-grab active:cursor-grabbing px-2 py-0.5 rounded-none text-[11px] font-medium transition-all flex items-center gap-1 border',
                   activeVoice === voice
-                    ? 'bg-teal-600 text-white font-semibold border-teal-500 shadow-xs'
+                    ? 'bg-primary text-primary-foreground font-semibold border-primary shadow-xs'
                     : 'bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/80'
                 )}
                 title={`Select or drag ${label} onto any slot on the staff`}
@@ -243,7 +243,7 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
               type="button"
               disabled={readOnly}
               onClick={handleClearAll}
-              className="text-[10px] text-muted-foreground hover:text-rose-400 flex items-center gap-1 transition-colors"
+              className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors"
             >
               <RotateCcw className="w-2.5 h-2.5" /> Clear All
             </button>
@@ -270,14 +270,14 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
                   disabled={readOnly}
                   onClick={() => handleToggleSlot(s)}
                   className={cn(
-                    'h-11 rounded-lg border flex flex-col items-center justify-between p-1 transition-all text-[10px] font-mono',
+                    'h-11 rounded-none border flex flex-col items-center justify-between p-1 transition-all text-[10px] font-mono',
                     hasActiveVoice
-                      ? 'bg-teal-600 border-teal-500 text-white font-bold shadow-xs scale-[1.02]'
+                      ? 'bg-primary border-primary text-primary-foreground font-bold shadow-xs scale-[1.02]'
                       : hits.length > 0
-                      ? 'bg-purple-950/40 border-purple-500/50 text-purple-200'
+                      ? 'bg-secondary border-border text-secondary-foreground'
                       : isBeatDownbeat
-                      ? 'bg-card border-border/80 text-foreground hover:bg-teal-500/10'
-                      : 'bg-muted/30 border-border/40 text-muted-foreground hover:bg-teal-500/10'
+                      ? 'bg-card border-border/80 text-foreground hover:bg-primary/10'
+                      : 'bg-muted/30 border-border/40 text-muted-foreground hover:bg-primary/10'
                   )}
                   title={`Slot ${slotLabel} (offset ${targetOffset} beats)`}
                 >
@@ -289,8 +289,8 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
                         className={cn(
                           'text-[8px] uppercase px-1 rounded font-bold',
                           h.voice === activeVoice
-                            ? 'bg-teal-900/60 text-white'
-                            : 'bg-purple-800/60 text-purple-100'
+                            ? 'bg-primary/70 text-primary-foreground'
+                            : 'bg-muted-foreground/40 text-muted-foreground'
                         )}
                       >
                         {h.voice.slice(0, 2)}

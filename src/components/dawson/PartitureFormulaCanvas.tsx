@@ -638,7 +638,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      className={`relative w-full overflow-hidden select-none cursor-pointer rounded-xl bg-white dark:bg-white text-slate-950 border border-slate-200/90 shadow-sm flex flex-col items-center justify-center pt-2 ${
+      className={`relative w-full overflow-hidden select-none cursor-pointer rounded-none bg-card text-foreground border border-border shadow-sm flex flex-col items-center justify-center pt-2 ${
         className || ''
       }`}
       style={{ minHeight: height }}
@@ -663,7 +663,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
                   <div
                     className={cn(
                       'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
-                      isDownbeat ? 'border-slate-300' : 'border-dashed border-slate-200/80'
+                      isDownbeat ? 'border-border' : 'border-dashed border-border/80'
                     )}
                     style={{ left: `${slotLeft}px` }}
                   />
@@ -672,7 +672,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
                 {/* Hover Column Wash */}
                 {isHovered && (
                   <div
-                    className="absolute top-7 bottom-3 pointer-events-none bg-teal-500/10 border-x border-teal-500/30 rounded transition-all"
+                    className="absolute top-7 bottom-3 pointer-events-none bg-primary/10 border-x border-primary/30 rounded-none transition-all"
                     style={{ left: `${slotLeft}px`, width: `${slotWidth}px` }}
                   />
                 )}
@@ -686,10 +686,10 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
                     className={cn(
                       'px-1.5 py-0.2 rounded transition-colors',
                       isHovered
-                        ? 'bg-teal-600 text-white font-bold shadow-xs'
+                        ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                         : isDownbeat
-                        ? 'text-teal-700 font-bold bg-teal-50 border border-teal-200/60'
-                        : 'text-slate-400'
+                        ? 'text-primary font-bold bg-primary/10 border border-primary/30'
+                        : 'text-muted-foreground'
                     )}
                   >
                     {slotLabel}
@@ -708,7 +708,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       {playheadBeat !== null && playheadBeat !== undefined && layoutRef.current && (
         <div
           data-testid="audition-playhead"
-          className="absolute top-0 bottom-0 w-[2px] bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.9)] pointer-events-none transition-all duration-75"
+          className="absolute top-0 bottom-0 w-[2px] bg-primary playhead-glow pointer-events-none transition-all duration-75"
           style={{
             left: `${layoutRef.current.getXForBeatOffset(playheadBeat, targetBeats)}px`,
           }}
@@ -723,17 +723,17 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         >
           {/* Vertical Snap Guide Line */}
           <div
-            className="absolute top-0 bottom-0 w-[2px] bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]"
+            className="absolute top-0 bottom-0 w-[2px] bg-primary playhead-glow"
             style={{ left: `${dragGuide.x}px` }}
           />
 
           {/* Target Voice Guide / Badge */}
           {dragGuide.voice && (
             <div
-              className={`absolute px-2 py-0.5 rounded text-[10px] font-mono font-bold shadow-md transition-all ${
+              className={`absolute px-2 py-0.5 rounded-none text-[10px] font-mono font-bold shadow-md transition-all ${
                 dragGuide.isOffStave
-                  ? 'bg-rose-500 text-white'
-                  : 'bg-teal-600 text-white'
+                  ? 'bg-destructive text-destructive-foreground'
+                  : 'bg-primary text-primary-foreground'
               }`}
               style={{
                 left: `${dragGuide.x + 8}px`,

@@ -268,6 +268,15 @@ describe('FormulaEditorDialog Component (Partiture Drum Staff)', () => {
     const overflowBar = indicator.querySelectorAll('[style]')[0];
     expect(overflowBar).toHaveClass('bg-destructive');
     shouldNotHaveClass(overflowBar, 'bg-rose-500');
+
+    // Zero raw palette classes anywhere in the rendered dialog (incl. embedded partiture)
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
   });
 
   it('allows deleting a custom formula', () => {

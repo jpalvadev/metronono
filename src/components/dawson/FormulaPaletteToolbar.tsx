@@ -57,18 +57,18 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
     <div
       role="toolbar"
       aria-label="Formula Notation Palette"
-      className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-xl bg-card/90 border border-border/80 shadow-sm text-xs"
+      className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-none bg-card/90 border border-border/80 shadow-sm text-xs"
     >
       {/* Tool Mode Selector: Note / Rest / Eraser */}
-      <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60">
+      <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-none border border-border/60">
         <button
           type="button"
           disabled={disabled}
           onClick={() => onSelectTool('note')}
           className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs transition-colors',
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-none font-medium text-xs transition-colors',
             activeTool === 'note'
-              ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50 shadow-sm'
+              ? 'bg-primary/20 text-primary border border-primary/50 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           )}
         >
@@ -80,9 +80,9 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
           disabled={disabled}
           onClick={() => onSelectTool('rest')}
           className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs transition-colors',
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-none font-medium text-xs transition-colors',
             activeTool === 'rest'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm'
+              ? 'bg-warning/20 text-warning border border-warning/50 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           )}
         >
@@ -94,9 +94,9 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
           disabled={disabled}
           onClick={() => onSelectTool('eraser')}
           className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs transition-colors',
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-none font-medium text-xs transition-colors',
             activeTool === 'eraser'
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-sm'
+              ? 'bg-destructive/20 text-destructive border border-destructive/50 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           )}
         >
@@ -105,7 +105,7 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
       </div>
 
       {/* Duration Selector */}
-      <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60">
+      <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-none border border-border/60">
         {PALETTE_DURATIONS.map((dur) => {
           const isSelected = Math.abs(selectedDuration - dur.ratio) < 0.005;
           return (
@@ -125,9 +125,9 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
               }}
               onClick={() => onSelectDuration(dur.ratio)}
               className={cn(
-                'px-2 py-1 rounded-md font-mono text-[11px] font-semibold transition-colors',
+                'px-2 py-1 rounded-none font-mono text-[11px] font-semibold transition-colors',
                 isSelected
-                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm'
+                  ? 'bg-primary text-primary-foreground font-bold shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40'
               )}
             >
@@ -138,7 +138,7 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
       </div>
 
       {/* Articulations Selector */}
-      <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/60">
+      <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-none border border-border/60">
         {PALETTE_ARTICULATIONS.map((art) => {
           const isSelected = selectedDynamic === art.id;
           return (
@@ -148,13 +148,13 @@ export const FormulaPaletteToolbar: React.FC<FormulaPaletteToolbarProps> = ({
               disabled={disabled || activeTool !== 'note'}
               onClick={() => onSelectDynamic(art.id)}
               className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
+                'flex items-center gap-1 px-2 py-1 rounded-none text-[11px] font-medium transition-colors',
                 isSelected && activeTool === 'note'
-                  ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50 shadow-sm font-semibold'
+                  ? 'bg-primary/20 text-primary border border-primary/50 shadow-sm font-semibold'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40'
               )}
             >
-              <span className="font-mono text-teal-400">{art.symbol}</span>
+              <span className="font-mono text-primary">{art.symbol}</span>
               <span>{art.label}</span>
             </button>
           );

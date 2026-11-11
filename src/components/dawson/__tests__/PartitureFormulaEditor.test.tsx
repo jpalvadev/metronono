@@ -27,6 +27,47 @@ describe('PartitureFormulaEditor', () => {
     expect(screen.getByTestId('partiture-formula-canvas')).toBeInTheDocument();
   });
 
+  it('renders the editor chrome entirely with token roles', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 0.5, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+    ];
+    const onChangeStrokes = vi.fn();
+    const mockPlayer: IDrumKitPlayer = {
+      play: vi.fn(),
+      triggerVoice: vi.fn(),
+    };
+
+    render(
+      <PartitureFormulaEditor
+        strokes={strokes}
+        onChangeStrokes={onChangeStrokes}
+        player={mockPlayer}
+      />
+    );
+
+    // Active voice chip and occupied slot are Accent-filled
+    const snareVoiceBtn = screen.getByRole('button', { name: /Snare/ });
+    expect(snareVoiceBtn).toHaveClass('bg-primary');
+    expect(snareVoiceBtn).toHaveClass('text-primary-foreground');
+    expect(snareVoiceBtn).toHaveClass('border-primary');
+    const activeSlot = screen.getByTestId('slot-step-0');
+    expect(activeSlot).toHaveClass('bg-primary');
+    expect(activeSlot).toHaveClass('rounded-none');
+
+    // Clear All is a Destructive affordance
+    const clearBtn = screen.getByRole('button', { name: /Clear All/ });
+    expect(clearBtn).toHaveClass('hover:text-destructive');
+
+    // Zero raw palette classes anywhere in the editor (also second palettes like purple)
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('allows selecting tools in the palette and stamping notes on the canvas', () => {
     const strokes: OrchestratedStroke[] = [];
     const onChangeStrokes = vi.fn();

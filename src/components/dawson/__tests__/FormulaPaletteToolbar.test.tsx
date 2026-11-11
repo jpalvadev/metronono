@@ -3,6 +3,44 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { FormulaPaletteToolbar } from '../FormulaPaletteToolbar';
 
 describe('FormulaPaletteToolbar', () => {
+  it('renders palette chips with token roles (Accent/Warning/Destructive by meaning)', () => {
+    const onSelectDuration = vi.fn();
+    const onSelectTool = vi.fn();
+    const onSelectDynamic = vi.fn();
+
+    render(
+      <FormulaPaletteToolbar
+        selectedDuration={0.25}
+        onSelectDuration={onSelectDuration}
+        activeTool="note"
+        onSelectTool={onSelectTool}
+        selectedDynamic="normal"
+        onSelectDynamic={onSelectDynamic}
+      />
+    );
+
+    const noteToolBtn = screen.getByRole('button', { name: /^Note$/ });
+    expect(noteToolBtn).toHaveClass('bg-primary/20');
+    expect(noteToolBtn).toHaveClass('text-primary');
+    expect(noteToolBtn).toHaveClass('border-primary/50');
+
+    const selectedDurationBtn = screen.getByRole('button', { name: /^1\/16$/ });
+    expect(selectedDurationBtn).toHaveClass('bg-primary');
+    expect(selectedDurationBtn).toHaveClass('text-primary-foreground');
+
+    // Square-corner standard across the toolbar chrome
+    const toolbar = screen.getByRole('toolbar', { name: /Formula Notation Palette/ });
+    expect(toolbar).toHaveClass('rounded-none');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders all duration buttons and triggers onSelectDuration', () => {
     const onSelectDuration = vi.fn();
     const onSelectTool = vi.fn();

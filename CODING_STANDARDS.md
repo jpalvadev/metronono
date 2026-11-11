@@ -12,4 +12,8 @@ Keep engraving geometry (spacing, stem reach, beam thickness, clearances) as mod
 
 ## Checks
 
-`npm run check` (`tsc --noEmit && vitest run`) is the repo's guardrail, enforced by a pre-commit hook and by CI (`.github/workflows/check.yml`, on pushes to `main` and `feat/**`). Diff review should confirm the changed files pass it; run it rather than assuming.
+`npm run check` (`node scripts/one-style.mjs && tsc --noEmit && vitest run`) is the repo's guardrail, enforced by a pre-commit hook and by CI (`.github/workflows/check.yml`, on pushes to `main` and `feat/**`). Diff review should confirm the changed files pass it; run it rather than assuming.
+
+The guardrail hook is tracked at `.githooks/pre-commit` (throwaway `scratch-*` probes must not ship, and `npm run check` must pass). A fresh clone or worktree gets it with one command: `git config core.hooksPath .githooks`.
+
+`npm run check:style` is the deterministic one-style sweep — raw palette classes, `dark:` variants, `rgba(` glows, and any radius other than `rounded-none` in component string literals, plus dead theme blocks in `src/index.css` and `tailwind.config.js`, plus Tailwind compile warnings. It reports file and line, so reach for it instead of hand-built shell regexes. `npm run check:tokens` prints which theme tokens the app consumes.

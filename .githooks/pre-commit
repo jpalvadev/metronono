@@ -1,0 +1,18 @@
+#!/bin/sh
+# Repo guardrail. See CODING_STANDARDS.md ## Checks.
+# 1) Throwaway probe files (src/**/scratch-*) must not ship.
+# 2) The repo check must pass before a commit lands.
+# A fresh clone gets this hook by running: git config core.hooksPath .githooks
+
+# Any throwaway probe file in the index (tracked) blocks the commit, whatever its staged state.
+if git ls-files -- 'src' | grep -qE 'scratch-'; then
+  echo "BLOCKED: a staged file matches src/**/scratch-* (a throwaway probe). Delete it before committing." >&2
+  exit 1
+fi
+
+if ! npm run check >/dev/null 2>&1; then
+  echo "BLOCKED: npm run check (tsc --noEmit + vitest run) failed. Run it to see why." >&2
+  exit 1
+fi
+
+exit 0

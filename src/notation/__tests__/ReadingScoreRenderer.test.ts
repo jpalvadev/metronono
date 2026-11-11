@@ -314,10 +314,10 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
-  // x anchor and y span of every explicit barline path.
-  const barlineSpans = (svg: Element | null): Array<{ x: number; top: number; bottom: number }> => {
+  // x anchor, y span and stroke width of every explicit barline path.
+  const barlineSpans = (svg: Element | null): Array<{ x: number; top: number; bottom: number; width: number }> => {
     if (!svg) return [];
-    const spans: Array<{ x: number; top: number; bottom: number }> = [];
+    const spans: Array<{ x: number; top: number; bottom: number; width: number }> = [];
     for (const g of svg!.querySelectorAll('g[class="vf-barline"]')) {
       for (const path of g.querySelectorAll('path')) {
         const nums = (path.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g)?.map(Number);
@@ -326,11 +326,60 @@ describe('ReadingScoreRenderer', () => {
           x: nums[0],
           top: Math.min(...nums.filter((_, i) => i % 2 === 1)),
           bottom: Math.max(...nums.filter((_, i) => i % 2 === 1)),
+          width: parseFloat(path.getAttribute('stroke-width') ?? '1'),
         });
       }
     }
     return spans;
   };
+
+  // Rightmost end x of the drawn stave line.
+  const staveLineEndX = (svg: Element | null): number => {
+    if (!svg) return NaN;
+    let endX: number | null = null;
+    for (const path of svg!.querySelectorAll('g[class="vf-stave"] path')) {
+      const nums = (path.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
+      if (nums.length >= 4) endX = endX === null ? nums[2] : Math.max(endX, nums[2]);
+    }
+    return endX ?? NaN;
+  };
+
+  it('ends the score with a flush thin-plus-thick final barline pair', () => {
+    const readingLine: ReadingLine = {
+      id: 'test-final-pair-flush',
+      title: 'Flush Final Barline Pair',
+      tier: 1,
+      measures: [0, 1, 2].map((i) => createTestMeasure(i, [1, 1, 1, 1])),
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 800 });
+
+    const svg = container.querySelector('svg');
+    const spans = barlineSpans(svg);
+    const thick = spans.filter((s) => s.width >= 2);
+    const thin = spans.filter((s) => s.width < 2);
+    expect(thick.length).toBe(1);
+    expect(thin.length).toBe(4); // start + 2 dividers + thin final
+
+    const lineEndX = staveLineEndX(svg);
+    // The thick barline sits exactly at the stave line end: no tail, no gap.
+    expect(Math.abs(thick[0].x - lineEndX)).toBeLessThanOrEqual(0.6);
+
+    // Final pair spans the same full block height as the dividing barlines.
+    const divider = thin[0];
+    expect(Math.abs(thick[0].top - divider.top)).toBeLessThanOrEqual(0.6);
+    expect(Math.abs(thick[0].bottom - divider.bottom)).toBeLessThanOrEqual(0.6);
+
+    // The pair: thin ~6 px left of the thick bar, and the last measure's
+    // music stays clear to the left of it.
+    const thinFinal = thin.reduce((a, b) => (a.x > b.x ? a : b), thin[0]);
+    expect(thick[0].x - thinFinal.x).toBeGreaterThanOrEqual(5);
+    expect(thick[0].x - thinFinal.x).toBeLessThanOrEqual(7);
+    const lastMeasure = layout.measures[layout.measures.length - 1];
+    const maxEventX = Math.max(...lastMeasure.eventCoordinates.map((c) => c.x));
+    expect(maxEventX).toBeLessThan(thinFinal.x - 8);
+  });
 
   it('brackets the whole music block with start and dividing barlines', () => {
     const measure = createTestMeasure(0, [0.5, 0.5, 0.5, 0.5, 1.0, 1.0]);

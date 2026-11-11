@@ -14,6 +14,8 @@ import VexFlow, {
 // On a 1-line stave VexFlow's built-in barlines collapse to a 1px rect (they
 // span first-to-last line), so dividing bars are drawn explicitly instead.
 const FINAL_BARLINE_THICKNESS = 3;
+// Gap between the thin and thick strokes of the final barline pair.
+const FINAL_THIN_OFFSET = 6;
 
 // Explicit barlines run from ~4 px above the system's highest beam/flag down
 // to ~4 px below the notehead/rest bottoms instead of a fixed ±14 px stub.
@@ -390,8 +392,10 @@ export class ReadingScoreRenderer {
     if (totalMeasures > 0) {
       const lastSystem = systemInfos[Math.floor((totalMeasures - 1) / cols)];
       const finalSpan = systemBarlineSpan(lastSystem);
-      drawBarlineAt(lastSystem.rightX - 5, finalSpan.topY, finalSpan.bottomY, 1);
-      drawBarlineAt(lastSystem.rightX - 1, finalSpan.topY, finalSpan.bottomY, FINAL_BARLINE_THICKNESS);
+      // Thick bar exactly at the stave line end (flush, no tail), thin one
+      // a fixed offset to its left; both span the system's block height.
+      drawBarlineAt(lastSystem.rightX - FINAL_THIN_OFFSET, finalSpan.topY, finalSpan.bottomY, 1);
+      drawBarlineAt(lastSystem.rightX, finalSpan.topY, finalSpan.bottomY, FINAL_BARLINE_THICKNESS);
     }
 
     // Pass 2: Connect Ties (intra-measure and cross-measure)

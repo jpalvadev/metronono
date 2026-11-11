@@ -233,13 +233,13 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="sample-bank-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 modal-scrim"
     >
       <div className="bg-card border border-border text-card-foreground rounded-none shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/60 bg-muted/20">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-none bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+            <div className="w-8 h-8 rounded-none bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
               <FolderArchive className="w-4 h-4" />
             </div>
             <div>
@@ -268,14 +268,14 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
               className={cn(
                 'flex items-center gap-2 px-3.5 py-2.5 rounded-none text-xs font-medium border animate-in fade-in',
                 notification.type === 'success'
-                  ? 'bg-teal-500/10 border-teal-500/30 text-teal-300'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  ? 'bg-success/10 border-success/30 text-success'
+                  : 'bg-destructive/10 border-destructive/30 text-destructive'
               )}
             >
               {notification.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-teal-400" />
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-success" />
               ) : (
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
               )}
               <span>{notification.message}</span>
             </div>
@@ -286,7 +286,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-none bg-background border border-border flex items-center justify-center text-muted-foreground shrink-0 mt-0.5 sm:mt-0">
                 {isLinked ? (
-                  <HardDrive className="w-4 h-4 text-teal-400" />
+                  <HardDrive className="w-4 h-4 text-primary" />
                 ) : (
                   <Database className="w-4 h-4 text-muted-foreground" />
                 )}
@@ -295,13 +295,13 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold text-foreground">Active Storage Layer:</span>
                   {isLinked ? (
-                    <Badge variant="default" className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[11px]">
+                    <Badge variant="default" className="bg-primary/20 text-primary border-primary/30 text-[11px]">
                       <FolderCheck className="w-3 h-3 mr-1" />
                       Local Disk: {linkedDirName}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="border-border/80 text-muted-foreground text-[11px]">
-                      <Database className="w-3 h-3 mr-1 text-teal-400" />
+                      <Database className="w-3 h-3 mr-1 text-primary" />
                       Persistent IndexedDB (Guarded)
                     </Badge>
                   )}
@@ -338,7 +338,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
                 disabled={isExporting}
                 className="text-xs gap-1.5 h-8 rounded-none"
               >
-                <Download className="w-3.5 h-3.5 text-teal-400" />
+                <Download className="w-3.5 h-3.5 text-primary" />
                 {isExporting ? 'Exporting...' : 'Export Library'}
               </Button>
 
@@ -349,7 +349,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
                 aria-label="Import Library"
                 className="inline-flex items-center justify-center rounded-none text-xs font-medium border border-border bg-transparent text-foreground hover:bg-muted/50 h-8 px-3 gap-1.5 transition-colors disabled:opacity-50 select-none"
               >
-                <Upload className="w-3.5 h-3.5 text-teal-400" />
+                <Upload className="w-3.5 h-3.5 text-primary" />
                 {isImporting ? 'Importing...' : 'Import Library'}
               </button>
               <input
@@ -365,7 +365,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
           {/* Drum Kit Voices Table */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground/80 flex items-center gap-1.5">
-              <Music className="w-3.5 h-3.5 text-teal-400" />
+              <Music className="w-3.5 h-3.5 text-primary" />
               Drum Kit Voices
             </h3>
             <div className="border border-border/70 rounded-none divide-y divide-border/50 overflow-hidden bg-card">
@@ -385,7 +385,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
           {/* Metronome Voices Table */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground/80 flex items-center gap-1.5">
-              <Volume2 className="w-3.5 h-3.5 text-teal-400" />
+              <Volume2 className="w-3.5 h-3.5 text-primary" />
               Metronome Click Sounds
             </h3>
             <div className="border border-border/70 rounded-none divide-y divide-border/50 overflow-hidden bg-card">
@@ -451,7 +451,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold text-foreground">{voice.label}</span>
           {sample ? (
-            <Badge variant="default" className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[10px]">
+            <Badge variant="default" className="bg-primary/20 text-primary border-primary/30 text-[10px]">
               Custom Sample
             </Badge>
           ) : (
@@ -472,7 +472,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
           onClick={onAudition}
           aria-label={`Audition ${voice.label}`}
           title="Audition sound"
-          className="h-8 w-8 p-0 text-muted-foreground hover:text-teal-400"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
         >
           <Volume2 className="w-4 h-4" />
         </Button>
@@ -482,7 +482,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
           onClick={() => fileInputRef.current?.click()}
           aria-label={`Upload sample for ${voice.label}`}
           title="Upload audio file (WAV/MP3/OGG)"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-none text-muted-foreground hover:text-teal-400 hover:bg-muted/50 transition-colors select-none"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors select-none"
         >
           <Upload className="w-4 h-4" />
         </button>
@@ -504,7 +504,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
           aria-label={`Reset ${voice.label} to default`}
           title="Reset to synthesized default sound"
           className={cn(
-            'h-8 w-8 p-0 text-muted-foreground hover:text-rose-400',
+            'h-8 w-8 p-0 text-muted-foreground hover:text-destructive',
             !sample && 'opacity-30 cursor-not-allowed'
           )}
         >

@@ -19,6 +19,52 @@ describe('SampleBankModal', () => {
     onClose = vi.fn();
   });
 
+  it('renders the modal entirely through token roles (one style)', async () => {
+    render(
+      <SampleBankModal
+        isOpen={true}
+        onClose={onClose}
+        storageManager={storageManager}
+        scheduler={scheduler}
+      />
+    );
+
+    const classTokens = () => {
+      const tokens = new Set<string>();
+      for (const el of document.body.querySelectorAll('*')) {
+        for (const token of (el.getAttribute('class') ?? '').split(/\s+/)) tokens.add(token);
+      }
+      return tokens;
+    };
+
+    // Shared Modal Scrim + Accent iconography
+    let tokens = classTokens();
+    expect(tokens.has('modal-scrim')).toBe(true);
+    expect(tokens.has('text-primary')).toBe(true);
+    // Reset affordance is Destructive by meaning
+    expect(tokens.has('hover:text-destructive')).toBe(true);
+
+    // Uploading a sample paints Success notification + Custom Sample badge tokens
+    const file = new File(['mock-audio-bytes'], 'token_kick.wav', { type: 'audio/wav' });
+    const kickInput = screen.getByTestId('upload-kick') as HTMLInputElement;
+    fireEvent.change(kickInput, { target: { files: [file] } });
+    await waitFor(() => {
+      expect(screen.getByText(/token_kick\.wav/i)).toBeInTheDocument();
+    });
+
+    tokens = classTokens();
+    expect(tokens.has('bg-success/10')).toBe(true);
+    expect(tokens.has('border-success/30')).toBe(true);
+    expect(tokens.has('text-success')).toBe(true);
+    expect(tokens.has('bg-primary/20')).toBe(true);
+
+    // No raw palette classes, scrim literals, or dark: variants survive
+    const rawPalette = /(?:teal|rose|emerald|amber|slate)-\d|bg-black|bg-white|text-white|dark:/;
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(rawPalette.test(el.getAttribute('class') ?? '')).toBe(false);
+    }
+  });
+
   it('renders nothing when isOpen is false', () => {
     const { container } = render(
       <SampleBankModal

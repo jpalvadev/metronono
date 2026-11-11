@@ -133,12 +133,12 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-scrim animate-in fade-in duration-150">
         <div className="bg-card border border-border w-full max-w-3xl rounded-none shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-4 md:p-5 border-b border-border/60">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-none bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+              <div className="w-10 h-10 rounded-none bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
                 <Sliders className="w-5 h-5" />
               </div>
               <div>
@@ -167,7 +167,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
               className={cn(
                 'px-4 py-2 text-xs font-semibold border-b-2 transition-all',
                 activeTab === 'systems'
-                  ? 'border-teal-500 text-teal-400'
+                  ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
@@ -179,7 +179,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
               className={cn(
                 'px-4 py-2 text-xs font-semibold border-b-2 transition-all',
                 activeTab === 'formulas'
-                  ? 'border-teal-500 text-teal-400'
+                  ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
@@ -202,7 +202,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => setIsCreatingSystem(true)}
-                      className="h-8 gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                      className="h-8 gap-1.5 text-xs bg-primary hover:bg-primary/80 text-primary-foreground"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       New System
@@ -212,9 +212,9 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
 
                 {/* New System Form Drawer */}
                 {isCreatingSystem && (
-                  <div className="bg-muted/30 border border-teal-500/40 rounded-xl p-4 flex flex-col gap-3.5">
+                  <div className="bg-muted/30 border border-primary/40 rounded-none p-4 flex flex-col gap-3.5">
                     <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                      <span className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
                         Create Custom Dawson System
                       </span>
@@ -244,7 +244,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           value={newSystemName}
                           onChange={(e) => setNewSystemName(e.target.value)}
                           placeholder="e.g. Tony Williams Fusion"
-                          className="bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          className="bg-card border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
 
@@ -262,7 +262,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           onChange={(e) =>
                             setSelectedOstinato(e.target.value as OstinatoType)
                           }
-                          className="bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          className="bg-card border border-border rounded-none px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                           <option value="jazz_swing">Jazz Swing Ride</option>
                           <option value="straight_rock">Straight 8ths Hi-Hat</option>
@@ -282,7 +282,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           id="new-system-short-formula"
                           value={selectedShortId}
                           onChange={(e) => setSelectedShortId(e.target.value)}
-                          className="bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          className="bg-card border border-border rounded-none px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                           {shortFormulas.map((f) => (
                             <option key={f.id} value={f.id}>
@@ -304,7 +304,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           id="new-system-long-formula"
                           value={selectedLongId}
                           onChange={(e) => setSelectedLongId(e.target.value)}
-                          className="bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          className="bg-card border border-border rounded-none px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                           {longFormulas.map((f) => (
                             <option key={f.id} value={f.id}>
@@ -330,7 +330,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                         size="sm"
                         onClick={handleSaveNewSystem}
                         disabled={!newSystemName.trim()}
-                        className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                        className="h-8 text-xs bg-primary hover:bg-primary/80 text-primary-foreground"
                       >
                         Save System
                       </Button>
@@ -346,9 +346,9 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       <div
                         key={sys.id}
                         className={cn(
-                          'p-4 rounded-xl border flex flex-col justify-between gap-3 transition-all',
+                          'p-4 rounded-none border flex flex-col justify-between gap-3 transition-all',
                           isActive
-                            ? 'bg-teal-500/10 border-teal-500/60 ring-1 ring-teal-500/30'
+                            ? 'bg-primary/10 border-primary/60 ring-1 ring-primary/30'
                             : 'bg-card/70 border-border/70 hover:border-border hover:bg-muted/30'
                         )}
                       >
@@ -361,14 +361,14 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                               {sys.isCustom && (
                                 <Badge
                                   variant="outline"
-                                  className="text-[10px] border-amber-500/40 text-amber-400"
+                                  className="text-[10px] border-warning/40 text-warning"
                                 >
                                   Custom
                                 </Badge>
                               )}
                             </div>
                             {isActive && (
-                              <Badge className="bg-teal-600 text-white text-[10px] gap-1">
+                              <Badge className="bg-primary text-primary-foreground text-[10px] gap-1">
                                 <Check className="w-3 h-3" /> Active
                               </Badge>
                             )}
@@ -380,7 +380,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             </p>
                           )}
 
-                          <div className="grid grid-cols-2 gap-2 text-[11px] bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                          <div className="grid grid-cols-2 gap-2 text-[11px] bg-muted/30 p-2.5 rounded-none border border-border/50">
                             <div>
                               <span className="text-muted-foreground block font-medium">
                                 Short Notes:
@@ -400,7 +400,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           </div>
 
                           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <Disc className="w-3 h-3 text-teal-400" />
+                            <Disc className="w-3 h-3 text-primary" />
                             <span>Ostinato: </span>
                             <span className="text-foreground font-medium">
                               {sys.ostinatoId === 'jazz_swing'
@@ -422,7 +422,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 size="sm"
                                 data-testid={`delete-system-${sys.id}`}
                                 onClick={() => handleDeleteSystem(sys.id)}
-                                className="h-7 px-2 text-xs text-rose-400 hover:text-rose-500 hover:bg-rose-500/10 gap-1"
+                                className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
                               >
                                 <Trash2 className="w-3 h-3" /> Delete
                               </Button>
@@ -437,7 +437,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             onClick={() => handleApplySystem(sys)}
                             className={cn(
                               'h-7 px-3 text-xs',
-                              !isActive && 'bg-teal-600 hover:bg-teal-700 text-white'
+                              !isActive && 'bg-primary hover:bg-primary/80 text-primary-foreground'
                             )}
                           >
                             {isActive ? 'Current System' : 'Apply System'}
@@ -455,7 +455,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between border-b border-border/40 pb-2">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-teal-400">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
                         Short Note Formulas (≤ 8th Note)
                       </h3>
                       <p className="text-[11px] text-muted-foreground">
@@ -466,7 +466,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => handleOpenNewFormula('short')}
-                      className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white gap-1"
+                      className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1"
                     >
                       <Plus className="w-3 h-3" /> New Short Formula
                     </Button>
@@ -476,7 +476,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                     {shortFormulas.map((formula) => (
                       <div
                         key={formula.id}
-                        className="bg-card/70 border border-border/70 rounded-xl p-3 flex flex-col justify-between gap-2.5"
+                        className="bg-card/70 border border-border/70 rounded-none p-3 flex flex-col justify-between gap-2.5"
                       >
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center justify-between">
@@ -485,7 +485,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             </span>
                             <Badge
                               variant="outline"
-                              className="text-[10px] font-mono border-teal-500/30 text-teal-400"
+                              className="text-[10px] font-mono border-primary/30 text-primary"
                             >
                               {formula.strokes.length} stroke
                               {formula.strokes.length === 1 ? '' : 's'}
@@ -528,7 +528,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between border-b border-border/40 pb-2">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
                         Long Note Formulas (≥ Quarter Note / Tied Notes)
                       </h3>
                       <p className="text-[11px] text-muted-foreground">
@@ -539,7 +539,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => handleOpenNewFormula('long')}
-                      className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white gap-1"
+                      className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1"
                     >
                       <Plus className="w-3 h-3" /> New Long Formula
                     </Button>
@@ -549,7 +549,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                     {longFormulas.map((formula) => (
                       <div
                         key={formula.id}
-                        className="bg-card/70 border border-border/70 rounded-xl p-3 flex flex-col justify-between gap-2.5"
+                        className="bg-card/70 border border-border/70 rounded-none p-3 flex flex-col justify-between gap-2.5"
                       >
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center justify-between">
@@ -558,7 +558,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             </span>
                             <Badge
                               variant="outline"
-                              className="text-[10px] font-mono border-rose-500/30 text-rose-400"
+                              className="text-[10px] font-mono border-primary/30 text-primary"
                             >
                               {formula.strokes.length} stroke
                               {formula.strokes.length === 1 ? '' : 's'}

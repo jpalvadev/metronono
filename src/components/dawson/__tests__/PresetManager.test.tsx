@@ -23,6 +23,61 @@ describe('PresetManager Component', () => {
     mockOnClose = vi.fn();
   });
 
+  it('renders the modal entirely through token roles (one style)', () => {
+    presetManager.saveSystem({
+      id: 'custom_styled',
+      name: 'Styled Custom System',
+      shortFormula: presetManager.getFormula('single_snare')!,
+      longFormula: presetManager.getFormula('single_kick')!,
+      ostinatoId: 'jazz_swing',
+    });
+
+    render(
+      <PresetManager
+        open={true}
+        onClose={mockOnClose}
+        presetManager={presetManager}
+        activeSystemId="classic_bop"
+        onSelectSystem={mockOnSelectSystem}
+        player={mockPlayer}
+      />
+    );
+
+    // Shared Modal Scrim replaces the per-modal scrim literal
+    const scrim = document.body.querySelectorAll('[class*="modal-scrim"]')[0];
+    expect(scrim).toBeDefined();
+    expect(scrim).toHaveClass('modal-scrim');
+    expect(scrim.className.includes('bg-black')).toBe(false);
+
+    // Active tab is Accent
+    const activeTabBtn = screen.getByRole('button', { name: /Interpretation Systems/ });
+    expect(activeTabBtn).toHaveClass('border-primary');
+    expect(activeTabBtn).toHaveClass('text-primary');
+
+    // Apply action is Accent-filled, Delete action is Destructive
+    const applyBtn = screen.getByTestId('apply-system-tony_williams_flr');
+    expect(applyBtn).toHaveClass('bg-primary');
+    expect(applyBtn).toHaveClass('text-primary-foreground');
+    const deleteBtn = screen.getByTestId('delete-system-custom_styled');
+    expect(deleteBtn).toHaveClass('text-destructive');
+    expect(deleteBtn).toHaveClass('hover:bg-destructive/10');
+
+    // Active system chip: Accent ring; Custom badge: Warning attention token
+    const activeCard = document.body.querySelectorAll('[class*="ring-primary"]')[0];
+    expect(activeCard).toBeDefined();
+    expect(activeCard).toHaveClass('bg-primary/10');
+    expect(activeCard).toHaveClass('border-primary/60');
+    const customBadge = screen.getByText(/^Custom$/);
+    expect(customBadge).toHaveClass('border-warning/40');
+    expect(customBadge).toHaveClass('text-warning');
+
+    // Geometry: the app standard is square corners (rounded-none)
+    const rawPalette = /(?:teal|rose|emerald|amber|slate)-\d|bg-black|bg-white|text-white|dark:|rounded-(xl|lg)/;
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(rawPalette.test(el.className)).toBe(false);
+    }
+  });
+
   it('renders default Dawson Systems and formula library', () => {
     render(
       <PresetManager

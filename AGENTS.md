@@ -10,15 +10,15 @@ When a skill (implement-spec, code-review) orchestrates subagents/worktrees, run
 
 Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, `Select-String`, `Remove-Item`); the grep/glob tools cover content search, so reach for the shell only for test/build runs and file ops.
 
+Sweep the repo for style drift with `npm run check:style` and read the theme's token budget with `npm run check:tokens`; hand-built PowerShell regex sweeps fight the harness's command scanner and the old PowerShell parser.
+
 In `npm run check` output, jsdom `Error: Not implemented: navigation` and React `act()` warnings are benign test noise — trust the pass summary and exit code, don't chase them.
 
 ## Agent skills
 
 ### Issue tracker
 
-Local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
-
-`PENDING.md` at the repo root holds carry-over tickets, one line each; a done item `[ x ]` records its root cause inline, and full specs plus tracer-bullet tickets for a feature live under `.scratch/<feature>/` (`spec.md` + `issues/`).
+Specs, tracer-bullet tickets, and the repo-root `PENDING.md` carry-over list. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

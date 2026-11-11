@@ -10,6 +10,10 @@ Issues and specs for this repo live as markdown files in `.scratch/`.
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
+## Carry-over tickets
+
+`PENDING.md` at the repo root holds the user-reported bugs and requests that no feature spec covers yet, one line each: `- N [ ] text`. A done item is `- N [ x ] text` with its root cause recorded inline in parentheses, so a future agent can tell what was really wrong. `/triage` starts from the open (`[ ]`) lines; a line only moves to `[ x ]` once its fix is on a branch.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).

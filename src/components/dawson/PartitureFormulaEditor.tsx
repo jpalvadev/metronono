@@ -168,6 +168,16 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
                 key={voice}
                 type="button"
                 disabled={readOnly}
+                draggable={!readOnly}
+                onDragStart={(e) => {
+                  const payload = JSON.stringify({
+                    type: 'drum-voice',
+                    voice,
+                    dynamic: selectedDynamic,
+                  });
+                  e.dataTransfer.setData('application/json', payload);
+                  e.dataTransfer.setData('text/plain', payload);
+                }}
                 onClick={() => {
                   setActiveVoice(voice);
                   if (player) {
@@ -175,11 +185,12 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
                   }
                 }}
                 className={cn(
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-1 border',
+                  'cursor-grab active:cursor-grabbing px-2 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-1 border',
                   activeVoice === voice
                     ? 'bg-teal-600 text-white font-semibold border-teal-500 shadow-xs'
                     : 'bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/80'
                 )}
+                title={`Select or drag ${label} onto any slot on the staff`}
               >
                 <span>{label}</span>
                 <span className="text-[9px] opacity-75 font-mono">({badge})</span>

@@ -122,20 +122,30 @@ export function getSlotLabels(totalSlots: number, slotDuration: number, _targetB
     const subOffset = beatOffset - Math.floor(beatOffset);
 
     if (Math.abs(slotDuration - 0.25) < 0.03) {
-      // 16th note subdivision: 1, e, &, a
+      // 16th note subdivision (4 per beat): 1, e, &, a
       const step4 = Math.round(subOffset * 4);
       const names = [`${beatNum}`, 'e', '&', 'a'];
       labels.push(names[step4 % 4] || `${s + 1}`);
     } else if (Math.abs(slotDuration - 0.5) < 0.05) {
-      // 8th note subdivision: 1, &
+      // 8th note subdivision (2 per beat): 1, &
       const step2 = Math.round(subOffset * 2);
       const names = [`${beatNum}`, '&'];
       labels.push(names[step2 % 2] || `${s + 1}`);
-    } else if (Math.abs(slotDuration - 1 / 3) < 0.03 || Math.abs(slotDuration - 1 / 6) < 0.02) {
-      // Triplet subdivision: 1, trip, let
+    } else if (Math.abs(slotDuration - 1 / 6) < 0.02) {
+      // 16th note triplet (sextuplet, 6 per beat): 1, trip, let, &, trip, let
+      const step6 = Math.round(subOffset * 6);
+      const names = [`${beatNum}`, 'trip', 'let', '&', 'trip', 'let'];
+      labels.push(names[step6 % 6] || `${s + 1}`);
+    } else if (Math.abs(slotDuration - 1 / 3) < 0.03) {
+      // 8th note triplet (3 per beat): 1, trip, let
       const step3 = Math.round(subOffset * 3);
       const names = [`${beatNum}`, 'trip', 'let'];
       labels.push(names[step3 % 3] || `${s + 1}`);
+    } else if (Math.abs(slotDuration - 0.125) < 0.02) {
+      // 32nd note subdivision (8 per beat)
+      const step8 = Math.round(subOffset * 8);
+      const names = [`${beatNum}`, 'e', '&', 'a', `${beatNum}`, 'e', '&', 'a'];
+      labels.push(names[step8 % 8] || `${s + 1}`);
     } else {
       labels.push(`${s + 1}`);
     }
@@ -182,26 +192,28 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
 
   // Dragging state
   const [dragGuide, setDragGuide] = useState<DragGuideState | null>(null);
-  const dragStateRef = useRef<{
+  const dragRef = useRef<{
+    isTracking: boolean;
     isDragging: boolean;
-    strokeIndex: number;
-    initialVoice: DrumVoice | null;
+    startX: number;
+    startY: number;
+    sourceSlotIndex: number;
+    sourceVoice: DrumVoice | null;
     currentVoice: DrumVoice | null;
     lastSoundedVoice: DrumVoice | null;
+    targetSlotIndex: number;
     isOffStave: boolean;
-    initialBeat: number;
-    currentBeat: number;
-    hasMoved: boolean;
   }>({
+    isTracking: false,
     isDragging: false,
-    strokeIndex: -1,
-    initialVoice: null,
+    startX: 0,
+    startY: 0,
+    sourceSlotIndex: -1,
+    sourceVoice: null,
     currentVoice: null,
     lastSoundedVoice: null,
+    targetSlotIndex: -1,
     isOffStave: false,
-    initialBeat: 0,
-    currentBeat: 0,
-    hasMoved: false,
   });
 
   const getEventCoords = useCallback(
@@ -253,7 +265,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
 
   // Track hover over slot and voice line
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (readOnly || !containerRef.current || !layoutRef.current || dragStateRef.current.isDragging) {
+    if (readOnly || !containerRef.current || !layoutRef.current || dragRef.current.isDragging) {
       if (hoverSlot) setHoverSlot(null);
       return;
     }
@@ -275,8 +287,8 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
   // Click-to-stamp handler (only if not dragging)
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !containerRef.current || !layoutRef.current) return;
-    if (dragStateRef.current.hasMoved) {
-      dragStateRef.current.hasMoved = false;
+    if (dragRef.current.isDragging) {
+      dragRef.current.isDragging = false;
       return;
     }
 
@@ -387,7 +399,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     setDragGuide(null);
     if (readOnly || !containerRef.current || !layoutRef.current) return;
 
-    let payload: { type?: string; durationRatio?: number; dynamic?: Dynamic } | null = null;
+    let payload: { type?: string; durationRatio?: number; dynamic?: Dynamic; voice?: DrumVoice } | null = null;
     try {
       const raw =
         e.dataTransfer?.getData('application/json') ||
@@ -400,7 +412,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const dynamic = payload?.dynamic || selectedDynamic;
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
-    const drumVoice = layout.getDrumVoiceForY(y) || 'snare';
+    const drumVoice = layout.getDrumVoiceForY(y) || payload?.voice || 'snare';
 
     const startX = layout.stave.getNoteStartX();
     const endX = layout.stave.getNoteEndX();
@@ -416,157 +428,171 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const targetSlot = slots[slotIndex];
     if (!targetSlot) return;
 
-    if (targetSlot.isRest || targetSlot.hits.length === 0) {
-      targetSlot.hits = [{ voice: drumVoice, dynamic }];
-      targetSlot.isRest = false;
+    targetSlot.isRest = false;
+    const existingIdx = targetSlot.hits.findIndex((h) => h.voice === drumVoice);
+    if (existingIdx >= 0) {
+      targetSlot.hits[existingIdx] = { voice: drumVoice, dynamic };
     } else {
-      const existingIdx = targetSlot.hits.findIndex((h) => h.voice === drumVoice);
-      if (existingIdx >= 0) {
-        targetSlot.hits[existingIdx] = { voice: drumVoice, dynamic };
-      } else {
-        targetSlot.hits.push({ voice: drumVoice, dynamic });
-      }
+      targetSlot.hits.push({ voice: drumVoice, dynamic });
     }
 
     onChangeStrokes(slotsToStrokes(slots));
   };
 
-  // Pointer drag gestures for existing notes (transposition & horizontal shifts)
+  // Pointer drag gestures for existing notes (transposition & horizontal slot shifts)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly || !containerRef.current || !layoutRef.current) return;
 
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
-    const beatOffset = layout.getBeatOffsetForX(x, targetBeats);
-    const resolved = resolveStrokeOffsets(strokes, 0);
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const noteWidth = Math.max(10, endX - startX);
+    const slotWidth = noteWidth / totalSlots;
+    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
 
-    let foundIndex = -1;
-    for (let i = 0; i < resolved.length; i++) {
-      const { stroke, offset } = resolved[i];
-      if (beatOffset >= offset - 0.15 && beatOffset < offset + stroke.durationRatio + 0.15) {
-        foundIndex = i;
-        break;
-      }
-    }
+    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
+    const slot = slots[slotIndex];
 
-    if (foundIndex !== -1 && !strokes[foundIndex].isRest) {
-      const stroke = strokes[foundIndex];
-      const initialVoice = stroke.hits && stroke.hits.length > 0 ? stroke.hits[0].voice : null;
-
-      dragStateRef.current = {
-        isDragging: true,
-        strokeIndex: foundIndex,
-        initialVoice,
-        currentVoice: initialVoice,
-        lastSoundedVoice: initialVoice,
-        isOffStave: false,
-        initialBeat: resolved[foundIndex].offset,
-        currentBeat: resolved[foundIndex].offset,
-        hasMoved: false,
-      };
-
-      setDragGuide({
-        x,
-        y,
-        voice: initialVoice,
-        isOffStave: false,
+    if (slot && !slot.isRest && slot.hits && slot.hits.length > 0) {
+      // Find the hit closest to clicked Y
+      let closestVoice = slot.hits[0].voice;
+      let minDiff = Infinity;
+      slot.hits.forEach((h) => {
+        const pas = DRUM_VOICE_PAS_MAP[h.voice];
+        const lineY = pas ? layout.stave.getYForLine(pas.line) : y;
+        const diff = Math.abs(lineY - y);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestVoice = h.voice;
+        }
       });
+
+      dragRef.current = {
+        isTracking: true,
+        isDragging: false,
+        startX: x,
+        startY: y,
+        sourceSlotIndex: slotIndex,
+        sourceVoice: closestVoice,
+        currentVoice: closestVoice,
+        lastSoundedVoice: closestVoice,
+        targetSlotIndex: slotIndex,
+        isOffStave: false,
+      };
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragStateRef.current.isDragging || !containerRef.current || !layoutRef.current) return;
+    if (!dragRef.current.isTracking || !containerRef.current || !layoutRef.current) return;
 
-    dragStateRef.current.hasMoved = true;
     const { x, y } = getEventCoords(e);
+    const state = dragRef.current;
+
+    // Movement threshold to initiate drag
+    if (!state.isDragging) {
+      if (Math.hypot(x - state.startX, y - state.startY) > 5) {
+        state.isDragging = true;
+      } else {
+        return;
+      }
+    }
+
     const layout = layoutRef.current;
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const noteWidth = Math.max(10, endX - startX);
+    const slotWidth = noteWidth / totalSlots;
+    const targetSlot = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
 
     const isOffStave = y < -20 || y > height + 20;
     const currentVoice = layout.getDrumVoiceForY(y);
-    const beatOffset = layout.getBeatOffsetForX(x, targetBeats);
-    const snappedBeat = Math.round(beatOffset / selectedDuration) * selectedDuration;
 
-    // Trigger one-shot audio on line crossing
-    if (
-      !isOffStave &&
-      currentVoice &&
-      currentVoice !== dragStateRef.current.lastSoundedVoice
-    ) {
+    if (!isOffStave && currentVoice && currentVoice !== state.lastSoundedVoice) {
       if (player) {
         player.triggerVoice(currentVoice, 0, dynamicToVelocity(selectedDynamic), 'orchestration');
       }
-      dragStateRef.current.lastSoundedVoice = currentVoice;
+      state.lastSoundedVoice = currentVoice;
     }
 
-    dragStateRef.current.currentVoice = currentVoice;
-    dragStateRef.current.isOffStave = isOffStave;
-    dragStateRef.current.currentBeat = snappedBeat;
+    state.currentVoice = currentVoice;
+    state.targetSlotIndex = targetSlot;
+    state.isOffStave = isOffStave;
 
+    const snappedX = startX + (targetSlot + 0.5) * slotWidth;
     setDragGuide({
-      x,
+      x: snappedX,
       y,
       voice: currentVoice,
+      slotLabel: slotLabels[targetSlot],
       isOffStave,
     });
   };
 
   const handlePointerUp = () => {
-    if (!dragStateRef.current.isDragging) return;
+    if (!dragRef.current.isTracking) return;
 
     const {
-      strokeIndex,
+      isDragging,
+      sourceSlotIndex,
+      sourceVoice,
       currentVoice,
+      targetSlotIndex,
       isOffStave,
-      hasMoved,
-      initialBeat,
-      currentBeat,
-    } = dragStateRef.current;
+    } = dragRef.current;
 
-    dragStateRef.current.isDragging = false;
+    dragRef.current = {
+      isTracking: false,
+      isDragging: false,
+      startX: 0,
+      startY: 0,
+      sourceSlotIndex: -1,
+      sourceVoice: null,
+      currentVoice: null,
+      lastSoundedVoice: null,
+      targetSlotIndex: -1,
+      isOffStave: false,
+    };
     setDragGuide(null);
 
-    if (!hasMoved || strokeIndex === -1 || strokeIndex >= strokes.length) return;
+    // If it was just a click (movement < 5px), let handleClick handle it
+    if (!isDragging || sourceSlotIndex === -1 || !sourceVoice) return;
+
+    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
+    const srcSlot = slots[sourceSlotIndex];
+    if (!srcSlot) return;
 
     if (isOffStave) {
-      // Drag-off removal: convert to rest or remove
-      const stroke = strokes[strokeIndex];
-      if (stroke.hits && stroke.hits.length > 1) {
-        const remaining = stroke.hits.slice(1);
-        onChangeStrokes(
-          strokes.map((s, i) => (i === strokeIndex ? { ...s, hits: remaining } : s))
-        );
-      } else {
-        onChangeStrokes(
-          strokes.map((s, i) => (i === strokeIndex ? { ...s, isRest: true, hits: [] } : s))
-        );
+      // Remove the dragged voice from source slot
+      srcSlot.hits = srcSlot.hits.filter((h) => h.voice !== sourceVoice);
+      if (srcSlot.hits.length === 0) {
+        srcSlot.isRest = true;
       }
+      onChangeStrokes(slotsToStrokes(slots));
       return;
     }
 
-    // Update note with transposition or metric shift
-    const stroke = strokes[strokeIndex];
-    let hits = stroke.hits ? [...stroke.hits] : [];
+    const dstSlot = slots[targetSlotIndex];
+    if (!dstSlot) return;
 
-    if (currentVoice && hits.length > 0) {
-      hits = [{ ...hits[0], voice: currentVoice }, ...hits.slice(1)];
-    }
+    const finalVoice = currentVoice || sourceVoice;
 
-    let updated = strokes.map((s, i) =>
-      i === strokeIndex ? { ...s, hits } : s
-    );
-
-    // If horizontal shift occurred, reorder strokes
-    if (Math.abs(currentBeat - initialBeat) >= 0.05) {
-      const movedStroke = { ...updated[strokeIndex] };
-      const otherStrokes = updated.filter((_, i) => i !== strokeIndex);
-      if (currentBeat > initialBeat) {
-        updated = [...otherStrokes, movedStroke];
-      } else {
-        updated = [movedStroke, ...otherStrokes];
+    // If moved to a different slot or different voice
+    if (targetSlotIndex !== sourceSlotIndex || finalVoice !== sourceVoice) {
+      // Remove from source slot
+      srcSlot.hits = srcSlot.hits.filter((h) => h.voice !== sourceVoice);
+      if (srcSlot.hits.length === 0) {
+        srcSlot.isRest = true;
       }
-    }
 
-    onChangeStrokes(updated);
+      // Add to target slot
+      dstSlot.isRest = false;
+      const existing = dstSlot.hits.findIndex((h) => h.voice === finalVoice);
+      if (existing === -1) {
+        dstSlot.hits.push({ voice: finalVoice, dynamic: selectedDynamic });
+      }
+      onChangeStrokes(slotsToStrokes(slots));
+    }
   };
 
   return (

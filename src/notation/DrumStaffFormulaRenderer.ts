@@ -5,6 +5,7 @@ import VexFlow, {
   Voice,
   Formatter,
   Beam,
+  Tuplet,
   Stem,
   Articulation,
 } from 'vexflow';
@@ -37,6 +38,7 @@ export interface DrumStaffFormulaLayout {
   voice1Notes: StaveNote[];
   voice2Notes: StaveNote[];
   beams: Beam[];
+  tuplets?: Tuplet[];
   strokeCoordinates: FormulaStrokeCoordinate[];
   getDrumVoiceForY(y: number): DrumVoice | null;
   getStepForX(x: number, gridResolution?: number): number;
@@ -217,6 +219,85 @@ export class DrumStaffFormulaRenderer {
       }
     }
 
+    // Build stroke offsets first so we can detect tuplets and group beams by beat
+    const strokeOffsets = resolveStrokeOffsets(effectiveStrokes, 0);
+
+    // Identify tuplet beats and attach Tuplet instances BEFORE formatting voices
+    const tupletsToDraw: Tuplet[] = [];
+    const allTuplets: Tuplet[] = [];
+    const tupletBeats = new Set<number>();
+
+    const totalBeatCount = Math.max(1, Math.ceil(targetBeats));
+    for (let b = 0; b < totalBeatCount; b++) {
+      const beatIndices: number[] = [];
+      for (let i = 0; i < effectiveStrokes.length; i++) {
+        const off = strokeOffsets[i]?.offset ?? 0;
+        if (off >= b - 0.005 && off < b + 1.0 - 0.005) {
+          beatIndices.push(i);
+        }
+      }
+
+      // Check for 16th triplets / sextuplets (6 per beat)
+      const isSextuplet =
+        beatIndices.length === 6 &&
+        beatIndices.every((i) => Math.abs(effectiveStrokes[i].durationRatio - 1 / 6) < 0.02);
+
+      // Check for 8th triplets (3 per beat)
+      const isTriplet8th =
+        beatIndices.length === 3 &&
+        beatIndices.every((i) => Math.abs(effectiveStrokes[i].durationRatio - 1 / 3) < 0.03);
+
+      if (isSextuplet || isTriplet8th) {
+        tupletBeats.add(b);
+        const numNotes = isSextuplet ? 6 : 3;
+        const notesOccupied = isSextuplet ? 4 : 2;
+
+        const v1BeatNotes = beatIndices.map((i) => voice1Notes[i]).filter(Boolean);
+        const v2BeatNotes =
+          hasFeetHits && voice2Notes.length > 0
+            ? beatIndices.map((i) => voice2Notes[i]).filter(Boolean)
+            : [];
+
+        let v1Tuplet: Tuplet | null = null;
+        let v2Tuplet: Tuplet | null = null;
+
+        if (v1BeatNotes.length === numNotes) {
+          v1Tuplet = new Tuplet(v1BeatNotes, { numNotes, notesOccupied });
+          v1Tuplet.setTupletLocation(Tuplet.LOCATION_TOP);
+          allTuplets.push(v1Tuplet);
+        }
+        if (v2BeatNotes.length === numNotes) {
+          v2Tuplet = new Tuplet(v2BeatNotes, { numNotes, notesOccupied });
+          v2Tuplet.setTupletLocation(Tuplet.LOCATION_BOTTOM);
+          allTuplets.push(v2Tuplet);
+        }
+
+        // Determine which tuplet bracket to draw (prefer top unless only Voice 2 has sound)
+        const v1HasSound = beatIndices.some(
+          (i) =>
+            !effectiveStrokes[i].isRest &&
+            effectiveStrokes[i].hits.some(
+              (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1
+            )
+        );
+        const v2HasSound = beatIndices.some(
+          (i) =>
+            !effectiveStrokes[i].isRest &&
+            effectiveStrokes[i].hits.some(
+              (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2
+            )
+        );
+
+        if (v1Tuplet && (v1HasSound || !v2HasSound)) {
+          tupletsToDraw.push(v1Tuplet);
+        } else if (v2Tuplet && v2HasSound) {
+          tupletsToDraw.push(v2Tuplet);
+        } else if (v1Tuplet) {
+          tupletsToDraw.push(v1Tuplet);
+        }
+      }
+    }
+
     // Format voices into stave
     const formatter = new Formatter();
     const voicesToFormat: Voice[] = [];
@@ -237,63 +318,75 @@ export class DrumStaffFormulaRenderer {
     const availableWidth = stave.getNoteEndX() - stave.getNoteStartX();
     formatter.joinVoices(voicesToFormat).format(voicesToFormat, availableWidth);
 
-    // Build stroke offsets first so we can group beams by beat
-    const strokeOffsets = resolveStrokeOffsets(effectiveStrokes, 0);
-
     // Generate beams for rapid subdivisions BEFORE drawing voices
-    // In VexFlow, Beam.generateBeams attaches note.beam so the note knows NOT to render individual flags
     const beams: Beam[] = [];
     try {
-      // Group Voice 1 beamable notes by beat bucket
-      const v1BeatGroups = new Map<number, StaveNote[]>();
-      for (let i = 0; i < voice1Notes.length; i++) {
-        const n = voice1Notes[i];
-        if (n && !n.isRest()) {
-          const dur = n.getDuration();
-          if (dur === '8' || dur === '16' || dur === '32') {
-            const offset = strokeOffsets[i]?.offset ?? 0;
-            const beatBucket = Math.floor(offset / 1.0);
-            if (!v1BeatGroups.has(beatBucket)) v1BeatGroups.set(beatBucket, []);
-            v1BeatGroups.get(beatBucket)!.push(n);
+      for (let b = 0; b < totalBeatCount; b++) {
+        const beatIndices: number[] = [];
+        for (let i = 0; i < effectiveStrokes.length; i++) {
+          const off = strokeOffsets[i]?.offset ?? 0;
+          if (off >= b - 0.005 && off < b + 1.0 - 0.005) {
+            beatIndices.push(i);
           }
         }
-      }
 
-      v1BeatGroups.forEach((group) => {
-        if (group.length > 1) {
-          const v1Beams = Beam.generateBeams(group, {
-            stemDirection: Stem.UP,
-            beamRests: false,
-          });
-          beams.push(...v1Beams);
-        }
-      });
+        if (tupletBeats.has(b)) {
+          // Tuplets: beam ALL non-rest sounding notes in the beat together under one continuous beam
+          const v1Sounding = beatIndices
+            .map((i) => voice1Notes[i])
+            .filter((n) => n && !n.isRest());
+          if (v1Sounding.length > 1) {
+            beams.push(new Beam(v1Sounding));
+          }
 
-      if (hasFeetHits && voice2Notes.length > 0) {
-        // Group Voice 2 beamable notes by beat bucket
-        const v2BeatGroups = new Map<number, StaveNote[]>();
-        for (let i = 0; i < voice2Notes.length; i++) {
-          const n = voice2Notes[i];
-          if (n && !n.isRest()) {
-            const dur = n.getDuration();
-            if (dur === '8' || dur === '16' || dur === '32') {
-              const offset = strokeOffsets[i]?.offset ?? 0;
-              const beatBucket = Math.floor(offset / 1.0);
-              if (!v2BeatGroups.has(beatBucket)) v2BeatGroups.set(beatBucket, []);
-              v2BeatGroups.get(beatBucket)!.push(n);
+          if (hasFeetHits && voice2Notes.length > 0) {
+            const v2Sounding = beatIndices
+              .map((i) => voice2Notes[i])
+              .filter((n) => n && !n.isRest());
+            if (v2Sounding.length > 1) {
+              beams.push(new Beam(v2Sounding));
+            }
+          }
+        } else {
+          // Regular subdivisions (16ths, 32nds, 8ths)
+          const v1NotesInBeat = beatIndices
+            .map((i) => voice1Notes[i])
+            .filter(
+              (n) =>
+                n &&
+                !n.isRest() &&
+                (n.getDuration() === '8' ||
+                  n.getDuration() === '16' ||
+                  n.getDuration() === '32')
+            );
+          if (v1NotesInBeat.length > 1) {
+            const v1Beams = Beam.generateBeams(v1NotesInBeat, {
+              stemDirection: Stem.UP,
+              beamRests: false,
+            });
+            beams.push(...v1Beams);
+          }
+
+          if (hasFeetHits && voice2Notes.length > 0) {
+            const v2NotesInBeat = beatIndices
+              .map((i) => voice2Notes[i])
+              .filter(
+                (n) =>
+                  n &&
+                  !n.isRest() &&
+                  (n.getDuration() === '8' ||
+                    n.getDuration() === '16' ||
+                    n.getDuration() === '32')
+              );
+            if (v2NotesInBeat.length > 1) {
+              const v2Beams = Beam.generateBeams(v2NotesInBeat, {
+                stemDirection: Stem.DOWN,
+                beamRests: false,
+              });
+              beams.push(...v2Beams);
             }
           }
         }
-
-        v2BeatGroups.forEach((group) => {
-          if (group.length > 1) {
-            const v2Beams = Beam.generateBeams(group, {
-              stemDirection: Stem.DOWN,
-              beamRests: false,
-            });
-            beams.push(...v2Beams);
-          }
-        });
       }
     } catch {
       // Safe fallback if notes can't be auto-beamed
@@ -308,6 +401,15 @@ export class DrumStaffFormulaRenderer {
     // Draw beams onto context
     beams.forEach((b) => {
       b.setContext(context).draw();
+    });
+
+    // Draw tuplets onto context
+    tupletsToDraw.forEach((t) => {
+      try {
+        t.setContext(context).draw();
+      } catch {
+        // Safe fallback
+      }
     });
 
     // Re-enforce explicit stem directions after drawing / beaming
@@ -394,6 +496,7 @@ export class DrumStaffFormulaRenderer {
       voice1Notes,
       voice2Notes,
       beams,
+      tuplets: tupletsToDraw,
       strokeCoordinates,
       getDrumVoiceForY,
       getStepForX,

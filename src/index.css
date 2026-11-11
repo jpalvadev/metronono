@@ -1,82 +1,140 @@
+@import "tw-animate-css";
+@import "@fontsource-variable/montserrat";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 285 25% 4%;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0.008 326);
 
-    --card: 0 0% 100%;
-    --card-foreground: 285 25% 4%;
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0.008 326);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 285 25% 4%;
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0.008 326);
 
-    --primary: 177 100% 19%;
-    --primary-foreground: 0 0% 100%;
+    --primary: oklch(0.511 0.096 186.391);
+    --primary-foreground: oklch(0.984 0.014 180.72);
 
-    --secondary: 285 10% 96%;
-    --secondary-foreground: 285 25% 4%;
+    --secondary: oklch(0.967 0.001 286.375);
+    --secondary-foreground: oklch(0.21 0.006 285.885);
 
-    --muted: 285 10% 93%;
-    --muted-foreground: 285 8% 45%;
+    --muted: oklch(0.96 0.003 325.6);
+    --muted-foreground: oklch(0.542 0.034 322.5);
 
-    --accent: 174 100% 37%;
-    --accent-foreground: 0 0% 100%;
+    --accent: oklch(0.96 0.003 325.6);
+    --accent-foreground: oklch(0.212 0.019 322.12);
 
-    --destructive: 357 100% 45%;
+    --destructive: oklch(0.577 0.245 27.325);
     --destructive-foreground: 0 0% 98%;
 
-    --border: 285 10% 88%;
-    --input: 285 10% 88%;
-    --ring: 174 100% 37%;
+    --border: oklch(0.922 0.005 325.62);
+    --input: oklch(0.922 0.005 325.62);
+    --ring: oklch(0.711 0.019 323.02);
 
-    --radius: 0px;
+    --radius: 0.625rem;
+
+    --chart-1: oklch(0.855 0.138 181.071);
+
+    --chart-2: oklch(0.704 0.14 182.503);
+
+    --chart-3: oklch(0.6 0.118 184.704);
+
+    --chart-4: oklch(0.511 0.096 186.391);
+
+    --chart-5: oklch(0.437 0.078 188.216);
+
+    --sidebar: oklch(0.985 0 0);
+
+    --sidebar-foreground: oklch(0.145 0.008 326);
+
+    --sidebar-primary: oklch(0.6 0.118 184.704);
+
+    --sidebar-primary-foreground: oklch(0.984 0.014 180.72);
+
+    --sidebar-accent: oklch(0.96 0.003 325.6);
+
+    --sidebar-accent-foreground: oklch(0.212 0.019 322.12);
+
+    --sidebar-border: oklch(0.922 0.005 325.62);
+
+    --sidebar-ring: oklch(0.711 0.019 323.02);
   }
 
   .dark {
     /* Exact Lyra Mauve Dark & Teal Theme from preset b5dMVCPy4 */
-    --background: 285 25% 4%;       /* #0c070d Deep Mauve Charcoal */
-    --foreground: 0 0% 98%;          /* #fafafa Crisp Off-White */
+    --background: oklch(0.145 0.008 326);       /* #0c070d Deep Mauve Charcoal */
+    --foreground: oklch(0.985 0 0);          /* #fafafa Crisp Off-White */
 
-    --card: 285 13% 10%;             /* #1a171e Solid Dark Mauve Card */
-    --card-foreground: 0 0% 98%;
+    --card: oklch(0.212 0.019 322.12);             /* #1a171e Solid Dark Mauve Card */
+    --card-foreground: oklch(0.985 0 0);
 
-    --popover: 285 13% 10%;
-    --popover-foreground: 0 0% 98%;
+    --popover: oklch(0.212 0.019 322.12);
+    --popover-foreground: oklch(0.985 0 0);
 
     /* Primary Button Teal (#005f5b) */
-    --primary: 177 100% 19%;
-    --primary-foreground: 0 0% 100%;
+    --primary: oklch(0.437 0.078 188.216);
+    --primary-foreground: oklch(0.984 0.014 180.72);
 
     /* Vibrant Accent Teal (#00bba8) for indicators, active tabs, highlights */
-    --accent: 174 100% 37%;
-    --accent-foreground: 0 0% 100%;
+    --accent: oklch(0.263 0.024 320.12);
+    --accent-foreground: oklch(0.985 0 0);
 
-    --secondary: 285 10% 15%;        /* #242028 */
-    --secondary-foreground: 0 0% 98%;
+    --secondary: oklch(0.274 0.006 286.033);        /* #242028 */
+    --secondary-foreground: oklch(0.985 0 0);
 
-    --muted: 285 10% 13%;            /* #1e1b23 */
-    --muted-foreground: 285 8% 60%;  /* #9f97a5 */
+    --muted: oklch(0.263 0.024 320.12);            /* #1e1b23 */
+    --muted-foreground: oklch(0.711 0.019 323.02);  /* #9f97a5 */
 
-    --destructive: 359 100% 70%;
+    --destructive: oklch(0.704 0.191 22.216);
     --destructive-foreground: 0 0% 98%;
 
-    --border: 285 10% 16%;           /* #252028 Crisp Hairline Border */
-    --input: 285 10% 18%;
-    --ring: 174 100% 37%;
+    --border: oklch(1 0 0 / 10%);           /* #252028 Crisp Hairline Border */
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.542 0.034 322.5);
 
     --radius: 0px;
-  }
-}
 
-@layer base {
+    --chart-1: oklch(0.855 0.138 181.071);
+
+    --chart-2: oklch(0.704 0.14 182.503);
+
+    --chart-3: oklch(0.6 0.118 184.704);
+
+    --chart-4: oklch(0.511 0.096 186.391);
+
+    --chart-5: oklch(0.437 0.078 188.216);
+
+    --sidebar: oklch(0.212 0.019 322.12);
+
+    --sidebar-foreground: oklch(0.985 0 0);
+
+    --sidebar-primary: oklch(0.704 0.14 182.503);
+
+    --sidebar-primary-foreground: oklch(0.277 0.046 192.524);
+
+    --sidebar-accent: oklch(0.263 0.024 320.12);
+
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+
+    --sidebar-border: oklch(1 0 0 / 10%);
+
+    --sidebar-ring: oklch(0.542 0.034 322.5);
+  }
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Montserrat Variable', sans-serif;
+  }
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
@@ -84,7 +142,7 @@
 input[type="range"].lyra-slider {
   -webkit-appearance: none;
   appearance: none;
-  background: hsl(var(--secondary));
+  background: var(--secondary);
   height: 4px;
   border-radius: 0;
   outline: none;
@@ -95,24 +153,24 @@ input[type="range"].lyra-slider::-webkit-slider-thumb {
   width: 12px;
   height: 12px;
   background: #ffffff;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 input[type="range"].lyra-slider::-webkit-slider-thumb:hover {
-  background: hsl(var(--accent));
+  background: var(--accent);
 }
 input[type="range"].lyra-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
   background: #ffffff;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0;
   cursor: pointer;
 }
 input[type="range"].lyra-slider::-moz-range-thumb:hover {
-  background: hsl(var(--accent));
+  background: var(--accent);
 }
 
 /* Invert VexFlow black notation to crisp white in dark mode */

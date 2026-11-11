@@ -209,11 +209,11 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   const tierBadgeColor = useMemo(() => {
     switch (readingLine.tier) {
       case 1:
-        return 'border-emerald-500/40 text-emerald-400 bg-emerald-950/20';
+        return 'border-success/40 text-success bg-success/20';
       case 2:
-        return 'border-amber-500/40 text-amber-400 bg-amber-950/20';
+        return 'border-warning/40 text-warning bg-warning/20';
       case 3:
-        return 'border-rose-500/40 text-rose-400 bg-rose-950/20';
+        return 'border-destructive/40 text-destructive bg-destructive/20';
     }
   }, [readingLine.tier]);
 

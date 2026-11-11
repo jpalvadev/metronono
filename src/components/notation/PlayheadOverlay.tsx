@@ -32,7 +32,7 @@ export const PlayheadOverlay: React.FC<PlayheadOverlayProps> = ({
       {showMeasureHighlight && activeMeasure && (
         <div
           data-testid="measure-highlight"
-          className="absolute rounded border border-teal-500/30 bg-teal-500/10 pointer-events-none transition-all duration-100 ease-out"
+          className="absolute rounded-none border border-primary/30 bg-primary/10 pointer-events-none transition-all duration-100 ease-out"
           style={{
             left: `${activeMeasure.x}px`,
             top: `${activeMeasure.y}px`,
@@ -45,7 +45,7 @@ export const PlayheadOverlay: React.FC<PlayheadOverlayProps> = ({
       {/* Vertical playhead cursor line */}
       <div
         data-testid="playhead-cursor"
-        className="absolute pointer-events-none w-1 -ml-0.5 rounded-full bg-teal-400 shadow-[0_0_12px_rgba(45,212,191,0.9)] z-20"
+        className="absolute pointer-events-none w-1 -ml-0.5 rounded-none bg-primary playhead-glow z-20"
         style={{
           left: `${position.x}px`,
           top: `${position.y}px`,
@@ -53,7 +53,7 @@ export const PlayheadOverlay: React.FC<PlayheadOverlayProps> = ({
         }}
       >
         {/* Top locator diamond */}
-        <div className="absolute -top-1.5 -left-1 w-3 h-3 bg-teal-300 rotate-45 rounded-[1px] shadow-sm" />
+        <div className="absolute -top-1.5 -left-1 w-3 h-3 bg-primary rotate-45 rounded-none shadow-sm" />
       </div>
     </div>
   );

@@ -58,6 +58,29 @@ describe('DrumStaffView', () => {
     };
   });
 
+  it('renders hover affordances with token roles only', () => {
+    const line = createDummyLine(2);
+    render(
+      <DrumStaffView
+        readingLine={line}
+        dawsonEngine={mockDawsonEngine}
+        scheduler={mockScheduler}
+      />
+    );
+
+    const clearBarBtn = screen.getByRole('button', { name: /Clear Bar/ });
+    expect(clearBarBtn).toHaveClass('hover:text-destructive');
+    expect(clearBarBtn).toHaveClass('hover:bg-destructive/20');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders 5-line drum staff container and SVG notation', () => {
     const line = createDummyLine(2);
     render(

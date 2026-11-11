@@ -40,6 +40,33 @@ describe('PlayheadOverlay', () => {
     expect(screen.queryByTestId('playhead-cursor')).toBeNull();
   });
 
+  it('renders the notation Playhead as Accent with the shared glow utility', () => {
+    render(
+      <PlayheadOverlay
+        position={mockPosition}
+        activeMeasure={mockMeasure}
+        isVisible={true}
+        showMeasureHighlight={true}
+      />
+    );
+
+    const cursor = screen.getByTestId('playhead-cursor');
+    expect(cursor).toHaveClass('bg-primary');
+    expect(cursor).toHaveClass('playhead-glow');
+    expect(cursor).toHaveClass('rounded-none');
+    const highlight = screen.getByTestId('measure-highlight');
+    expect(highlight).toHaveClass('bg-primary/10');
+    expect(highlight).toHaveClass('border-primary/30');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders cursor line at specified coordinates when visible', () => {
     render(
       <PlayheadOverlay position={mockPosition} isVisible={true} />

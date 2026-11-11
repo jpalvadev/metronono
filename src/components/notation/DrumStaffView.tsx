@@ -965,7 +965,7 @@ export const DrumStaffView: React.FC<DrumStaffViewProps> = ({
               variant="ghost"
               size="sm"
               onClick={handleClearMeasure}
-              className="h-6 px-2 text-[11px] text-muted-foreground hover:text-rose-400 hover:bg-rose-950/20 gap-1"
+              className="h-6 px-2 text-[11px] text-muted-foreground hover:text-destructive hover:bg-destructive/20 gap-1"
               title="Clear all drum notes in active measure"
             >
               <Trash2 className="w-3 h-3" />

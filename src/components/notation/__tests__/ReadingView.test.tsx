@@ -35,6 +35,24 @@ describe('ReadingView', () => {
     } as any;
   });
 
+  it('borrows the Status Colors for difficulty tier chips', () => {
+    const line = createDummyLine(2); // tier 1
+    render(<ReadingView readingLine={line} />);
+
+    const tierBadge = screen.getByText(/^Tier 1$/);
+    expect(tierBadge).toHaveClass('border-success/40');
+    expect(tierBadge).toHaveClass('text-success');
+    expect(tierBadge).toHaveClass('bg-success/20');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders score container and SVG notation for the reading line', () => {
     const line = createDummyLine(2);
     render(<ReadingView readingLine={line} />);

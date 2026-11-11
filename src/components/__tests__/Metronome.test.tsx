@@ -110,6 +110,21 @@ describe('Metronome Component', () => {
     mockScheduler = new ToneTransportScheduler();
   });
 
+  it('renders dropout states through the Warning token role', () => {
+    render(<Metronome scheduler={mockScheduler} />);
+
+    const warnings = document.body.querySelectorAll('[class*="text-warning"]');
+    expect(warnings.length).toBeGreaterThanOrEqual(1);
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders tempo display, time signature options, and controls', () => {
     render(<Metronome scheduler={mockScheduler} />);
 

@@ -240,7 +240,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             <p className="text-[11px] text-muted-foreground leading-snug">
               Shorts (≤ 8th) → <strong className="text-primary">Snare</strong>
               <br />
-              Longs (≥ Qtr) → <strong className="text-rose-400">Kick</strong>
+              Longs (≥ Qtr) → <strong className="text-destructive">Kick</strong>
             </p>
           </button>
 
@@ -262,7 +262,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               )}
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Shorts (≤ 8th) → <strong className="text-rose-400">Kick</strong>
+              Shorts (≤ 8th) → <strong className="text-destructive">Kick</strong>
               <br />
               Longs (≥ Qtr) → <strong className="text-primary">Snare</strong>
             </p>
@@ -289,7 +289,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               8th Hi-Hat Groove
               <br />
               Shorts → <strong className="text-primary">Snare</strong>, Longs →{' '}
-              <strong className="text-rose-400">Kick</strong>
+              <strong className="text-destructive">Kick</strong>
             </p>
           </button>
 
@@ -317,7 +317,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             <p className="text-[11px] text-muted-foreground leading-snug">
               Shorts → <strong className="text-primary">F-L-R Triplet</strong>
               <br />
-              Longs → <strong className="text-rose-400">Kick</strong>
+              Longs → <strong className="text-destructive">Kick</strong>
             </p>
           </button>
 
@@ -345,7 +345,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             <p className="text-[11px] text-muted-foreground leading-snug">
               Shorts → <strong className="text-primary">Snare</strong>
               <br />
-              Longs → <strong className="text-amber-500">Linear Diddle</strong>
+              Longs → <strong className="text-warning">Linear Diddle</strong>
             </p>
           </button>
         </div>
@@ -410,7 +410,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">
+                <span className="text-xs font-bold text-destructive uppercase tracking-wider">
                   Long Formula
                 </span>
                 <span className="text-xs font-semibold text-foreground">
@@ -441,7 +441,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               variant="ghost"
               size="sm"
               onClick={() => handleAuditionFormula(longFormula)}
-              className="h-6 px-2 text-[11px] text-rose-400 gap-1 rounded-none"
+              className="h-6 px-2 text-[11px] text-destructive gap-1 rounded-none"
             >
               <Play className="w-3 h-3 fill-current" /> Audition
             </Button>

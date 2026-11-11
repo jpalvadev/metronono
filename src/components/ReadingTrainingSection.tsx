@@ -171,7 +171,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                 size="sm"
                 className={cn(
                   'h-7 px-2.5 text-xs rounded-none',
-                  tier === 1 && 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/40 font-semibold'
+                  tier === 1 && 'bg-success/40 text-success border border-success/40 font-semibold'
                 )}
                 onClick={() => setTier(1)}
               >
@@ -182,7 +182,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                 size="sm"
                 className={cn(
                   'h-7 px-2.5 text-xs rounded-none',
-                  tier === 2 && 'bg-amber-950/40 text-amber-400 border border-amber-500/40 font-semibold'
+                  tier === 2 && 'bg-warning/40 text-warning border border-warning/40 font-semibold'
                 )}
                 onClick={() => setTier(2)}
               >
@@ -193,7 +193,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                 size="sm"
                 className={cn(
                   'h-7 px-2.5 text-xs rounded-none',
-                  tier === 3 && 'bg-rose-950/40 text-rose-400 border border-rose-500/40 font-semibold'
+                  tier === 3 && 'bg-destructive/40 text-destructive border border-destructive/40 font-semibold'
                 )}
                 onClick={() => setTier(3)}
               >

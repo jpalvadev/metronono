@@ -11,6 +11,23 @@ describe('ReadingTrainingSection', () => {
     } as any;
   });
 
+  it('borrows the Status Colors for difficulty tier chips', () => {
+    render(<ReadingTrainingSection />);
+
+    const tier1Btn = screen.getByRole('button', { name: /Tier 1/ });
+    expect(tier1Btn).toHaveClass('bg-success/40');
+    expect(tier1Btn).toHaveClass('text-success');
+    expect(tier1Btn).toHaveClass('border-success/40');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders mode switch buttons for Generator and Library', () => {
     render(<ReadingTrainingSection />);
 

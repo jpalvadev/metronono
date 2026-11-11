@@ -49,6 +49,25 @@ describe('MixerPanel', () => {
     } as unknown as ToneTransportScheduler;
   });
 
+  it('renders the Custom Practice Preset chip with neutral token roles, never Warning', () => {
+    // Force a mix that matches no Practice Preset so the Custom chip lights up
+    mixer.setChannelMute('ostinato', true);
+    renderPanel();
+
+    const customChip = screen.getByRole('button', { name: 'Custom' });
+    expect(customChip).toHaveAttribute('aria-pressed', 'true');
+    expect(customChip).toHaveClass('bg-secondary');
+    expect(customChip).toHaveClass('text-secondary-foreground');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders the Master row and one row for every Mixing Channel', () => {
     renderPanel();
 

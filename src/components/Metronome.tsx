@@ -245,8 +245,8 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
 
       {/* Prominent Dropout Mode Banner when active measure is silenced */}
       {isDropout && (
-        <div className="bg-amber-500/20 border border-amber-500 text-amber-300 font-bold text-xs py-1.5 px-3 rounded-none text-center tracking-wider uppercase animate-pulse flex items-center justify-center gap-2">
-          <VolumeX className="w-4 h-4 text-amber-400" />
+        <div className="bg-warning/20 border border-warning text-warning font-bold text-xs py-1.5 px-3 rounded-none text-center tracking-wider uppercase animate-pulse flex items-center justify-center gap-2">
+          <VolumeX className="w-4 h-4 text-warning" />
           <span>DROPOUT / SILENT BAR</span>
         </div>
       )}
@@ -521,7 +521,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
       <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+            <VolumeX className="w-3.5 h-3.5 text-warning" />
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider">Dropout Mode</span>
               <span className="text-[10px] text-muted-foreground ml-2">Internal Clock Test</span>
@@ -542,7 +542,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           <div className="flex flex-col gap-2 pt-2 border-t border-border text-xs">
             <div className="flex justify-between text-muted-foreground">
               <span>Silence Probability</span>
-              <span className="font-mono text-amber-400 font-bold">
+              <span className="font-mono text-warning font-bold">
                 {Math.round(dropoutConfig.probability * 100)}%
               </span>
             </div>

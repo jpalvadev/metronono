@@ -34,6 +34,21 @@ describe('DawsonOrchestrationSection', () => {
     } as unknown as ToneTransportScheduler;
   });
 
+  it('renders kick highlights and status text with token roles only', () => {
+    render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+    const kickHighlights = document.body.querySelectorAll('[class*="text-destructive"]');
+    expect(kickHighlights.length).toBeGreaterThanOrEqual(1);
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders system selector without drum pads or monitor, and without any loudness control', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 

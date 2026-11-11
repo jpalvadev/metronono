@@ -11,6 +11,22 @@ describe('App', () => {
     } as any;
   });
 
+  it('keeps the shell text-selection style on token roles', () => {
+    render(<App />);
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('selection:bg-accent');
+    expect(main).toHaveClass('selection:text-accent-foreground');
+
+    for (const el of document.body.querySelectorAll('*')) {
+      expect(
+        /(?:teal|rose|emerald|amber|purple|slate)-\d|bg-white|text-white|dark:|rgba\(/.test(
+          el.getAttribute('class') ?? ''
+        )
+      ).toBe(false);
+    }
+  });
+
   it('renders metronome title, click controls, and reading training section', () => {
     render(<App />);
     expect(screen.getByText('METRONONO')).toBeInTheDocument();

@@ -168,7 +168,7 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
           aria-pressed={preset === 'custom'}
           className={cn(
             'h-6 px-2 text-[11px] rounded-none',
-            preset === 'custom' && 'bg-amber-500/20 text-amber-300'
+            preset === 'custom' && 'bg-secondary text-secondary-foreground'
           )}
         >
           Custom

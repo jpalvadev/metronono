@@ -365,6 +365,61 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
+  // System-level number texts: <text> drawn directly on the SVG root.
+  const measureNumbers = (svg: Element | null): Array<{ x: number; y: number }> => {
+    if (!svg) return [];
+    const numbers: Array<{ x: number; y: number }> = [];
+    for (const t of svg!.querySelectorAll('text')) {
+      const parent = t.parentElement;
+      const parentClass = parent ? parent.getAttribute('class') : null;
+      const content = (t.textContent ?? '').trim();
+      if (!parentClass && /^\d+$/.test(content)) {
+        numbers.push({
+          x: parseFloat(t.getAttribute('x') ?? ''),
+          y: parseFloat(t.getAttribute('y') ?? ''),
+        });
+      }
+    }
+    return numbers;
+  };
+
+  it('places measure numbers above the first note, clear of every barline', () => {
+    const readingLine: ReadingLine = {
+      id: 'test-measure-numbers',
+      title: 'Measure Numbers Clear Of Barlines',
+      tier: 1,
+      measures: [0, 1, 2, 3].map((i) => createTestMeasure(i, [0.5, 0.5, 1.0, 1.0, 0.5, 0.5])),
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 500, measuresPerSystem: 2 });
+
+    const svg = container.querySelector('svg');
+    const numbers = measureNumbers(svg);
+    // Two systems → one number per system, above the first note's column.
+    expect(numbers.length).toBe(2);
+
+    const firstEventX = layout.measures[0].eventCoordinates[0].x;
+    const secondSystemEventX = layout.measures[2].eventCoordinates[0].x;
+
+    const systemStartXs = [layout.measures[0].x, layout.measures[2].x];
+    numbers.forEach((n, idx) => {
+      const columnX = idx === 0 ? firstEventX : secondSystemEventX;
+      expect(Math.abs(n.x - columnX)).toBeLessThanOrEqual(2);
+      // Clear of the system's start barline x-span.
+      expect(n.x).toBeGreaterThan(systemStartXs[idx] + 10);
+    });
+    // Numbers sit above the top of the system's music block.
+    const rects = beamRects(svg);
+    [0, 2].forEach((measureIdx, sysIdx) => {
+      const systemTop = layout.measures[measureIdx].y;
+      const sysBeamTop = Math.min(
+        ...rects.filter((r) => r.top > systemTop).map((r) => r.top),
+      );
+      expect(numbers[sysIdx].y).toBeLessThan(sysBeamTop);
+    });
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

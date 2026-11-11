@@ -225,10 +225,9 @@ export class ReadingScoreRenderer {
         }
       }
 
-      if (options.showMeasureNumbers !== false && isFirstInSystem) {
-        stave.setMeasure(i + 1);
-      }
-
+      // Measure numbers are drawn after the pass (not via stave.setMeasure,
+      // which pins them to the system's left edge where they collide with
+      // the start barline); see Pass 1.5 below.
       stave.setContext(context).draw();
 
       // Barlines are drawn at the end of the pass so their extent can
@@ -354,12 +353,25 @@ export class ReadingScoreRenderer {
       };
     };
 
-    for (const system of systemInfos) {
+    for (let row = 0; row < systemCount; row++) {
+      const system = systemInfos[row];
       if (system.barlineXs.length === 0) {
         continue;
       }
       const span = systemBarlineSpan(system);
       system.barlineXs.forEach((x) => drawBarlineAt(x, span.topY, span.bottomY, 1));
+
+      // Measure number above the first note column of the system, clear of
+      // the start barline and of the music block's top edge.
+      if (options.showMeasureNumbers !== false) {
+        const firstMeasureCoord = measureCoordsMap.get(row * cols);
+        if (firstMeasureCoord) {
+          const anchorX = firstMeasureCoord.eventCoordinates.length > 0
+            ? firstMeasureCoord.eventCoordinates[0].x
+            : firstMeasureCoord.noteStartX;
+          context.fillText(String(row * cols + 1), anchorX, span.topY - 4);
+        }
+      }
     }
 
     if (totalMeasures > 0) {

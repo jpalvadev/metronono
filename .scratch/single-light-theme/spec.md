@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Spec: One Style — Single Light Theme, Token-Only Palette
 

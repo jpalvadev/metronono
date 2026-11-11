@@ -17,11 +17,11 @@ A note of longer duration (typically a quarter note or tied note) in the reading
 _Avoid_: Heavy note, quarter
 
 **Ostinato**:
-A persistent, repeating background rhythm (such as a jazz ride pattern with hi-hat on 2 and 4) played simultaneously with the reading line orchestration.
+A persistent, repeating background rhythm layer (modeled as a 4/4 measure of orchestrated drum strokes) played simultaneously with the reading line orchestration, managed and selected independently from the interpretation system.
 _Avoid_: Groove, beat, loop
 
 **Dawson System**:
-A deterministic rule set that maps short and long notes of a reading line onto drum kit voices over an ostinato.
+A paired mapping of a Short Formula and a Long Formula that routes the short and long notes of a reading line onto drum kit voices, operating independently from the selected ostinato.
 _Avoid_: Drum preset, rhythm mapping
 
 **Metronome**:
@@ -61,8 +61,12 @@ A single user-initiated playback of a Sample Bank sample or Subdivision Formula,
 _Avoid_: Preview, solo, test sound
 
 **No Ostinato**:
-A Dawson System configuration in which no Ostinato layer is composed at all, so no ostinato strokes are ever resolved. Distinct from muting the Ostinato Mixing Channel, which keeps the strokes and silences only their sound.
+A state in which no Ostinato layer is active or composed, producing no background drum strokes. Distinct from muting the Ostinato Mixing Channel, which keeps stroke resolution but suppresses audio output.
 _Avoid_: Silenced ostinato, muted ostinato
+
+**No Orchestration**:
+A state in which no Dawson System is active, so reading line events trigger no drum orchestration strokes. Distinct from muting the Orchestration Mixing Channel, which evaluates formulas but suppresses audio output.
+_Avoid_: Silenced system, muted system
 
 ### Interface
 

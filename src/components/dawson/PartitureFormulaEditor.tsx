@@ -39,6 +39,30 @@ const PRIMARY_EDITOR_VOICES: Array<{ voice: DrumVoice; label: string; badge: str
   { voice: 'crash', label: 'Crash', badge: 'RH' },
 ];
 
+export function detectStrokeDuration(strokes: OrchestratedStroke[]): number {
+  if (!strokes || strokes.length === 0) return 0.25;
+  // If any stroke is a 16th triplet (sextuplet)
+  if (strokes.some((s) => Math.abs(s.durationRatio - 1 / 6) < 0.02)) {
+    return 1 / 6;
+  }
+  // If any stroke is an 8th triplet
+  if (strokes.some((s) => Math.abs(s.durationRatio - 1 / 3) < 0.03)) {
+    return 1 / 3;
+  }
+  // If any stroke is 32nd note
+  if (strokes.some((s) => Math.abs(s.durationRatio - 0.125) < 0.02)) {
+    return 0.125;
+  }
+  // If any stroke is 8th note
+  if (strokes.some((s) => Math.abs(s.durationRatio - 0.5) < 0.05)) {
+    return 0.5;
+  }
+  if (strokes.every((s) => Math.abs(s.durationRatio - 1.0) < 0.05)) {
+    return 1.0;
+  }
+  return 0.25;
+}
+
 export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
   strokes,
   onChangeStrokes,
@@ -50,9 +74,19 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
   playheadBeat = null,
 }) => {
   const [activeTool, setActiveTool] = useState<EntryTool>('note');
-  const [selectedDuration, setSelectedDuration] = useState<number>(0.25);
+  const [selectedDuration, setSelectedDuration] = useState<number>(() => detectStrokeDuration(strokes));
   const [selectedDynamic, setSelectedDynamic] = useState<Dynamic>('normal');
   const [activeVoice, setActiveVoice] = useState<DrumVoice>('snare');
+
+  // Sync selectedDuration if formula strokes change externally with different duration
+  const detectedDuration = useMemo(() => detectStrokeDuration(strokes), [strokes]);
+  const prevDetectedRef = React.useRef(detectedDuration);
+  React.useEffect(() => {
+    if (detectedDuration !== prevDetectedRef.current) {
+      prevDetectedRef.current = detectedDuration;
+      setSelectedDuration(detectedDuration);
+    }
+  }, [detectedDuration]);
 
   // Calculate subdivision slot grid
   const slotDuration = selectedDuration > 0 ? selectedDuration : 0.25;
@@ -77,14 +111,14 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
     if (activeTool === 'eraser') {
       targetSlot.hits = [];
       targetSlot.isRest = true;
-      onChangeStrokes(slotsToStrokes(workingSlots));
+      onChangeStrokes(slotsToStrokes(workingSlots, true));
       return;
     }
 
     if (activeTool === 'rest') {
       targetSlot.hits = [];
       targetSlot.isRest = true;
-      onChangeStrokes(slotsToStrokes(workingSlots));
+      onChangeStrokes(slotsToStrokes(workingSlots, true));
       return;
     }
 
@@ -110,7 +144,7 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
       }
     }
 
-    onChangeStrokes(slotsToStrokes(workingSlots));
+    onChangeStrokes(slotsToStrokes(workingSlots, true));
   };
 
   const handleClearAll = () => {

@@ -254,5 +254,57 @@ describe('DrumStaffRenderer', () => {
       const midX = startX + (endX - startX) / 2;
       expect(layout.getStepForX(0, midX)).toBe(8);
     });
+
+    it('renders a sextuplet formula as a 6-tuplet with continuous beam on the drum stave', () => {
+      // 6 sixteenth-note strokes spanning 1 beat (offsets 0, 1/6, 2/6, 3/6, 4/6, 5/6)
+      const sextupletEvents = [
+        { timeInMeasure: 0.0, voice: 'kick' as const, velocity: 0.9, dynamic: 'accent' as const, source: 'orchestration' as const, durationBeats: 1 / 6 },
+        { timeInMeasure: 1 / 6, voice: 'snare' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 6 },
+        { timeInMeasure: 2 / 6, voice: 'tom_high' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 6 },
+        { timeInMeasure: 3 / 6, voice: 'snare' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 6 },
+        { timeInMeasure: 4 / 6, voice: 'tom_floor' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 6 },
+        { timeInMeasure: 5 / 6, voice: 'tom_floor' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 6 },
+      ];
+
+      const measure: DrumScoreMeasure = {
+        measureIndex: 0,
+        events: sextupletEvents,
+      };
+
+      const layout = renderer.render(container, [measure], { width: 500 });
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+
+      // SVG should contain the tuplet number '6'
+      expect(container.innerHTML).toContain('6');
+
+      // Voice 1 should have 6 sixteenth notes for Beat 0 plus quarter rests for beats 1, 2, 3
+      const drumMeasure = layout.drumMeasures[0];
+      const v1Notes = drumMeasure.voice1Notes;
+      expect(v1Notes.length).toBe(9); // 6 tuplet notes + 3 quarter rests
+      expect(v1Notes.slice(0, 6).every((n) => n.getDuration() === '16')).toBe(true);
+    });
+
+    it('renders an 8th-note triplet formula with tuplet 3 on the drum stave', () => {
+      // 3 eighth-note triplet strokes spanning 1 beat (offsets 0, 1/3, 2/3)
+      const tripletEvents = [
+        { timeInMeasure: 0.0, voice: 'kick' as const, velocity: 0.9, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 3 },
+        { timeInMeasure: 1 / 3, voice: 'snare' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 3 },
+        { timeInMeasure: 2 / 3, voice: 'ride' as const, velocity: 0.8, dynamic: 'normal' as const, source: 'orchestration' as const, durationBeats: 1 / 3 },
+      ];
+
+      const measure: DrumScoreMeasure = {
+        measureIndex: 0,
+        events: tripletEvents,
+      };
+
+      const layout = renderer.render(container, [measure], { width: 500 });
+      expect(container.innerHTML).toContain('3');
+
+      const drumMeasure = layout.drumMeasures[0];
+      const v1Notes = drumMeasure.voice1Notes;
+      expect(v1Notes.length).toBe(6); // 3 tuplet notes + 3 quarter rests
+      expect(v1Notes.slice(0, 3).every((n) => n.getDuration() === '8')).toBe(true);
+    });
   });
 });

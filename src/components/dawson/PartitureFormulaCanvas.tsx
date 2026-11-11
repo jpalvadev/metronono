@@ -9,7 +9,10 @@ import {
   DrumStaffFormulaLayout,
 } from '../../notation/DrumStaffFormulaRenderer';
 import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumStaffRenderer';
-import { resolveStrokeOffsets } from '../../domain/dawson/SubdivisionFormula';
+import {
+  resolveStrokeOffsets,
+  calculateFormulaDuration,
+} from '../../domain/dawson/SubdivisionFormula';
 import { IDrumKitPlayer } from '../../audio/types';
 import { EntryTool } from './FormulaPaletteToolbar';
 import { cn } from '../../lib/utils';
@@ -87,7 +90,24 @@ export function strokesToSlots(
   return slots;
 }
 
-export function slotsToStrokes(slots: FormulaSlot[]): OrchestratedStroke[] {
+export function slotsToStrokes(slots: FormulaSlot[], preserveAll = false): OrchestratedStroke[] {
+  if (preserveAll) {
+    if (slots.length === 0) {
+      return [
+        {
+          durationRatio: 0.25,
+          isRest: true,
+          hits: [],
+        },
+      ];
+    }
+    return slots.map((s) => ({
+      durationRatio: s.durationRatio,
+      isRest: s.isRest || s.hits.length === 0,
+      hits: s.hits,
+    }));
+  }
+
   let lastNonRestIdx = -1;
   for (let i = slots.length - 1; i >= 0; i--) {
     const slot = slots[i];
@@ -240,6 +260,16 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     []
   );
 
+  const commitSlots = useCallback(
+    (updatedSlots: FormulaSlot[]) => {
+      const preserveAll =
+        strokes.length > 0 &&
+        Math.abs(calculateFormulaDuration(strokes) - targetBeats) < 0.05;
+      onChangeStrokes(slotsToStrokes(updatedSlots, preserveAll));
+    },
+    [strokes, targetBeats, onChangeStrokes]
+  );
+
   // Render stave onto DOM container
   const renderStave = useCallback(() => {
     if (!containerRef.current) return;
@@ -325,7 +355,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         if (targetSlot.hits.length === 0) {
           targetSlot.isRest = true;
         }
-        onChangeStrokes(slotsToStrokes(slots));
+        commitSlots(slots);
       }
       return;
     }
@@ -333,7 +363,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     if (activeTool === 'rest') {
       targetSlot.hits = [];
       targetSlot.isRest = true;
-      onChangeStrokes(slotsToStrokes(slots));
+      commitSlots(slots);
       return;
     }
 
@@ -362,7 +392,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       }
     }
 
-    onChangeStrokes(slotsToStrokes(slots));
+    commitSlots(slots);
   };
 
   // HTML5 Drag-and-Drop (e.g. from palette)
@@ -436,7 +466,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       targetSlot.hits.push({ voice: drumVoice, dynamic });
     }
 
-    onChangeStrokes(slotsToStrokes(slots));
+    commitSlots(slots);
   };
 
   // Pointer drag gestures for existing notes (transposition & horizontal slot shifts)
@@ -568,7 +598,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       if (srcSlot.hits.length === 0) {
         srcSlot.isRest = true;
       }
-      onChangeStrokes(slotsToStrokes(slots));
+      commitSlots(slots);
       return;
     }
 
@@ -591,7 +621,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       if (existing === -1) {
         dstSlot.hits.push({ voice: finalVoice, dynamic: selectedDynamic });
       }
-      onChangeStrokes(slotsToStrokes(slots));
+      commitSlots(slots);
     }
   };
 

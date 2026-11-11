@@ -353,6 +353,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
             </div>
 
             <PartitureFormulaEditor
+              key={formula?.id || `formula-${trigger}`}
               strokes={strokes}
               onChangeStrokes={setStrokes}
               targetBeats={expectedDuration}

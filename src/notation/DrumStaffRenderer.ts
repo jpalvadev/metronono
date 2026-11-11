@@ -5,6 +5,7 @@ import VexFlow, {
   Voice,
   Formatter,
   Beam,
+  Tuplet,
   Dot,
   BarlineType,
   Stem,
@@ -72,9 +73,164 @@ export class DrumStaffRenderer {
   }
 
   /**
+   * Converts 4 steps of keys for a single beat into StaveNotes.
+   */
+  private buildSingleBeatNotes(
+    steps: string[][],
+    stemDirection: number,
+    restKey: string
+  ): StaveNote[] {
+    const b0 = steps[0] || [];
+    const b1 = steps[1] || [];
+    const b2 = steps[2] || [];
+    const b3 = steps[3] || [];
+
+    const hasHits = b0.length > 0 || b1.length > 0 || b2.length > 0 || b3.length > 0;
+
+    if (!hasHits) {
+      return [
+        new StaveNote({
+          clef: 'percussion',
+          keys: [restKey],
+          duration: 'qr',
+          stemDirection,
+        }),
+      ];
+    }
+
+    // Pattern: Only step 0 has hits -> quarter note
+    if (b0.length > 0 && b1.length === 0 && b2.length === 0 && b3.length === 0) {
+      return [
+        new StaveNote({
+          clef: 'percussion',
+          keys: b0,
+          duration: 'q',
+          stemDirection,
+        }),
+      ];
+    }
+
+    // Pattern: Steps 0 and 2 have hits -> two eighth notes
+    if (b0.length > 0 && b1.length === 0 && b2.length > 0 && b3.length === 0) {
+      return [
+        new StaveNote({
+          clef: 'percussion',
+          keys: b0,
+          duration: '8',
+          stemDirection,
+        }),
+        new StaveNote({
+          clef: 'percussion',
+          keys: b2,
+          duration: '8',
+          stemDirection,
+        }),
+      ];
+    }
+
+    // Pattern: Steps 0 and 3 have hits -> dotted eighth + sixteenth (swung ride)
+    if (b0.length > 0 && b1.length === 0 && b2.length === 0 && b3.length > 0) {
+      const dotNote = new StaveNote({
+        clef: 'percussion',
+        keys: b0,
+        duration: '8d',
+        stemDirection,
+      });
+      Dot.buildAndAttach([dotNote]);
+      const sNote = new StaveNote({
+        clef: 'percussion',
+        keys: b3,
+        duration: '16',
+        stemDirection,
+      });
+      return [dotNote, sNote];
+    }
+
+    // Pattern: Step 0 empty, step 2 has hit -> eighth rest + eighth note
+    if (b0.length === 0 && b1.length === 0 && b2.length > 0 && b3.length === 0) {
+      return [
+        new StaveNote({
+          clef: 'percussion',
+          keys: [restKey],
+          duration: '8r',
+          stemDirection,
+        }),
+        new StaveNote({
+          clef: 'percussion',
+          keys: b2,
+          duration: '8',
+          stemDirection,
+        }),
+      ];
+    }
+
+    // Pattern: All 4 sixteenths have hits
+    if (b0.length > 0 && b1.length > 0 && b2.length > 0 && b3.length > 0) {
+      return [
+        new StaveNote({ clef: 'percussion', keys: b0, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b1, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b2, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b3, duration: '16', stemDirection }),
+      ];
+    }
+
+    // Pattern: Steps 0, 1, 2 have hits, step 3 empty -> two 16ths + 8th
+    if (b0.length > 0 && b1.length > 0 && b2.length > 0 && b3.length === 0) {
+      return [
+        new StaveNote({ clef: 'percussion', keys: b0, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b1, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b2, duration: '8', stemDirection }),
+      ];
+    }
+
+    // Pattern: Step 0 has hit, step 1 empty, steps 2, 3 have hits -> 8th + two 16ths
+    if (b0.length > 0 && b1.length === 0 && b2.length > 0 && b3.length > 0) {
+      return [
+        new StaveNote({ clef: 'percussion', keys: b0, duration: '8', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b2, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b3, duration: '16', stemDirection }),
+      ];
+    }
+
+    // Pattern: Steps 0 and 1 have hits, steps 2 and 3 empty -> two 16ths + 8th rest
+    if (b0.length > 0 && b1.length > 0 && b2.length === 0 && b3.length === 0) {
+      return [
+        new StaveNote({ clef: 'percussion', keys: b0, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: b1, duration: '16', stemDirection }),
+        new StaveNote({ clef: 'percussion', keys: [restKey], duration: '8r', stemDirection }),
+      ];
+    }
+
+    // General fallback: emit 16th note or 16th rest for each of the 4 steps
+    const notes: StaveNote[] = [];
+    for (const stKeys of steps) {
+      if (stKeys.length > 0) {
+        notes.push(
+          new StaveNote({
+            clef: 'percussion',
+            keys: stKeys,
+            duration: '16',
+            stemDirection,
+          })
+        );
+      } else {
+        notes.push(
+          new StaveNote({
+            clef: 'percussion',
+            keys: [restKey],
+            duration: '16r',
+            stemDirection,
+          })
+        );
+      }
+    }
+    return notes;
+  }
+
+  /**
    * Converts 16-step grid of keys into StaveNotes for one voice (Voice 1 Hands or Voice 2 Feet).
    */
-  private buildVoiceNotes(
+  public buildVoiceNotes(
     stepKeys: string[][],
     voiceNumber: 1 | 2
   ): StaveNote[] {
@@ -98,160 +254,13 @@ export class DrumStaffRenderer {
 
     // Process beat by beat (4 beats, 4 steps each)
     for (let beat = 0; beat < 4; beat++) {
-      const b0 = stepKeys[beat * 4 + 0] || [];
-      const b1 = stepKeys[beat * 4 + 1] || [];
-      const b2 = stepKeys[beat * 4 + 2] || [];
-      const b3 = stepKeys[beat * 4 + 3] || [];
-
-      const hasHits = b0.length > 0 || b1.length > 0 || b2.length > 0 || b3.length > 0;
-
-      if (!hasHits) {
-        // Quarter rest
-        notes.push(
-          new StaveNote({
-            clef: 'percussion',
-            keys: [restKey],
-            duration: 'qr',
-            stemDirection,
-          })
-        );
-        continue;
-      }
-
-      // Pattern: Only step 0 has hits -> quarter note
-      if (b0.length > 0 && b1.length === 0 && b2.length === 0 && b3.length === 0) {
-        notes.push(
-          new StaveNote({
-            clef: 'percussion',
-            keys: b0,
-            duration: 'q',
-            stemDirection,
-          })
-        );
-        continue;
-      }
-
-      // Pattern: Steps 0 and 2 have hits -> two eighth notes
-      if (b0.length > 0 && b1.length === 0 && b2.length > 0 && b3.length === 0) {
-        notes.push(
-          new StaveNote({
-            clef: 'percussion',
-            keys: b0,
-            duration: '8',
-            stemDirection,
-          }),
-          new StaveNote({
-            clef: 'percussion',
-            keys: b2,
-            duration: '8',
-            stemDirection,
-          })
-        );
-        continue;
-      }
-
-      // Pattern: Steps 0 and 3 have hits -> dotted eighth + sixteenth (swung ride)
-      if (b0.length > 0 && b1.length === 0 && b2.length === 0 && b3.length > 0) {
-        const dotNote = new StaveNote({
-          clef: 'percussion',
-          keys: b0,
-          duration: '8d',
-          stemDirection,
-        });
-        Dot.buildAndAttach([dotNote]);
-        const sNote = new StaveNote({
-          clef: 'percussion',
-          keys: b3,
-          duration: '16',
-          stemDirection,
-        });
-        notes.push(dotNote, sNote);
-        continue;
-      }
-
-      // Pattern: Step 0 empty, step 2 has hit -> eighth rest + eighth note
-      if (b0.length === 0 && b1.length === 0 && b2.length > 0 && b3.length === 0) {
-        notes.push(
-          new StaveNote({
-            clef: 'percussion',
-            keys: [restKey],
-            duration: '8r',
-            stemDirection,
-          }),
-          new StaveNote({
-            clef: 'percussion',
-            keys: b2,
-            duration: '8',
-            stemDirection,
-          })
-        );
-        continue;
-      }
-
-      // Pattern: All 4 sixteenths have hits
-      if (b0.length > 0 && b1.length > 0 && b2.length > 0 && b3.length > 0) {
-        notes.push(
-          new StaveNote({ clef: 'percussion', keys: b0, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b1, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b2, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b3, duration: '16', stemDirection })
-        );
-        continue;
-      }
-
-      // Pattern: Steps 0, 1, 2 have hits, step 3 empty -> two 16ths + 8th
-      if (b0.length > 0 && b1.length > 0 && b2.length > 0 && b3.length === 0) {
-        notes.push(
-          new StaveNote({ clef: 'percussion', keys: b0, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b1, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b2, duration: '8', stemDirection })
-        );
-        continue;
-      }
-
-      // Pattern: Step 0 has hit, step 1 empty, steps 2, 3 have hits -> 8th + two 16ths
-      if (b0.length > 0 && b1.length === 0 && b2.length > 0 && b3.length > 0) {
-        notes.push(
-          new StaveNote({ clef: 'percussion', keys: b0, duration: '8', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b2, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b3, duration: '16', stemDirection })
-        );
-        continue;
-      }
-
-      // Pattern: Steps 0 and 1 have hits, steps 2 and 3 empty -> two 16ths + 8th rest
-      if (b0.length > 0 && b1.length > 0 && b2.length === 0 && b3.length === 0) {
-        notes.push(
-          new StaveNote({ clef: 'percussion', keys: b0, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: b1, duration: '16', stemDirection }),
-          new StaveNote({ clef: 'percussion', keys: [restKey], duration: '8r', stemDirection })
-        );
-        continue;
-      }
-
-      // General fallback: emit 16th note or 16th rest for each of the 4 steps
-      const steps = [b0, b1, b2, b3];
-      for (const stKeys of steps) {
-        if (stKeys.length > 0) {
-          notes.push(
-            new StaveNote({
-              clef: 'percussion',
-              keys: stKeys,
-              duration: '16',
-              stemDirection,
-            })
-          );
-        } else {
-          notes.push(
-            new StaveNote({
-              clef: 'percussion',
-              keys: [restKey],
-              duration: '16r',
-              stemDirection,
-            })
-          );
-        }
-      }
+      const beatSteps = [
+        stepKeys[beat * 4 + 0] || [],
+        stepKeys[beat * 4 + 1] || [],
+        stepKeys[beat * 4 + 2] || [],
+        stepKeys[beat * 4 + 3] || [],
+      ];
+      notes.push(...this.buildSingleBeatNotes(beatSteps, stemDirection, restKey));
     }
 
     return notes;
@@ -329,36 +338,423 @@ export class DrumStaffRenderer {
 
       stave.setContext(context).draw();
 
-      // Partition events into 16 steps for Voice 1 (Hands) and Voice 2 (Feet)
-      const v1StepKeys: string[][] = Array.from({ length: 16 }, () => []);
-      const v2StepKeys: string[][] = Array.from({ length: 16 }, () => []);
-
-      for (const evt of dMeasure.events) {
+      // Check if Voice 2 has ANY hits anywhere in this entire measure
+      const measureHasV2Hits = dMeasure.events.some((evt) => {
         const pas = DRUM_VOICE_PAS_MAP[evt.voice];
-        if (!pas) continue;
+        return pas && pas.stemVoice === 2;
+      });
 
-        // Quantize timeInMeasure (0.0 to 4.0) to step (0 to 15)
-        const step = Math.min(15, Math.max(0, Math.round(evt.timeInMeasure * 4)));
+      const voice1Notes: StaveNote[] = [];
+      const voice2Notes: StaveNote[] = [];
+      const tuplets: Tuplet[] = [];
+      const v1Beams: Beam[] = [];
+      const v2Beams: Beam[] = [];
+      const v1NoteDurations: number[] = [];
 
-        if (pas.stemVoice === 1) {
-          if (!v1StepKeys[step].includes(pas.key)) {
-            v1StepKeys[step].push(pas.key);
+      for (let beat = 0; beat < 4; beat++) {
+        const beatEvents = dMeasure.events.filter(
+          (e) => e.timeInMeasure >= beat - 0.001 && e.timeInMeasure < beat + 1.0 - 0.001
+        );
+
+        const has16thTripletDuration = beatEvents.some(
+          (e) => e.durationBeats && Math.abs(e.durationBeats - 1 / 6) < 0.02
+        );
+        const hasSextupletUniqueOffset = beatEvents.some((e) => {
+          const frac = e.timeInMeasure - beat;
+          return (
+            Math.abs(frac - 1 / 6) < 0.025 ||
+            Math.abs(frac - 5 / 6) < 0.025 ||
+            (beatEvents.length >= 5 && Math.abs(frac - 0.5) < 0.025)
+          );
+        });
+        const isSextuplet =
+          has16thTripletDuration || hasSextupletUniqueOffset || beatEvents.length >= 6;
+
+        const isTriplet =
+          !isSextuplet &&
+          beatEvents.some(
+            (e) =>
+              (e.durationBeats && Math.abs(e.durationBeats - 1 / 3) < 0.03) ||
+              [1 / 3, 2 / 3].some((r) => Math.abs(e.timeInMeasure - beat - r) < 0.03)
+          );
+
+        if (isSextuplet) {
+          const v1Slots: string[][] = Array.from({ length: 6 }, () => []);
+          const v2Slots: string[][] = Array.from({ length: 6 }, () => []);
+
+          for (const evt of beatEvents) {
+            const pas = DRUM_VOICE_PAS_MAP[evt.voice];
+            if (!pas) continue;
+            const slot = Math.min(5, Math.max(0, Math.round((evt.timeInMeasure - beat) * 6)));
+            if (pas.stemVoice === 1) {
+              if (!v1Slots[slot].includes(pas.key)) v1Slots[slot].push(pas.key);
+            } else {
+              if (!v2Slots[slot].includes(pas.key)) v2Slots[slot].push(pas.key);
+            }
+          }
+
+          const hasSimultaneous = v1Slots.some(
+            (v1, s) => v1.length > 0 && v2Slots[s].length > 0
+          );
+
+          if (!hasSimultaneous) {
+            // Linear phrase in Voice 1
+            const beatV1: StaveNote[] = [];
+            for (let s = 0; s < 6; s++) {
+              const keys = [...v1Slots[s], ...v2Slots[s]].sort();
+              if (keys.length > 0) {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys,
+                    duration: '16',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              } else {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: ['c/5/r'],
+                    duration: '16r',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              }
+              v1NoteDurations.push(1 / 6);
+            }
+
+            const tuplet = new Tuplet(beatV1, {
+              numNotes: 6,
+              notesOccupied: 4,
+              bracketed: false,
+              ratioed: false,
+            });
+            tuplet.setTupletLocation(Tuplet.LOCATION_TOP);
+            tuplets.push(tuplet);
+
+            const sounding = beatV1.filter((n) => !n.isRest());
+            if (sounding.length > 1) {
+              v1Beams.push(new Beam(sounding));
+            }
+
+            voice1Notes.push(...beatV1);
+
+            if (measureHasV2Hits) {
+              voice2Notes.push(
+                new StaveNote({
+                  clef: 'percussion',
+                  keys: ['d/4/r'],
+                  duration: 'qr',
+                  stemDirection: Stem.DOWN,
+                })
+              );
+            }
+          } else {
+            // Polyphonic unison: hands stem UP, feet stem DOWN
+            const beatV1: StaveNote[] = [];
+            const beatV2: StaveNote[] = [];
+
+            for (let s = 0; s < 6; s++) {
+              const v1Keys = v1Slots[s].sort();
+              if (v1Keys.length > 0) {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: v1Keys,
+                    duration: '16',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              } else {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: ['c/5/r'],
+                    duration: '16r',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              }
+
+              const v2Keys = v2Slots[s].sort();
+              if (v2Keys.length > 0) {
+                beatV2.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: v2Keys,
+                    duration: '16',
+                    stemDirection: Stem.DOWN,
+                  })
+                );
+              } else {
+                beatV2.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: ['d/4/r'],
+                    duration: '16r',
+                    stemDirection: Stem.DOWN,
+                  })
+                );
+              }
+              v1NoteDurations.push(1 / 6);
+            }
+
+            const tuplet1 = new Tuplet(beatV1, {
+              numNotes: 6,
+              notesOccupied: 4,
+              bracketed: false,
+              ratioed: false,
+            });
+            tuplet1.setTupletLocation(Tuplet.LOCATION_TOP);
+            tuplets.push(tuplet1);
+
+            const soundingV1 = beatV1.filter((n) => !n.isRest());
+            if (soundingV1.length > 1) {
+              v1Beams.push(new Beam(soundingV1));
+            }
+
+            if (measureHasV2Hits) {
+              const tuplet2 = new Tuplet(beatV2, {
+                numNotes: 6,
+                notesOccupied: 4,
+                bracketed: false,
+                ratioed: false,
+              });
+              tuplet2.setTupletLocation(Tuplet.LOCATION_BOTTOM);
+              tuplets.push(tuplet2);
+
+              const soundingV2 = beatV2.filter((n) => !n.isRest());
+              if (soundingV2.length > 1) {
+                v2Beams.push(new Beam(soundingV2));
+              }
+              voice2Notes.push(...beatV2);
+            }
+
+            voice1Notes.push(...beatV1);
+          }
+        } else if (isTriplet) {
+          const v1Slots: string[][] = Array.from({ length: 3 }, () => []);
+          const v2Slots: string[][] = Array.from({ length: 3 }, () => []);
+
+          for (const evt of beatEvents) {
+            const pas = DRUM_VOICE_PAS_MAP[evt.voice];
+            if (!pas) continue;
+            const slot = Math.min(2, Math.max(0, Math.round((evt.timeInMeasure - beat) * 3)));
+            if (pas.stemVoice === 1) {
+              if (!v1Slots[slot].includes(pas.key)) v1Slots[slot].push(pas.key);
+            } else {
+              if (!v2Slots[slot].includes(pas.key)) v2Slots[slot].push(pas.key);
+            }
+          }
+
+          const hasSimultaneous = v1Slots.some(
+            (v1, s) => v1.length > 0 && v2Slots[s].length > 0
+          );
+
+          if (!hasSimultaneous) {
+            const beatV1: StaveNote[] = [];
+            for (let s = 0; s < 3; s++) {
+              const keys = [...v1Slots[s], ...v2Slots[s]].sort();
+              if (keys.length > 0) {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys,
+                    duration: '8',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              } else {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: ['c/5/r'],
+                    duration: '8r',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              }
+              v1NoteDurations.push(1 / 3);
+            }
+
+            const tuplet = new Tuplet(beatV1, {
+              numNotes: 3,
+              notesOccupied: 2,
+              bracketed: false,
+              ratioed: false,
+            });
+            tuplet.setTupletLocation(Tuplet.LOCATION_TOP);
+            tuplets.push(tuplet);
+
+            const sounding = beatV1.filter((n) => !n.isRest());
+            if (sounding.length > 1) {
+              v1Beams.push(new Beam(sounding));
+            }
+
+            voice1Notes.push(...beatV1);
+
+            if (measureHasV2Hits) {
+              voice2Notes.push(
+                new StaveNote({
+                  clef: 'percussion',
+                  keys: ['d/4/r'],
+                  duration: 'qr',
+                  stemDirection: Stem.DOWN,
+                })
+              );
+            }
+          } else {
+            const beatV1: StaveNote[] = [];
+            const beatV2: StaveNote[] = [];
+
+            for (let s = 0; s < 3; s++) {
+              const v1Keys = v1Slots[s].sort();
+              if (v1Keys.length > 0) {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: v1Keys,
+                    duration: '8',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              } else {
+                beatV1.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: ['c/5/r'],
+                    duration: '8r',
+                    stemDirection: Stem.UP,
+                  })
+                );
+              }
+
+              const v2Keys = v2Slots[s].sort();
+              if (v2Keys.length > 0) {
+                beatV2.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: v2Keys,
+                    duration: '8',
+                    stemDirection: Stem.DOWN,
+                  })
+                );
+              } else {
+                beatV2.push(
+                  new StaveNote({
+                    clef: 'percussion',
+                    keys: ['d/4/r'],
+                    duration: '8r',
+                    stemDirection: Stem.DOWN,
+                  })
+                );
+              }
+              v1NoteDurations.push(1 / 3);
+            }
+
+            const tuplet1 = new Tuplet(beatV1, {
+              numNotes: 3,
+              notesOccupied: 2,
+              bracketed: false,
+              ratioed: false,
+            });
+            tuplet1.setTupletLocation(Tuplet.LOCATION_TOP);
+            tuplets.push(tuplet1);
+
+            const soundingV1 = beatV1.filter((n) => !n.isRest());
+            if (soundingV1.length > 1) {
+              v1Beams.push(new Beam(soundingV1));
+            }
+
+            if (measureHasV2Hits) {
+              const tuplet2 = new Tuplet(beatV2, {
+                numNotes: 3,
+                notesOccupied: 2,
+                bracketed: false,
+                ratioed: false,
+              });
+              tuplet2.setTupletLocation(Tuplet.LOCATION_BOTTOM);
+              tuplets.push(tuplet2);
+
+              const soundingV2 = beatV2.filter((n) => !n.isRest());
+              if (soundingV2.length > 1) {
+                v2Beams.push(new Beam(soundingV2));
+              }
+              voice2Notes.push(...beatV2);
+            }
+
+            voice1Notes.push(...beatV1);
           }
         } else {
-          if (!v2StepKeys[step].includes(pas.key)) {
-            v2StepKeys[step].push(pas.key);
+          // Straight 16th-note beat (4 steps)
+          const v1Steps: string[][] = [[], [], [], []];
+          const v2Steps: string[][] = [[], [], [], []];
+
+          for (const evt of beatEvents) {
+            const pas = DRUM_VOICE_PAS_MAP[evt.voice];
+            if (!pas) continue;
+            const step = Math.min(3, Math.max(0, Math.round((evt.timeInMeasure - beat) * 4)));
+            if (pas.stemVoice === 1) {
+              if (!v1Steps[step].includes(pas.key)) v1Steps[step].push(pas.key);
+            } else {
+              if (!v2Steps[step].includes(pas.key)) v2Steps[step].push(pas.key);
+            }
+          }
+
+          v1Steps.forEach((s) => s.sort());
+          v2Steps.forEach((s) => s.sort());
+
+          const beatV1 = this.buildSingleBeatNotes(v1Steps, Stem.UP, 'c/5/r');
+          voice1Notes.push(...beatV1);
+
+          for (const n of beatV1) {
+            const dur =
+              n.getDuration() === 'q'
+                ? 1.0
+                : n.getDuration() === '8'
+                ? 0.5
+                : n.getDuration() === '8d'
+                ? 0.75
+                : 0.25;
+            v1NoteDurations.push(dur);
+          }
+
+          // Generate beams for straight 16th/8th notes in this beat
+          const soundingV1 = beatV1.filter(
+            (n) =>
+              !n.isRest() &&
+              (n.getDuration() === '16' || n.getDuration() === '8' || n.getDuration() === '8d')
+          );
+          if (soundingV1.length > 1) {
+            v1Beams.push(new Beam(soundingV1));
+          }
+
+          if (measureHasV2Hits) {
+            const beatV2 = this.buildSingleBeatNotes(v2Steps, Stem.DOWN, 'd/4/r');
+            voice2Notes.push(...beatV2);
+
+            const soundingV2 = beatV2.filter(
+              (n) => !n.isRest() && (n.getDuration() === '16' || n.getDuration() === '8')
+            );
+            if (soundingV2.length > 1) {
+              v2Beams.push(new Beam(soundingV2));
+            }
           }
         }
       }
 
-      // Sort chord keys so lower pitches come first (standard VexFlow requirement)
-      for (let s = 0; s < 16; s++) {
-        v1StepKeys[s].sort();
-        v2StepKeys[s].sort();
+      // If entire measure has no V2 hits, add single whole rest
+      if (!measureHasV2Hits) {
+        voice2Notes.push(
+          new StaveNote({
+            clef: 'percussion',
+            keys: ['d/4/r'],
+            duration: 'wr',
+            stemDirection: Stem.DOWN,
+          })
+        );
       }
-
-      const voice1Notes = this.buildVoiceNotes(v1StepKeys, 1);
-      const voice2Notes = this.buildVoiceNotes(v2StepKeys, 2);
 
       const voice1 = new Voice({ numBeats: 4, beatValue: 4 }).setMode(Voice.Mode.SOFT);
       const voice2 = new Voice({ numBeats: 4, beatValue: 4 }).setMode(Voice.Mode.SOFT);
@@ -374,48 +770,22 @@ export class DrumStaffRenderer {
       voice1.draw(context, stave);
       voice2.draw(context, stave);
 
-      // Generate Beams for Voice 1 (Hands)
       try {
-        const v1Beams: Beam[] = [];
-        let currentV1Group: StaveNote[] = [];
-        for (const n of voice1Notes) {
-          if (!n.isRest() && (n.getDuration() === '8' || n.getDuration() === '16' || n.getDuration() === '8d')) {
-            currentV1Group.push(n);
-          } else {
-            if (currentV1Group.length > 1) {
-              v1Beams.push(...Beam.generateBeams(currentV1Group, { stemDirection: Stem.UP }));
-            }
-            currentV1Group = [];
-          }
-        }
-        if (currentV1Group.length > 1) {
-          v1Beams.push(...Beam.generateBeams(currentV1Group, { stemDirection: Stem.UP }));
-        }
         v1Beams.forEach((b) => b.setContext(context).draw());
       } catch {
         // Ignore beam draw errors
       }
 
-      // Generate Beams for Voice 2 (Feet)
       try {
-        const v2Beams: Beam[] = [];
-        let currentV2Group: StaveNote[] = [];
-        for (const n of voice2Notes) {
-          if (!n.isRest() && (n.getDuration() === '8' || n.getDuration() === '16')) {
-            currentV2Group.push(n);
-          } else {
-            if (currentV2Group.length > 1) {
-              v2Beams.push(...Beam.generateBeams(currentV2Group, { stemDirection: Stem.DOWN }));
-            }
-            currentV2Group = [];
-          }
-        }
-        if (currentV2Group.length > 1) {
-          v2Beams.push(...Beam.generateBeams(currentV2Group, { stemDirection: Stem.DOWN }));
-        }
         v2Beams.forEach((b) => b.setContext(context).draw());
       } catch {
         // Ignore beam draw errors
+      }
+
+      try {
+        tuplets.forEach((t) => t.setContext(context).draw());
+      } catch {
+        // Ignore tuplet draw errors
       }
 
       // Build EventCoordinates for playhead tracking
@@ -424,12 +794,19 @@ export class DrumStaffRenderer {
 
       for (let nIdx = 0; nIdx < voice1Notes.length; nIdx++) {
         const n = voice1Notes[nIdx];
-        const durBeats = n.getDuration() === 'q' ? 1.0
-          : n.getDuration() === '8' ? 0.5
-          : n.getDuration() === '8d' ? 0.75
-          : n.getDuration() === '16' ? 0.25
-          : n.getDuration() === 'w' ? 4.0
-          : 1.0;
+        const durBeats =
+          v1NoteDurations[nIdx] ??
+          (n.getDuration() === 'q'
+            ? 1.0
+            : n.getDuration() === '8'
+            ? 0.5
+            : n.getDuration() === '8d'
+            ? 0.75
+            : n.getDuration() === '16'
+            ? 0.25
+            : n.getDuration() === 'w'
+            ? 4.0
+            : 1.0);
 
         eventCoords.push({
           eventId: `m${dMeasure.measureIndex}-v1-n${nIdx}`,

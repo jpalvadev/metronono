@@ -102,11 +102,13 @@ export class DrumStaffFormulaRenderer {
     const formulaDuration = calculateFormulaDuration(strokes);
     const targetBeats = options.targetBeats || (formulaDuration > 0 ? formulaDuration : 1.0);
 
-    // Check if feet voices (Voice 2) are present in any stroke
-    const hasFeetHits = strokes.some(
+    // Check if there are true polyphonic unisons between hands and feet on the SAME stroke
+    const hasSimultaneousUnisons = strokes.some(
       (s) =>
         !s.isRest &&
         s.hits &&
+        s.hits.length > 1 &&
+        s.hits.some((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1) &&
         s.hits.some((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2)
     );
 
@@ -133,8 +135,7 @@ export class DrumStaffFormulaRenderer {
         });
         voice1Notes.push(restV1);
 
-        // Voice 2 Rest (if feet voice active): transparent to avoid visual double-rests
-        if (hasFeetHits) {
+        if (hasSimultaneousUnisons) {
           const restV2 = new StaveNote({
             clef: 'percussion',
             keys: ['d/4/r'],
@@ -152,9 +153,36 @@ export class DrumStaffFormulaRenderer {
           (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2
         );
 
-        // --- Voice 1 (Hands) ---
-        if (v1Hits.length > 0) {
-          const keys = v1Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
+        if (v1Hits.length > 0 && v2Hits.length > 0) {
+          // True Polyphonic Unison: Hands Stem.UP in Voice 1, Feet Stem.DOWN in Voice 2
+          const keysV1 = v1Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
+          const noteV1 = new StaveNote({
+            clef: 'percussion',
+            keys: keysV1,
+            duration: vexDur,
+            stemDirection: Stem.UP,
+          });
+          noteV1.setStemDirection(Stem.UP);
+          v1Hits.forEach((hit) => {
+            if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
+          });
+          voice1Notes.push(noteV1);
+
+          const keysV2 = v2Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'f/4');
+          const noteV2 = new StaveNote({
+            clef: 'percussion',
+            keys: keysV2,
+            duration: vexDur,
+            stemDirection: Stem.DOWN,
+          });
+          noteV2.setStemDirection(Stem.DOWN);
+          v2Hits.forEach((hit) => {
+            if (hit.dynamic === 'accent') noteV2.addModifier(new Articulation('a>'), 0);
+          });
+          voice2Notes.push(noteV2);
+        } else {
+          // Linear Stroke: All hits share Stem.UP in Voice 1 so linear phrases beam continuously
+          const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
           const noteV1 = new StaveNote({
             clef: 'percussion',
             keys,
@@ -162,141 +190,95 @@ export class DrumStaffFormulaRenderer {
             stemDirection: Stem.UP,
           });
           noteV1.setStemDirection(Stem.UP);
-
-          // Dynamic articulations
-          v1Hits.forEach((hit) => {
-            if (hit.dynamic === 'accent') {
-              noteV1.addModifier(new Articulation('a>'), 0);
-            }
+          stroke.hits.forEach((hit) => {
+            if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
           });
-
           voice1Notes.push(noteV1);
-        } else {
-          // Voice 1 has no hits while Voice 2 sounds: use transparent rest to prevent visual collision
-          const restNote = new StaveNote({
-            clef: 'percussion',
-            keys: ['c/5/r'],
-            duration: `${vexDur}r`,
-            stemDirection: Stem.UP,
-          });
-          restNote.setStemDirection(Stem.UP);
-          restNote.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
-          voice1Notes.push(restNote);
-        }
 
-        // --- Voice 2 (Feet) ---
-        if (hasFeetHits) {
-          if (v2Hits.length > 0) {
-            const keys = v2Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'f/4');
-            const noteV2 = new StaveNote({
-              clef: 'percussion',
-              keys,
-              duration: vexDur,
-              stemDirection: Stem.DOWN,
-            });
-            noteV2.setStemDirection(Stem.DOWN);
-
-            v2Hits.forEach((hit) => {
-              if (hit.dynamic === 'accent') {
-                noteV2.addModifier(new Articulation('a>'), 0);
-              }
-            });
-
-            voice2Notes.push(noteV2);
-          } else {
-            // Voice 2 has no hits while Voice 1 sounds: use transparent rest to prevent visual collision
-            const restNote = new StaveNote({
+          if (hasSimultaneousUnisons) {
+            const restV2 = new StaveNote({
               clef: 'percussion',
               keys: ['d/4/r'],
               duration: `${vexDur}r`,
               stemDirection: Stem.DOWN,
             });
-            restNote.setStemDirection(Stem.DOWN);
-            restNote.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
-            voice2Notes.push(restNote);
+            restV2.setStemDirection(Stem.DOWN);
+            restV2.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
+            voice2Notes.push(restV2);
           }
         }
       }
     }
 
-    // Build stroke offsets first so we can detect tuplets and group beams by beat
+    // Build stroke offsets first so we can detect tuplets and group beams by metric windows
     const strokeOffsets = resolveStrokeOffsets(effectiveStrokes, 0);
 
-    // Identify tuplet beats and attach Tuplet instances BEFORE formatting voices
-    const tupletsToDraw: Tuplet[] = [];
-    const allTuplets: Tuplet[] = [];
-    const tupletBeats = new Set<number>();
+    // Identify tuplet groups across strokes
+    interface TupletGroup {
+      indices: number[];
+      numNotes: number;
+      notesOccupied: number;
+    }
+    const tupletGroups: TupletGroup[] = [];
+    const usedTupletIndices = new Set<number>();
 
-    const totalBeatCount = Math.max(1, Math.ceil(targetBeats));
-    for (let b = 0; b < totalBeatCount; b++) {
-      const beatIndices: number[] = [];
-      for (let i = 0; i < effectiveStrokes.length; i++) {
-        const off = strokeOffsets[i]?.offset ?? 0;
-        if (off >= b - 0.005 && off < b + 1.0 - 0.005) {
-          beatIndices.push(i);
-        }
-      }
-
-      // Check for 16th triplets / sextuplets (6 per beat)
-      const isSextuplet =
-        beatIndices.length === 6 &&
-        beatIndices.every((i) => Math.abs(effectiveStrokes[i].durationRatio - 1 / 6) < 0.02);
-
-      // Check for 8th triplets (3 per beat)
-      const isTriplet8th =
-        beatIndices.length === 3 &&
-        beatIndices.every((i) => Math.abs(effectiveStrokes[i].durationRatio - 1 / 3) < 0.03);
-
-      if (isSextuplet || isTriplet8th) {
-        tupletBeats.add(b);
-        const numNotes = isSextuplet ? 6 : 3;
-        const notesOccupied = isSextuplet ? 4 : 2;
-
-        const v1BeatNotes = beatIndices.map((i) => voice1Notes[i]).filter(Boolean);
-        const v2BeatNotes =
-          hasFeetHits && voice2Notes.length > 0
-            ? beatIndices.map((i) => voice2Notes[i]).filter(Boolean)
-            : [];
-
-        let v1Tuplet: Tuplet | null = null;
-        let v2Tuplet: Tuplet | null = null;
-
-        if (v1BeatNotes.length === numNotes) {
-          v1Tuplet = new Tuplet(v1BeatNotes, { numNotes, notesOccupied });
-          v1Tuplet.setTupletLocation(Tuplet.LOCATION_TOP);
-          allTuplets.push(v1Tuplet);
-        }
-        if (v2BeatNotes.length === numNotes) {
-          v2Tuplet = new Tuplet(v2BeatNotes, { numNotes, notesOccupied });
-          v2Tuplet.setTupletLocation(Tuplet.LOCATION_BOTTOM);
-          allTuplets.push(v2Tuplet);
-        }
-
-        // Determine which tuplet bracket to draw (prefer top unless only Voice 2 has sound)
-        const v1HasSound = beatIndices.some(
-          (i) =>
-            !effectiveStrokes[i].isRest &&
-            effectiveStrokes[i].hits.some(
-              (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1
-            )
-        );
-        const v2HasSound = beatIndices.some(
-          (i) =>
-            !effectiveStrokes[i].isRest &&
-            effectiveStrokes[i].hits.some(
-              (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2
-            )
-        );
-
-        if (v1Tuplet && (v1HasSound || !v2HasSound)) {
-          tupletsToDraw.push(v1Tuplet);
-        } else if (v2Tuplet && v2HasSound) {
-          tupletsToDraw.push(v2Tuplet);
-        } else if (v1Tuplet) {
-          tupletsToDraw.push(v1Tuplet);
-        }
+    // 1. Detect 6-note sextuplets (16th triplets, 6 notes in 1 beat)
+    for (let i = 0; i <= effectiveStrokes.length - 6; i++) {
+      if (usedTupletIndices.has(i)) continue;
+      const slice = effectiveStrokes.slice(i, i + 6);
+      const isSextuplet = slice.every(
+        (s) => Math.abs(s.durationRatio - 1 / 6) < 0.02
+      );
+      if (isSextuplet) {
+        const indices = [i, i + 1, i + 2, i + 3, i + 4, i + 5];
+        indices.forEach((idx) => usedTupletIndices.add(idx));
+        tupletGroups.push({
+          indices,
+          numNotes: 6,
+          notesOccupied: 4,
+        });
       }
     }
+
+    // 2. Detect 3-note triplets (either 16th triplets in 0.5 beat or 8th triplets in 1 beat)
+    for (let i = 0; i <= effectiveStrokes.length - 3; i++) {
+      if (usedTupletIndices.has(i)) continue;
+      const slice = effectiveStrokes.slice(i, i + 3);
+      const isTriplet16th = slice.every(
+        (s) => Math.abs(s.durationRatio - 1 / 6) < 0.02
+      );
+      const isTriplet8th = slice.every(
+        (s) => Math.abs(s.durationRatio - 1 / 3) < 0.03
+      );
+      if (isTriplet16th || isTriplet8th) {
+        const indices = [i, i + 1, i + 2];
+        indices.forEach((idx) => usedTupletIndices.add(idx));
+        tupletGroups.push({
+          indices,
+          numNotes: 3,
+          notesOccupied: 2,
+        });
+      }
+    }
+
+    // Attach Tuplet instances to Voice 1 BEFORE formatting
+    const tupletsToDraw: Tuplet[] = [];
+    tupletGroups.forEach((group) => {
+      const groupNotes = group.indices.map((idx) => voice1Notes[idx]).filter(Boolean);
+      if (groupNotes.length === group.numNotes) {
+        const hasRests = groupNotes.some((n) => n.isRest());
+        const tuplet = new Tuplet(groupNotes, {
+          numNotes: group.numNotes,
+          notesOccupied: group.notesOccupied,
+          bracketed: hasRests,
+          ratioed: false,
+        });
+        tuplet.setTupletLocation(Tuplet.LOCATION_TOP);
+        tuplet.setBracketed(hasRests);
+        tuplet.setRatioed(false);
+        tupletsToDraw.push(tuplet);
+      }
+    });
 
     // Format voices into stave
     const formatter = new Formatter();
@@ -308,7 +290,7 @@ export class DrumStaffFormulaRenderer {
     v1.addTickables(voice1Notes);
     voicesToFormat.push(v1);
 
-    if (hasFeetHits && voice2Notes.length > 0) {
+    if (hasSimultaneousUnisons && voice2Notes.length > 0) {
       const v2 = new Voice({ numBeats: Math.max(1, Math.ceil(targetBeats)), beatValue: 4 });
       v2.setMode(Voice.Mode.SOFT);
       v2.addTickables(voice2Notes);
@@ -321,72 +303,69 @@ export class DrumStaffFormulaRenderer {
     // Generate beams for rapid subdivisions BEFORE drawing voices
     const beams: Beam[] = [];
     try {
-      for (let b = 0; b < totalBeatCount; b++) {
-        const beatIndices: number[] = [];
-        for (let i = 0; i < effectiveStrokes.length; i++) {
-          const off = strokeOffsets[i]?.offset ?? 0;
-          if (off >= b - 0.005 && off < b + 1.0 - 0.005) {
-            beatIndices.push(i);
+      // 1. Beam each tuplet group directly under one continuous beam
+      tupletGroups.forEach((group) => {
+        const soundingNotes = group.indices
+          .map((idx) => voice1Notes[idx])
+          .filter((n) => n && !n.isRest());
+        if (soundingNotes.length > 1) {
+          beams.push(new Beam(soundingNotes));
+        }
+      });
+
+      // 2. Beam non-tuplet notes by beat bucket
+      const nonTupletIndices = effectiveStrokes
+        .map((_, i) => i)
+        .filter((i) => !usedTupletIndices.has(i));
+
+      const v1BeatGroups = new Map<number, StaveNote[]>();
+      nonTupletIndices.forEach((i) => {
+        const n = voice1Notes[i];
+        if (n && !n.isRest()) {
+          const dur = n.getDuration();
+          if (dur === '8' || dur === '16' || dur === '32') {
+            const offset = strokeOffsets[i]?.offset ?? 0;
+            const beatBucket = Math.floor(offset / 1.0);
+            if (!v1BeatGroups.has(beatBucket)) v1BeatGroups.set(beatBucket, []);
+            v1BeatGroups.get(beatBucket)!.push(n);
           }
         }
+      });
 
-        if (tupletBeats.has(b)) {
-          // Tuplets: beam ALL non-rest sounding notes in the beat together under one continuous beam
-          const v1Sounding = beatIndices
-            .map((i) => voice1Notes[i])
-            .filter((n) => n && !n.isRest());
-          if (v1Sounding.length > 1) {
-            beams.push(new Beam(v1Sounding));
-          }
+      v1BeatGroups.forEach((group) => {
+        if (group.length > 1) {
+          const v1Beams = Beam.generateBeams(group, {
+            stemDirection: Stem.UP,
+            beamRests: false,
+          });
+          beams.push(...v1Beams);
+        }
+      });
 
-          if (hasFeetHits && voice2Notes.length > 0) {
-            const v2Sounding = beatIndices
-              .map((i) => voice2Notes[i])
-              .filter((n) => n && !n.isRest());
-            if (v2Sounding.length > 1) {
-              beams.push(new Beam(v2Sounding));
+      // Voice 2 beams (if any unisons exist)
+      if (hasSimultaneousUnisons && voice2Notes.length > 0) {
+        const v2BeatGroups = new Map<number, StaveNote[]>();
+        for (let i = 0; i < voice2Notes.length; i++) {
+          const n = voice2Notes[i];
+          if (n && !n.isRest()) {
+            const dur = n.getDuration();
+            if (dur === '8' || dur === '16' || dur === '32') {
+              const offset = strokeOffsets[i]?.offset ?? 0;
+              const beatBucket = Math.floor(offset / 1.0);
+              if (!v2BeatGroups.has(beatBucket)) v2BeatGroups.set(beatBucket, []);
+              v2BeatGroups.get(beatBucket)!.push(n);
             }
           }
-        } else {
-          // Regular subdivisions (16ths, 32nds, 8ths)
-          const v1NotesInBeat = beatIndices
-            .map((i) => voice1Notes[i])
-            .filter(
-              (n) =>
-                n &&
-                !n.isRest() &&
-                (n.getDuration() === '8' ||
-                  n.getDuration() === '16' ||
-                  n.getDuration() === '32')
-            );
-          if (v1NotesInBeat.length > 1) {
-            const v1Beams = Beam.generateBeams(v1NotesInBeat, {
-              stemDirection: Stem.UP,
+        }
+        v2BeatGroups.forEach((group) => {
+          if (group.length > 1) {
+            const v2Beams = Beam.generateBeams(group, {
+              stemDirection: Stem.DOWN,
               beamRests: false,
             });
-            beams.push(...v1Beams);
+            beams.push(...v2Beams);
           }
-
-          if (hasFeetHits && voice2Notes.length > 0) {
-            const v2NotesInBeat = beatIndices
-              .map((i) => voice2Notes[i])
-              .filter(
-                (n) =>
-                  n &&
-                  !n.isRest() &&
-                  (n.getDuration() === '8' ||
-                    n.getDuration() === '16' ||
-                    n.getDuration() === '32')
-              );
-            if (v2NotesInBeat.length > 1) {
-              const v2Beams = Beam.generateBeams(v2NotesInBeat, {
-                stemDirection: Stem.DOWN,
-                beamRests: false,
-              });
-              beams.push(...v2Beams);
-            }
-          }
-        }
+        });
       }
     } catch {
       // Safe fallback if notes can't be auto-beamed
@@ -394,7 +373,7 @@ export class DrumStaffFormulaRenderer {
 
     // Draw voices AFTER beams are attached so no stray flags are drawn under beams
     v1.draw(context, stave);
-    if (hasFeetHits && voice2Notes.length > 0) {
+    if (hasSimultaneousUnisons && voice2Notes.length > 0) {
       voicesToFormat[1].draw(context, stave);
     }
 

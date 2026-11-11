@@ -245,7 +245,6 @@ describe('Auditioning a silent Mixing Channel', () => {
     expect(routeLabels(nodeByLabel('rig:orchestration:audition:kick'))).toEqual([
       'rig:orchestration:audition:kick',
       'audition:orchestration',
-      'mixer:master',
       'destination',
     ]);
     // Heard at the volume the muted Channel\u2019s slider holds.

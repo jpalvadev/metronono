@@ -4,15 +4,9 @@ import {
   AudioMixerState,
   ChannelState,
   MixerChannelId,
-} from '../audio/AudioMixer';
-import {
   ComposedChannels,
-  PRACTICE_PRESETS,
-  PracticePreset,
-  applyPracticePreset,
   composedChannels,
-  derivePracticePreset,
-} from '../audio/PracticePresets';
+} from '../audio/AudioMixer';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 import { Sliders, Volume2, VolumeX } from 'lucide-react';
@@ -53,12 +47,6 @@ const CHANNEL_ROWS: {
   },
 ];
 
-const PRESET_LABELS: Record<Exclude<PracticePreset, 'custom'>, string> = {
-  'click-only': 'Click Only',
-  'drums-only': 'Drums Only',
-  'full-mix': 'Full Mix',
-};
-
 function levelReadout(channel: ChannelState): string {
   if (channel.muted) return 'MUTED';
   if (channel.volume <= 0) return 'SILENT';
@@ -66,9 +54,8 @@ function levelReadout(channel: ChannelState): string {
 }
 
 /**
- * MixerPanel — the app's only loudness control: one row per Mixing Channel plus the Master
- * they all feed, and a Practice Preset row whose lit preset is derived from the live mixer
- * state. Every value it shows and writes is the same one the audio graph plays at.
+ * MixerPanel — loudness control: one row per Mixing Channel.
+ * Every value it shows and writes is the same one the audio graph plays at.
  */
 export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) => {
   const mixer = useMemo(() => scheduler.getAudioMixer(), [scheduler]);
@@ -84,18 +71,9 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
     [engine]
   );
 
-  const preset = derivePracticePreset(mixerState, composed);
-
   const handleVolumeChange = useCallback(
     (channel: MixerChannelId, volume: number) => {
       mixer.setChannelVolume(channel, volume);
-    },
-    [mixer]
-  );
-
-  const handleMasterVolumeChange = useCallback(
-    (volume: number) => {
-      mixer.setMasterVolume(volume);
     },
     [mixer]
   );
@@ -105,13 +83,6 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
       mixer.toggleChannelMute(channel);
     },
     [mixer]
-  );
-
-  const handlePresetPress = useCallback(
-    (practicePreset: PracticePreset) => {
-      applyPracticePreset(mixer, practicePreset, composed);
-    },
-    [mixer, composed]
   );
 
   return (
@@ -130,75 +101,13 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({ scheduler, className }) 
               Mixer Panel
             </h2>
             <p className="text-xs text-muted-foreground">
-              Master & channel loudness controls
+              Channel loudness controls
             </p>
           </div>
         </div>
         <span className="text-[10px] font-mono text-muted-foreground uppercase">
           Loudness
         </span>
-      </div>
-
-      {/* Practice Preset row: mute flags only, never a volume value */}
-      <div
-        data-testid="mixer-preset-row"
-        className="flex flex-wrap items-center gap-1 bg-secondary/40 p-1 rounded-none border border-border"
-      >
-        <span className="text-[11px] font-medium text-muted-foreground px-1.5 uppercase font-mono">
-          Preset:
-        </span>
-        {PRACTICE_PRESETS.map((practicePreset) => (
-          <Button
-            key={practicePreset}
-            type="button"
-            variant={preset === practicePreset ? 'default' : 'ghost'}
-            size="sm"
-            aria-pressed={preset === practicePreset}
-            onClick={() => handlePresetPress(practicePreset)}
-            className="h-6 px-2 text-[11px] rounded-none"
-          >
-            {PRESET_LABELS[practicePreset]}
-          </Button>
-        ))}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled
-          aria-pressed={preset === 'custom'}
-          className={cn(
-            'h-6 px-2 text-[11px] rounded-none',
-            preset === 'custom' && 'bg-secondary text-secondary-foreground'
-          )}
-        >
-          Custom
-        </Button>
-      </div>
-
-      {/* Master: volume only, no Master mute */}
-      <div
-        data-testid="mixer-row-master"
-        data-composed="true"
-        className="flex items-center gap-3 bg-secondary/30 p-2.5 rounded-none border border-border"
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-              Master
-            </span>
-            <span className="text-[11px] font-mono text-muted-foreground">
-              {levelReadout({ volume: mixerState.master.volume, muted: false })}
-            </span>
-          </div>
-          <Slider
-            min={0}
-            max={1}
-            step={0.01}
-            value={mixerState.master.volume}
-            onChange={handleMasterVolumeChange}
-            ariaLabel="Master Volume"
-          />
-        </div>
       </div>
 
       {/* One row per Mixing Channel */}

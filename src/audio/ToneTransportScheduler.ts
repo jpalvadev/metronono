@@ -25,7 +25,7 @@ import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/type
 import { BackgroundAudioService } from './BackgroundAudioService';
 
 // Names every node of the audio graph carries, so a test can follow a sound from the voice
-// that made it to the audio destination through its Mixing Channel and the Master.
+// that made it to the audio destination through its Mixing Channel.
 function labelNode<T>(node: T, label: string): T {
   (node as { label?: string }).label = label;
   return node;
@@ -192,11 +192,10 @@ export class ToneClickPlayer implements IClickPlayer {
 /**
  * ToneTransportScheduler — owns the whole audio graph.
  *
- * The AudioMixer (the three Mixing Channels and the single Master they feed), the click voice
- * wired onto the Click Mixing Channel node and the Drum Kit Player rigs wired onto the Ostinato
- * and Orchestration Mixing Channel nodes are all built here, eagerly, and only reach the audio
- * destination through the Master. Loudness lives on the Mixer Master alone: there is no second
- * volume stage anywhere in the app.
+ * The AudioMixer (the three Mixing Channels), the click voice wired onto the Click Mixing Channel
+ * node and the Drum Kit Player rigs wired onto the Ostinato and Orchestration Mixing Channel nodes
+ * are all built here, eagerly, and connect directly to the audio destination. Loudness is controlled
+ * directly on the three Mixing Channels.
  */
 export class ToneTransportScheduler {
   private engine: MetronomeEngine;
@@ -246,7 +245,7 @@ export class ToneTransportScheduler {
   }
 
   /**
-   * Builds the Master, the Mixing Channel nodes and every voice wired onto them. Idempotent and
+   * Builds the Mixing Channel nodes and every voice wired onto them. Idempotent and
    * retry-safe: an audio context that could not build nodes yet can build them on the next call.
    * Returns false when the graph is unavailable, in which case nothing plays.
    */
@@ -338,15 +337,6 @@ export class ToneTransportScheduler {
         this.reschedule();
       }
     }
-  }
-
-  // Loudness for everything the app plays: the Mixer Master is the only volume control.
-  public getVolume(): number {
-    return this.audioMixer.getMasterVolume();
-  }
-
-  public setVolume(volume: number): void {
-    this.audioMixer.setMasterVolume(volume);
   }
 
   public tap(timestampMs?: number): number | null {

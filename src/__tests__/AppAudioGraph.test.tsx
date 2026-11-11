@@ -18,6 +18,15 @@ function liveOutputSources() {
 }
 
 describe('App audio graph lifecycle', () => {
+  const EXPECTED_OUTPUTS = [
+    'audition:click',
+    'audition:orchestration',
+    'audition:ostinato',
+    'mixer:click',
+    'mixer:orchestration',
+    'mixer:ostinato',
+  ];
+
   beforeEach(() => {
     fakeToneRecorder.reset();
   });
@@ -26,23 +35,10 @@ describe('App audio graph lifecycle', () => {
     fakeToneRecorder.reset();
   });
 
-  it('gives the shell one graph whose single Master is the only output', () => {
+  it('gives the shell one graph whose mixing channel and audition nodes feed destination directly', () => {
     render(<App />);
 
-    expect(liveOutputSources()).toEqual(['mixer:master']);
-
-    const master = fakeToneRecorder.destination.incoming[0];
-    // Three Mixing Channels and their Audition nodes, from one graph, all feed that Master.
-    expect(fakeToneRecorder.feedsInto(master).map((node) => node.label).sort()).toEqual(
-      [
-        'audition:click',
-        'audition:orchestration',
-        'audition:ostinato',
-        'mixer:click',
-        'mixer:orchestration',
-        'mixer:ostinato',
-      ]
-    );
+    expect(liveOutputSources().sort()).toEqual(EXPECTED_OUTPUTS);
   });
 
   it('does not leak a second graph when StrictMode mounts the shell twice', () => {
@@ -52,12 +48,12 @@ describe('App audio graph lifecycle', () => {
       </StrictMode>
     );
 
-    expect(liveOutputSources()).toEqual(['mixer:master']);
+    expect(liveOutputSources().sort()).toEqual(EXPECTED_OUTPUTS);
   });
 
   it('releases the graph it owns when the shell unmounts', () => {
     const { unmount } = render(<App />);
-    expect(liveOutputSources()).toEqual(['mixer:master']);
+    expect(liveOutputSources().sort()).toEqual(EXPECTED_OUTPUTS);
 
     unmount();
 

@@ -66,13 +66,14 @@ describe('App', () => {
   it('exposes the mixing-channel loudness controls exactly once, in the Mixer Panel', () => {
     render(<App />);
 
-    for (const label of ['Master Volume', 'Click Volume', 'Ostinato Volume', 'Orchestrated Line Volume']) {
+    for (const label of ['Click Volume', 'Ostinato Volume', 'Orchestrated Line Volume']) {
       expect(screen.getAllByLabelText(label)).toHaveLength(1);
     }
     for (const channel of ['Click', 'Ostinato', 'Orchestrated Line']) {
       expect(screen.getAllByRole('button', { name: `Mute ${channel}` })).toHaveLength(1);
     }
-    expect(screen.getByTestId('mixer-preset-row')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Master Volume')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mixer-preset-row')).not.toBeInTheDocument();
 
     // The Metronome panel holds no loudness control of its own (ticket 06).
     expect(screen.queryByLabelText('Volume')).not.toBeInTheDocument();

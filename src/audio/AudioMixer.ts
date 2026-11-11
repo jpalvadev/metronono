@@ -1,9 +1,10 @@
 import * as Tone from 'tone';
+import { OstinatoType } from '../domain/dawson/types';
 
 export type MixerChannelId = 'click' | 'ostinato' | 'orchestration';
 
-// The three Mixing Channels every click and drum hit belongs to, plus the single Master
-// they all feed. See docs/adr/0005.
+// The three Mixing Channels every click and drum hit belongs to.
+// See docs/adr/0005 and docs/adr/0008.
 export const MIXING_CHANNELS: MixerChannelId[] = ['click', 'ostinato', 'orchestration'];
 
 export interface ChannelState {
@@ -11,17 +12,10 @@ export interface ChannelState {
   muted: boolean;
 }
 
-// The single place loudness is set for everything the app plays. The Master has no mute
-// control: a silent Master is simply a Master at 0.
-export interface MasterState {
-  volume: number; // 0.0 to 1.0
-}
-
 export interface AudioMixerState {
   click: ChannelState;
   ostinato: ChannelState;
   orchestration: ChannelState;
-  master: MasterState;
 }
 
 export interface IGainNodeLike {
@@ -36,9 +30,7 @@ export interface IGainNodeLike {
 }
 
 export interface AudioMixerOptions {
-  initialState?: Partial<Record<MixerChannelId, Partial<ChannelState>>> & {
-    master?: Partial<MasterState>;
-  };
+  initialState?: Partial<Record<MixerChannelId, Partial<ChannelState>>>;
 }
 
 export interface IAudioMixer {
@@ -53,15 +45,42 @@ export interface IAudioMixer {
   getEffectiveVolume(channel: MixerChannelId): number;
   // Whether that volume leaves the channel able to be heard at all.
   isChannelAudible(channel: MixerChannelId): boolean;
-  getMasterVolume(): number;
-  setMasterVolume(volume: number): void;
   getState(): AudioMixerState;
   onStateChange(listener: (state: AudioMixerState) => void): () => void;
   // Throws when the graph has not been built: there is no second route to the destination.
   getChannelNode(channel: MixerChannelId): IGainNodeLike;
   getAuditionNode(channel: MixerChannelId): IGainNodeLike;
-  getMasterNode(): IGainNodeLike;
   dispose?(): void;
+}
+
+// Which Mixing Channels the active Dawson System actually composes into. A channel that is
+// not composed has nothing behind it.
+export interface ComposedChannels {
+  click: boolean;
+  ostinato: boolean;
+  orchestration: boolean;
+}
+
+export const ALL_CHANNELS_COMPOSED: ComposedChannels = {
+  click: true,
+  ostinato: true,
+  orchestration: true,
+};
+
+export interface DawsonComposition {
+  getOstinato(): OstinatoType;
+}
+
+/**
+ * The Click Channel and the orchestrated line are always composed; only the Ostinato Line is
+ * a composition choice, and No Ostinato is that choice, not a mute.
+ */
+export function composedChannels(engine: DawsonComposition): ComposedChannels {
+  return {
+    click: true,
+    ostinato: engine.getOstinato() !== 'none',
+    orchestration: true,
+  };
 }
 
 interface ChannelNodes {
@@ -79,10 +98,9 @@ function labelNode<T extends IGainNodeLike>(node: T, label: string): T {
 }
 
 /**
- * AudioMixer — owns the audio graph: the three Mixing Channel gain nodes, the Audition
- * node each Mixing Channel feeds it shares, and the single Master gain node that is the
- * only connection to the audio destination. Mutes and volumes are written on the node
- * the Mixing Channel itself owns.
+ * AudioMixer — owns the audio graph: the three Mixing Channel gain nodes and the Audition
+ * node each Mixing Channel feeds it shares, connected directly to the audio destination.
+ * Mutes and volumes are written on the node the Mixing Channel itself owns.
  */
 export class AudioMixer implements IAudioMixer {
   private channels: Record<MixerChannelId, ChannelState> = {
@@ -91,10 +109,7 @@ export class AudioMixer implements IAudioMixer {
     orchestration: { volume: 0.8, muted: false },
   };
 
-  private master: MasterState = { volume: 0.8 };
-
   private channelNodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
-  private masterNode?: IGainNodeLike;
   private listeners: Set<(state: AudioMixerState) => void> = new Set();
 
   constructor(options?: AudioMixerOptions) {
@@ -110,35 +125,28 @@ export class AudioMixer implements IAudioMixer {
           }
         }
       }
-      if (options.initialState.master && typeof options.initialState.master.volume === 'number') {
-        this.master.volume = clampVolume(options.initialState.master.volume);
-      }
     }
   }
 
   /**
-   * Builds the Master node and the Mixing Channel / Audition nodes it feeds. Eagerly
-   * called by the scheduler, idempotent, and retry-safe: a browser that refuses to build
-   * nodes before its audio context is unlocked can simply call again. Returns false when
-   * the audio context is unavailable, in which case nothing reaches the destination.
+   * Builds the Mixing Channel and Audition nodes connected directly to destination.
+   * Eagerly called by the scheduler, idempotent, and retry-safe: a browser that refuses
+   * to build nodes before its audio context is unlocked can simply call again. Returns false
+   * when the audio context is unavailable, in which case nothing reaches the destination.
    */
   public initToneNodes(): boolean {
-    if (this.masterNode) return true;
+    if (this.isGraphInitialized()) return true;
 
     try {
-      const masterGain = new Tone.Gain(this.master.volume);
-      masterGain.toDestination();
-      this.masterNode = labelNode(masterGain as unknown as IGainNodeLike, 'mixer:master');
-
       const nodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
       for (const channel of MIXING_CHANNELS) {
         const mainGain = new Tone.Gain(this.getEffectiveVolume(channel));
-        mainGain.connect(this.masterNode as unknown as Tone.ToneAudioNode);
+        mainGain.toDestination();
 
         // The Audition node is never silenced: it holds the channel volume so a tap on a
         // muted channel is still heard at that channel's volume.
         const auditionGain = new Tone.Gain(this.channels[channel].volume);
-        auditionGain.connect(this.masterNode as unknown as Tone.ToneAudioNode);
+        auditionGain.toDestination();
 
         nodes[channel] = {
           main: labelNode(mainGain as unknown as IGainNodeLike, `mixer:${channel}`),
@@ -157,14 +165,12 @@ export class AudioMixer implements IAudioMixer {
         }
       }
       this.channelNodes = {};
-      this.masterNode?.disconnect?.();
-      this.masterNode = undefined;
       return false;
     }
   }
 
   public isGraphInitialized(): boolean {
-    return this.masterNode !== undefined;
+    return MIXING_CHANNELS.every((channel) => this.channelNodes[channel] !== undefined);
   }
 
   public getChannelVolume(channel: MixerChannelId): number {
@@ -205,29 +211,11 @@ export class AudioMixer implements IAudioMixer {
     return this.getEffectiveVolume(channel) > 0;
   }
 
-  public getMasterVolume(): number {
-    return this.master.volume;
-  }
-
-  public setMasterVolume(volume: number): void {
-    this.master.volume = clampVolume(volume);
-    const masterNode = this.masterNode;
-    if (masterNode?.gain) {
-      if (masterNode.gain.rampTo) {
-        masterNode.gain.rampTo(this.master.volume, 0.02);
-      } else {
-        masterNode.gain.value = this.master.volume;
-      }
-    }
-    this.notifyState();
-  }
-
   public getState(): AudioMixerState {
     return {
       click: { ...this.channels.click },
       ostinato: { ...this.channels.ostinato },
       orchestration: { ...this.channels.orchestration },
-      master: { ...this.master },
     };
   }
 
@@ -258,13 +246,6 @@ export class AudioMixer implements IAudioMixer {
     return nodes.audition;
   }
 
-  public getMasterNode(): IGainNodeLike {
-    if (!this.masterNode) {
-      throw new Error('AudioMixer: Master node is unavailable. Call initToneNodes() first.');
-    }
-    return this.masterNode;
-  }
-
   public dispose(): void {
     this.listeners.clear();
     for (const channel of MIXING_CHANNELS) {
@@ -275,8 +256,6 @@ export class AudioMixer implements IAudioMixer {
       }
     }
     this.channelNodes = {};
-    this.masterNode?.dispose?.();
-    this.masterNode = undefined;
   }
 
   private updateChannelNodes(channel: MixerChannelId): void {

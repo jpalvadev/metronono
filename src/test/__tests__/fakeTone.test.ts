@@ -168,28 +168,23 @@ describe('recording fake Tone harness', () => {
     const mixer = new AudioMixer()
     mixer.initToneNodes()
 
-    const master = mixer.getMasterNode()
     const click = mixer.getChannelNode('click')
     const orchestration = mixer.getChannelNode('orchestration')
-    if (!master || !click || !orchestration) {
+    if (!click || !orchestration) {
       throw new Error('mixer did not build its node graph through the registered fake')
     }
 
     expect(fakeToneRecorder.routeToDestination(click)).toEqual([
       asFakeNode(click).id,
-      asFakeNode(master).id,
       'destination',
     ])
-    // Three mix nodes and three audition nodes all feed the single Master.
-    expect(fakeToneRecorder.feedsInto(master)).toHaveLength(6)
+    // Three mix nodes and three audition nodes all feed the destination directly.
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(6)
     expect(fakeToneRecorder.gainValue(click)).toBe(0.8)
 
     mixer.setChannelMute('click', true)
     expect(fakeToneRecorder.gainValue(click)).toBe(0)
     expect(fakeToneRecorder.lastGainWrite(click)).toMatchObject({ method: 'rampTo', value: 0 })
     expect(fakeToneRecorder.gainValue(orchestration)).toBe(0.8)
-
-    mixer.setMasterVolume(0.25)
-    expect(fakeToneRecorder.gainValue(master)).toBe(0.25)
   })
 })

@@ -52,9 +52,8 @@ describe('ToneTransportScheduler', () => {
     });
   });
 
-  it('initializes with default tempo and volume', () => {
+  it('initializes with default tempo', () => {
     expect(scheduler.getTempo()).toBe(120);
-    expect(scheduler.getVolume()).toBe(0.8);
     expect(scheduler.isPlaying()).toBe(false);
   });
 
@@ -104,17 +103,6 @@ describe('ToneTransportScheduler', () => {
     expect(mockTransport.timeSignature).toBe(3);
   });
 
-  it('sets and clamps the Mixer Master volume between 0 and 1', () => {
-    scheduler.setVolume(0.5);
-    expect(scheduler.getVolume()).toBe(0.5);
-    expect(scheduler.getAudioMixer().getMasterVolume()).toBe(0.5);
-
-    scheduler.setVolume(1.5);
-    expect(scheduler.getVolume()).toBe(1.0);
-
-    scheduler.setVolume(-0.2);
-    expect(scheduler.getVolume()).toBe(0.0);
-  });
 
   describe('Advanced Training Features', () => {
     it('silences click playback when a beat is muted by beatMask while maintaining beat callbacks', async () => {

@@ -45,24 +45,16 @@ The subdivision voice's clicks sounding at the even fractions between one beat c
 _Avoid_: Subdivision Formula (the drum-stroke formula this must not be confused with), upbeat, shuffle feel
 
 **Reading View**:
-A minimalist single-line rhythmic score displaying only short and long notes (with rests and ties) used for sight-reading and mental orchestration training.
-_Avoid_: Tab view, practice sheet
-
-**Drum Staff View**:
-A standard 5-line percussion score (PAS standard) with dedicated pitch positions and notehead shapes (crosses for cymbals, ovals for drums) used for writing and inspecting full kit orchestrations.
-_Avoid_: Full tab, multi-track sheet
+A minimalist single-line rhythmic score displaying only short and long notes (with rests and ties) used for sight-reading and mental orchestration training. The sole notation view for reading training exercises.
+_Avoid_: Tab view, practice sheet, drum staff view
 
 **Orchestrated Stroke**:
 An individual sounding hit or rest within an orchestration formula defining a specific figure duration, target drum voices (single hit or stacked unison), and articulation.
 _Avoid_: Drum hit, note event, limb hit
 
 **Mixing Channel**:
-One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute under a single Master. A muted channel produces no sound, without stopping the Metronome or the notation.
+One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute feeding the destination directly. A muted channel produces no sound, without stopping the Metronome or the notation.
 _Avoid_: Track, bus, stem, fader, channel strip
-
-**Practice Preset**:
-A one-press combination of Mixing Channel mutes naming a practice configuration: Click Only, Drums Only, or Full Mix; Custom when the channels match none of them.
-_Avoid_: Mode, scene, template
 
 **Audition**:
 A single user-initiated playback of a Sample Bank sample or Subdivision Formula, independent of the transport and of Mixing Channel mutes.
@@ -80,7 +72,7 @@ _Avoid_: Teal, highlight color, secondary color
 
 **Status Colors**:
 The three semantic hues with fixed meaning — Success (valid), Warning (attention), Destructive (danger/invalid) — used only where that meaning genuinely holds. Difficulty tiers borrow them by hue.
-_Avoid_: Decorative color, traffic light; a neutral label (e.g. Custom Practice Preset) is never Warning
+_Avoid_: Decorative color, traffic light; a neutral label is never Warning
 
 **Modal Scrim**:
 The one dimmed ink overlay behind every modal dialog — a single dimming treatment shared by all modals.

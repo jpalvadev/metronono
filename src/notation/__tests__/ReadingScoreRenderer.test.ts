@@ -200,6 +200,80 @@ describe('ReadingScoreRenderer', () => {
     });
   });
 
+  // Every note stem path in the SVG: x anchor and topmost y (the tip).
+  const stemPaths = (svg: Element | null): Array<{ x: number; tip: number }> => {
+    if (!svg) return [];
+    const stems: Array<{ x: number; tip: number }> = [];
+    for (const path of svg!.querySelectorAll('g[class="vf-stem"] path')) {
+      const nums = (path.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g)?.map(Number);
+      if (!nums || nums.length < 4) continue;
+      const ys = nums.filter((_, i) => i % 2 === 1);
+      stems.push({ x: nums[0], tip: Math.min(...ys) });
+    }
+    return stems;
+  };
+
+  // Closed rectangular beam paths: x span and y span.
+  const beamRects = (svg: Element | null): Array<{ x0: number; x1: number; top: number; bottom: number }> => {
+    if (!svg) return [];
+    const rects: Array<{ x0: number; x1: number; top: number; bottom: number }> = [];
+    for (const g of svg!.querySelectorAll('g[class="vf-beam"]')) {
+      for (const path of g.querySelectorAll('path')) {
+        const d = path.getAttribute('d') ?? '';
+        if (!d.includes('Z')) continue; // beam lines are closed fill rects
+        const nums = d.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
+        if (nums.length < 4) continue;
+        rects.push({
+          x0: Math.min(...nums.filter((_, i) => i % 2 === 0)),
+          x1: Math.max(...nums.filter((_, i) => i % 2 === 0)),
+          top: Math.min(...nums.filter((_, i) => i % 2 === 1)),
+          bottom: Math.max(...nums.filter((_, i) => i % 2 === 1)),
+        });
+      }
+    }
+    return rects;
+  };
+
+  it('draws exactly one stem per beamed note, tips up, beam resting on the tips', () => {
+    const measure = createTestMeasure(0, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+    const readingLine: ReadingLine = {
+      id: 'test-single-stems',
+      title: 'One Stem Per Note',
+      tier: 1,
+      measures: [measure],
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    renderer.render(container, readingLine, { width: 600 });
+
+    const svg = container.querySelector('svg');
+    const line = staveLineY(svg);
+    const stems = stemPaths(svg);
+
+    // Exactly one stem path per note, no doubled paths at the same x.
+    expect(stems.length).toBe(8);
+    for (let i = 0; i < stems.length; i++) {
+      for (let j = i + 1; j < stems.length; j++) {
+        expect(Math.abs(stems[i].x - stems[j].x)).toBeGreaterThan(0.1);
+      }
+    }
+
+    // Tips above the line at the standard ~3.5 stave spaces.
+    stems.forEach((s) => {
+      expect(s.tip).toBeLessThanOrEqual(line - 30);
+      expect(s.tip).toBeGreaterThanOrEqual(line - 40);
+    });
+
+    // Beam bottoms rest exactly on the stem tips of the notes they cover.
+    const rects = beamRects(svg);
+    expect(rects.length).toBe(4);
+    rects.forEach((r) => {
+      const covered = stems.filter((s) => s.x >= r.x0 - 0.5 && s.x <= r.x1 + 0.5);
+      expect(covered.length).toBeGreaterThan(0);
+      covered.forEach((s) => expect(Math.abs(s.tip - r.bottom)).toBeLessThanOrEqual(0.5));
+    });
+  });
+
   it('renders intra-measure and cross-bar ties', () => {
     const m0Events = [
       createRhythmicEvent({ id: 'm0-e0', durationBeats: 1.0 }),

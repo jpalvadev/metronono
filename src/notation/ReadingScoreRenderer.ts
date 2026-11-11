@@ -22,6 +22,16 @@ const FINAL_BARLINE_THICKNESS = 3;
 // instead of the notes hanging ~20 px below it.
 const STAVE_LINE_COUNT = 5;
 const VISIBLE_LINE_INDEX = 2;
+
+// Beams are drawn as explicit rectangles resting exactly on the stem tips:
+// VexFlow's Beam.draw() would re-stroke every beamed note's stem a second
+// time at slightly different endpoints (doubled stems in the capture).
+const BEAM_THICKNESS = 5; // matches VexFlow's Beam renderOptions.beamWidth
+const BEAM_STACK = 7.5;   // secondary beam step, beamWidth * 1.5 like VexFlow
+
+// A flagged stem path is drawn 3 px short of its extents tip (VexFlow
+// Stem.adjustHeightForFlag), so the visible beam-bottom/tip pair lines up.
+const STEM_FLAG_INSET = 3;
 import { Measure, ReadingLine, RhythmicEvent } from '../domain/rhythm/types';
 import {
   ScoreRenderOptions,
@@ -112,6 +122,51 @@ export class ReadingScoreRenderer {
       context.closeGroup();
     };
 
+    // Draw one stem path per beamed note, then the beam rectangles resting
+    // exactly on those tips. VexFlow's Beam.draw() is deliberately never
+    // called: it re-strokes every beamed note's stem a second time.
+    const drawBeamRects = (beam: Beam): void => {
+      const notes = beam.getNotes();
+      if (notes.length === 0) {
+        return;
+      }
+      // voice.draw skips stems of notes that carry a beam, so draw the single
+      // stem here — flagged-stem inset keeps the path tip at topY + 3.
+      for (const note of notes) {
+        const stem = note.getStem();
+        if (!stem) {
+          continue;
+        }
+        const stemX = note.getStemX();
+        stem.setNoteHeadXBounds(stemX, stemX);
+        stem.adjustHeightForFlag();
+        stem.setContext(context).drawWithStyle();
+      }
+      const tipY = notes[0].getStemExtents().topY + STEM_FLAG_INSET;
+      let level = 0;
+      for (const duration of ['4', '8']) {
+        const lines = beam.getBeamLines(duration);
+        if (lines.length > 0) {
+          const bottom = tipY + level * BEAM_STACK;
+          const top = bottom - BEAM_THICKNESS;
+          context.openGroup('beam');
+          for (const line of lines) {
+            const x0 = line.start;
+            const x1 = (line.end ?? line.start) + 1;
+            context.beginPath();
+            context.moveTo(x0, top);
+            context.lineTo(x0, bottom);
+            context.lineTo(x1, bottom);
+            context.lineTo(x1, top);
+            context.closePath();
+            context.fill();
+          }
+          context.closeGroup();
+        }
+        level += 1;
+      }
+    };
+
     const measureCoordinates: MeasureCoordinate[] = [];
     const measureCoordsMap = new Map<number, MeasureCoordinate>();
 
@@ -192,16 +247,9 @@ export class ReadingScoreRenderer {
         beatOffset += evt.durationBeats;
       }
 
-      // Format notes into stave
-      const notes = staveNotes.map((sn) => sn.note);
-      const voice = new Voice({ numBeats: 4, beatValue: 4 }).setMode(Voice.Mode.SOFT);
-      voice.addTickables(notes);
-
-      const availableNoteWidth = Math.max(50, stave.getNoteEndX() - stave.getNoteStartX() - 8);
-      new Formatter().joinVoices([voice]).format([voice], availableNoteWidth);
-      voice.draw(context, stave);
-
-      // Generate beams for consecutive 8th and 16th notes
+      // Generate beams before the voice is drawn so each beamed note carries
+      // note.beam before StaveNote.draw(): shouldDrawFlag() skips the flag on
+      // beamed notes, and isolated short notes keep their flag.
       const beams: Beam[] = [];
       let currentBeamGroup: StaveNote[] = [];
       for (const { note, event } of staveNotes) {
@@ -219,7 +267,21 @@ export class ReadingScoreRenderer {
       if (currentBeamGroup.length > 1) {
         beams.push(...Beam.generateBeams(currentBeamGroup, { stemDirection: Stem.UP }));
       }
-      beams.forEach((beam) => beam.setContext(context).draw());
+
+      // Format notes into stave
+      const notes = staveNotes.map((sn) => sn.note);
+      const voice = new Voice({ numBeats: 4, beatValue: 4 }).setMode(Voice.Mode.SOFT);
+      voice.addTickables(notes);
+
+      const availableNoteWidth = Math.max(50, stave.getNoteEndX() - stave.getNoteStartX() - 8);
+      new Formatter().joinVoices([voice]).format([voice], availableNoteWidth);
+      voice.draw(context, stave);
+
+      // Draw the beam rects after the voice laid the notes out, resting them
+      // on the drawn stem tips (one stem path per note, drawn by voice.draw).
+      for (const beam of beams) {
+        drawBeamRects(beam);
+      }
 
       measureDataList.push({
         measure,

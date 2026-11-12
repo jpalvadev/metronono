@@ -10,9 +10,13 @@ if git ls-files -- 'src' | grep -qE 'scratch-'; then
   exit 1
 fi
 
-if ! npm run check >/dev/null 2>&1; then
-  echo "BLOCKED: npm run check (tsc --noEmit + vitest run) failed. Run it to see why." >&2
+CHECK_LOG=$(mktemp)
+if ! npm run check >"$CHECK_LOG" 2>&1; then
+  tail -n 30 "$CHECK_LOG" >&2
+  rm -f "$CHECK_LOG"
+  echo "BLOCKED: npm run check (tsc --noEmit + vitest run) failed." >&2
   exit 1
 fi
+rm -f "$CHECK_LOG"
 
 exit 0

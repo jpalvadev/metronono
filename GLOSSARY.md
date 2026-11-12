@@ -36,6 +36,14 @@ _Avoid_: Sound font, sound pack
 The audio timing architecture that decouples a coarse JavaScript interval from the hardware-timed audio rendering thread to achieve sample-accurate beat delivery without jitter.
 _Avoid_: JS timer, clock ticker
 
+**Measure Plan**:
+The pre-resolved schedule of one reading-line measure: its Scheduled Drum Events bucketed by beat, built when playback starts and rebuilt only when the composition changes. The clock tick reads the next bucket instead of consulting the domain.
+_Avoid_: Tick resolution, on-the-beat resolve
+
+**Audio Voice Pool**:
+The finite set of audio nodes a drum rig holds per voice slot — a ring of interchangeable synth instances cycled per stroke, and one reusable Gain per custom-sample voice — so strokes allocate no nodes and retired BufferSources disconnect once their playback window ends.
+_Avoid_: Per-stroke spawning, dangling gain node
+
 **Subdivision Formula**:
 The sequence of sub-beat strokes and rests (monophonic hits or stacked unisons like kick and cymbal) applied to a single short or long note trigger.
 _Avoid_: Fill lick, sticking pattern, limb sequence

@@ -26,7 +26,7 @@ The theme's single definition point is `src/index.css` (tokens and the named uti
 
 Audio behaviour is asserted at two seams, and only their union covers what the user hears. The fake Tone recorder in `src/test/fakeTone.ts` (jsdom, `vi.mock('tone')`) settles graph contracts: which nodes exist, their labels and routing, node counts across ticks, retirement as `stoppedAt`/`disposed`/`stoppedWithoutScheduleTime`. It cannot see what a real audio context pays for, so any change to the audio graph must also pass `npm run check:live`, which drives a real Chromium and asserts the eager graph's node budget, beat cadence against the configured tempo, a source started per beat, and a clean console. Never claim audio works from the jsdom suites alone: the doubled voice pool passed all 389 tests while the browser played nothing.
 
-A pooled voice is a whole subgraph, not a node, so ring widths and rig eagerness are the budget knob (ADR-0011 amendment): keep `VOICE_POOL_SIZE` at the narrowest width that gives a stroke its own live attack, and earn a rig only when the session can hear it.
+A pooled voice is a whole subgraph, not a node, so ring widths and rig eagerness are the budget knob (ADR-0011 amendment): keep `VOICE_POOL_SIZE` at the narrowest width that gives a stroke its own live attack, and earn a rig only when the session can hear it. Assert the bound at both seams — the deterministic half headless in `src/audio/__tests__/EagerGraphNodeBudget.test.ts` (the graph a session pays before any gesture, and no `:audition:` rig label before the tap that hears it), the browser half through `check:live`.
 
 ## Checks
 

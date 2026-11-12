@@ -30,7 +30,7 @@ Every skill lives in `.agents/skills/<name>/SKILL.md` (with support docs alongsi
 
 ## Shell
 
-Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, `Select-String`, `Remove-Item`); the grep/glob tools cover content search, so reach for the shell only for test/build runs and file ops.
+Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, `Select-String`, `Remove-Item`); the grep/glob tools cover content search, so reach for the shell only for test/build runs and file ops. Statements are separated by `;` (PowerShell has no `&&`), and npm binaries are not on the bare PATH — reach them with `npx` (`npx tsc --noEmit`) or `npm run <script>`.
 
 During TDD slices, run targeted test files (`npx vitest run <file>`) for rapid red/green feedback; the git pre-commit hook automatically verifies full `npm run check` on each ticket commit. Never pipe runner output through `Select-String` with unicode patterns (arrows, ✖) — the PowerShell scanner chokes on them; run the runner raw and let output truncation keep the summary.
 
@@ -43,6 +43,8 @@ In `npm run check` output, jsdom `Error: Not implemented: navigation` and React 
 You **have vision**: take screenshots of the running app with Playwright and look at them — for visual surfaces (the pentagram, VexFlow renders, playhead geometry) a screenshot check is often the fastest way to see what is wrong. Combine both: read the rendered SVG/DOM geometry programmatically for precise assertions, look at screenshots for gestalt judgment. A visual defect that only DOM assertions would catch is still a defect to catch with a geometry assertion.
 
 Playwright is a devDependency; `scripts/screenshot-drums.mjs` is the reusable driver: start `npm run dev` (vite on :5173), run `node scripts/screenshot-drums.mjs` to capture the full app page to `.scratch/*.png`, then read the PNG. Headless chromium is fetched once via `npx playwright install chromium-headless-shell`.
+
+Read `docs/agents/live-browser-seam.md` before writing a browser probe or guard: it holds the DOM hooks the app exposes (the playhead cursor, the `Beat:`/`BPM` readouts, the START CLOCK button), the WebAudio census and console patching, and the Playwright gotchas this repo keeps re-hitting.
 
 ## E2E tests
 

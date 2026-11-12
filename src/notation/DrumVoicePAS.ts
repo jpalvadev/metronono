@@ -19,5 +19,5 @@ export const DRUM_VOICE_PAS_MAP: Record<DrumVoice, DrumVoicePAS> = {
   tom_mid: { key: 'd/5', stemVoice: 1, line: 1.0, label: 'Mid Tom' },
   tom_floor: { key: 'a/4', stemVoice: 1, line: 2.5, label: 'Floor Tom' },
   kick: { key: 'f/4', stemVoice: 2, line: 3.5, label: 'Bass Drum (Kick)' },
-  hihat_foot: { key: 'd/4/X2', stemVoice: 2, line: 4.0, label: 'Hi-Hat Foot' },
+  hihat_foot: { key: 'd/4/X2', stemVoice: 2, line: 4.5, label: 'Hi-Hat Foot' },
 };

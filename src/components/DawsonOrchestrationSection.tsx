@@ -120,9 +120,18 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   const handleOstinatoChange = useCallback(
     (newOstinato: OstinatoType) => {
       setOstinato(newOstinato);
-      engine.setOstinato(newOstinato);
+      if (newOstinato === 'none') {
+        engine.setOstinato('none');
+      } else {
+        const found = presetManager.getOstinato(newOstinato);
+        if (found) {
+          engine.setOstinato(found);
+        } else {
+          engine.setOstinato(newOstinato);
+        }
+      }
     },
-    [engine]
+    [engine, presetManager]
   );
 
   const handleAuditionFormula = useCallback(

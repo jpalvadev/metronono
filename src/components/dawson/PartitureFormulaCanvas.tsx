@@ -91,47 +91,63 @@ export function strokesToSlots(
 }
 
 export function slotsToStrokes(slots: FormulaSlot[], preserveAll = false): OrchestratedStroke[] {
-  if (preserveAll) {
-    if (slots.length === 0) {
-      return [
-        {
-          durationRatio: 0.25,
-          isRest: true,
-          hits: [],
-        },
-      ];
-    }
-    return slots.map((s) => ({
-      durationRatio: s.durationRatio,
-      isRest: s.isRest || s.hits.length === 0,
-      hits: s.hits,
-    }));
-  }
-
-  let lastNonRestIdx = -1;
-  for (let i = slots.length - 1; i >= 0; i--) {
-    const slot = slots[i];
-    if (slot && !slot.isRest && slot.hits.length > 0) {
-      lastNonRestIdx = i;
-      break;
-    }
-  }
-  if (lastNonRestIdx === -1) {
-    const firstRest = slots[0];
+  if (slots.length === 0) {
     return [
       {
-        durationRatio: firstRest ? firstRest.durationRatio : 0.25,
+        durationRatio: 0.25,
         isRest: true,
         hits: [],
       },
     ];
   }
 
-  return slots.slice(0, lastNonRestIdx + 1).map((s) => ({
-    durationRatio: s.durationRatio,
-    isRest: s.isRest || s.hits.length === 0,
-    hits: s.hits,
-  }));
+  let limit = slots.length;
+  if (!preserveAll) {
+    let lastNonRestIdx = -1;
+    for (let i = slots.length - 1; i >= 0; i--) {
+      const slot = slots[i];
+      if (slot && !slot.isRest && slot.hits.length > 0) {
+        lastNonRestIdx = i;
+        break;
+      }
+    }
+    if (lastNonRestIdx === -1) {
+      const firstRest = slots[0];
+      return [
+        {
+          durationRatio: firstRest ? firstRest.durationRatio : 0.25,
+          isRest: true,
+          hits: [],
+        },
+      ];
+    }
+    limit = lastNonRestIdx + 1;
+  }
+
+  const result: OrchestratedStroke[] = [];
+  let i = 0;
+  while (i < limit) {
+    const slot = slots[i];
+    if (slot.isRest || !slot.hits || slot.hits.length === 0) {
+      let j = i + 1;
+      while (j < limit && (slots[j].isRest || !slots[j].hits || slots[j].hits.length === 0)) {
+        j++;
+      }
+      const dur = Math.round((j - i) * slot.durationRatio * 1000) / 1000;
+      result.push({ durationRatio: dur, isRest: true, hits: [] });
+      i = j;
+    } else {
+      let j = i + 1;
+      while (j < limit && (slots[j].isRest || !slots[j].hits || slots[j].hits.length === 0)) {
+        j++;
+      }
+      const dur = Math.round((j - i) * slot.durationRatio * 1000) / 1000;
+      result.push({ durationRatio: dur, isRest: false, hits: [...slot.hits] });
+      i = j;
+    }
+  }
+
+  return result;
 }
 
 export function getSlotLabels(totalSlots: number, slotDuration: number, _targetBeats?: number): string[] {

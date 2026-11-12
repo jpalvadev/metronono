@@ -49,7 +49,7 @@ describe('DRUM_VOICE_PAS_MAP', () => {
     expect(DRUM_VOICE_PAS_MAP.hihat_foot).toMatchObject({
       key: 'd/4/X2',
       stemVoice: 2,
-      line: 4.0,
+      line: 4.5,
     });
   });
 });

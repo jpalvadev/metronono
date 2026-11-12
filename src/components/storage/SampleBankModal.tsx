@@ -128,7 +128,7 @@ export const SampleBankModal: React.FC<SampleBankModalProps> = ({
       await storageManager.deleteSample(voiceId);
       setNotification({
         type: 'success',
-        message: `Restored default synthesized sound for ${voiceId}`,
+        message: `Restored default .wav sound for ${voiceId}`,
       });
       setTimeout(() => setNotification(null), 3000);
     } catch (err: any) {
@@ -456,7 +456,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted">
-              Synthesized
+              Default .wav
             </Badge>
           )}
         </div>
@@ -502,7 +502,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
           disabled={!sample}
           data-testid={`reset-${voice.id}`}
           aria-label={`Reset ${voice.label} to default`}
-          title="Reset to synthesized default sound"
+          title="Reset to default .wav sound"
           className={cn(
             'h-8 w-8 p-0 text-muted-foreground hover:text-destructive',
             !sample && 'opacity-30 cursor-not-allowed'

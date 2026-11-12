@@ -17,6 +17,7 @@ import {
   Plus,
   Trash2,
   Edit3,
+  Copy,
   X,
   Check,
   Disc,
@@ -201,6 +202,17 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
 
   const handleDeleteOstinato = (ostId: string) => {
     presetManager.deleteOstinato(ostId);
+    refreshData();
+  };
+
+  const handleDuplicateOstinato = (ost: OstinatoPattern) => {
+    const copyName = ost.name.includes('(Copia)') ? `${ost.name} 2` : `${ost.name} (Copia)`;
+    presetManager.saveOstinato({
+      ...ost,
+      id: `custom_ost_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: copyName,
+      isCustom: true,
+    });
     refreshData();
   };
 
@@ -823,6 +835,16 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
                           >
                             <Edit3 className="w-3 h-3" /> Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            data-testid={`duplicate-ostinato-${ost.id}`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDuplicateOstinato(ost)}
+                            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1 rounded-none"
+                          >
+                            <Copy className="w-3 h-3" /> Duplicate
                           </Button>
                         </div>
 

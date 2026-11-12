@@ -292,5 +292,29 @@ describe('PresetManager Component', () => {
       expect(copied).toBeDefined();
       expect(copied?.isCustom).toBe(true);
     });
+
+    it('allows duplicating an ostinato directly via Duplicate action', () => {
+      render(
+        <PresetManager
+          open={true}
+          onClose={mockOnClose}
+          presetManager={presetManager}
+          activeSystemId="classic_bop"
+          onSelectSystem={mockOnSelectSystem}
+          player={mockPlayer}
+        />
+      );
+
+      const ostinatosTab = screen.getByRole('button', { name: /Ostinatos/i });
+      fireEvent.click(ostinatosTab);
+
+      const dupBtn = screen.getByTestId('duplicate-ostinato-jazz_swing');
+      fireEvent.click(dupBtn);
+
+      const allOstinatos = presetManager.getAllOstinatos();
+      const duplicated = allOstinatos.find((o) => o.name === 'Jazz Swing (Copia)');
+      expect(duplicated).toBeDefined();
+      expect(duplicated?.isCustom).toBe(true);
+    });
   });
 });

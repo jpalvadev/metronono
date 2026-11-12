@@ -42,6 +42,8 @@ In `npm run check` output, jsdom `Error: Not implemented: navigation` and React 
 
 You **have vision**: take screenshots of the running app with Playwright and look at them — for visual surfaces (the pentagram, VexFlow renders, playhead geometry) a screenshot check is often the fastest way to see what is wrong. Combine both: read the rendered SVG/DOM geometry programmatically for precise assertions, look at screenshots for gestalt judgment. A visual defect that only DOM assertions would catch is still a defect to catch with a geometry assertion.
 
+Playwright is a devDependency; `scripts/screenshot-drums.mjs` is the reusable driver: start `npm run dev` (vite on :5173), run `node scripts/screenshot-drums.mjs` to capture the full app page to `.scratch/*.png`, then read the PNG. Headless chromium is fetched once via `npx playwright install chromium-headless-shell`.
+
 ## E2E tests
 
 Rich end-to-end tests are valuable and expected — especially for the interactive surfaces: composing formulas in the partiture editors, selecting/composing ostinatos, tap-tempo, tempo ramps, mixer gestures. This app is **visual and interactive**: many features (stave geometry, playhead alignment, editor gestures, drag-and-drop) are genuinely hard to test at unit or integration level, so do not enforce the test pyramid here — **e2e coverage should span a large number of features**, not a token few. Drive them through the highest seam available (a real browser via Playwright when jsdom falls short, the component + domain seams through jsdom when it does not), exercising full user journeys from realistic inputs to observable outcomes (audio events scheduled, notation rendered, state persisted), not just unit-level plumbing. A rich e2e suite is the regression net that lets an unattended agent trust its own work.
@@ -64,7 +66,7 @@ Single-context layout (`GLOSSARY.md` + `docs/adr/`). See `docs/agents/domain.md`
 
 - **Audio Transport**: graph owner is `src/audio/ToneTransportScheduler.ts` (also hosts `ToneClickPlayer`), players/mixer in `src/audio/`, eager single-graph contract in `docs/adr/0005` and the zero-allocation tick in `docs/adr/0011`. Suites that inspect the audio graph register the recording fake Tone `src/test/fakeTone.ts` via `vi.mock('tone')` — its recorder (`fireRepeats`, `nodesOfKind`, `gainWrites`, `bufferSources`, `triggers`, `disposed`) is the observation proxy for audio behaviour.
 - **Dawson Orchestration**: UI entry point in `src/components/DawsonOrchestrationSection.tsx`, modal/canvas formula editors in `src/components/dawson/`, domain models/presets in `src/domain/dawson/`.
-- **Notation Renderers**: Drum staff formula renderer in `src/notation/DrumStaffFormulaRenderer.ts`, reading score in `src/notation/ReadingScoreRenderer.ts`.
+- **Notation Renderers**: Drum staff formula renderer in `src/notation/DrumStaffFormulaRenderer.ts`, reading score in `src/notation/ReadingScoreRenderer.ts`. Notation suites run jsdom + real VexFlow 5: assert rendered SVG DOM ground truth (`g.vf-stavenote` groups carry glyph `x`/`y` attrs, no transforms) and the svg `height` attr; VexFlow-5 quirk: a Stave's constructor y sits one staff-height **above** the drawn top line (`getYForLine(0) === y + 40`), and drum-staff margins/`height` are content-grown per `docs/adr/0012`.
 
 ## Telegram Alerts
 

@@ -36,7 +36,6 @@ export interface DrumStaffFormulaLayout {
   height: number;
   stave: Stave;
   voice1Notes: StaveNote[];
-  voice2Notes: StaveNote[];
   beams: Beam[];
   tuplets?: Tuplet[];
   strokeCoordinates: FormulaStrokeCoordinate[];
@@ -106,7 +105,6 @@ export class DrumStaffFormulaRenderer {
     const targetBeats = options.targetBeats || (formulaDuration > 0 ? formulaDuration : 1.0);
 
     const voice1Notes: StaveNote[] = [];
-    const voice2Notes: StaveNote[] = [];
 
     // Fallback if no strokes provided
     const effectiveStrokes: OrchestratedStroke[] =
@@ -366,7 +364,6 @@ export class DrumStaffFormulaRenderer {
       height,
       stave,
       voice1Notes,
-      voice2Notes,
       beams,
       tuplets: tupletsToDraw,
       strokeCoordinates,

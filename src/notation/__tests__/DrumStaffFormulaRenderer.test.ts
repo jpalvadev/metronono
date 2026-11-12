@@ -188,4 +188,15 @@ describe('DrumStaffFormulaRenderer', () => {
     expect(layout.voice1Notes.length).toBeGreaterThanOrEqual(1);
     expect(layout.voice1Notes.every((n) => n.isRest())).toBe(true);
   });
+
+  it('does not expose voice2Notes and renders noteheads in the SVG DOM', () => {
+    const jazzSwingStrokes = FACTORY_OSTINATOS.jazz_swing.strokes;
+    const layout = renderer.render(container, jazzSwingStrokes, {
+      width: 600,
+      targetBeats: 4,
+    });
+
+    expect('voice2Notes' in layout).toBe(false);
+    expect(container.querySelectorAll('svg path, svg g').length).toBeGreaterThan(0);
+  });
 });

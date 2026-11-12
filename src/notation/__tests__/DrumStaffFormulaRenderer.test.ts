@@ -285,4 +285,51 @@ describe('DrumStaffFormulaRenderer', () => {
     const layout = renderer.render(container, strokes, { width: 500, height: 140, targetBeats: 2 });
     expect(layout.height).toBe(140);
   });
+
+  // Note-Anchored Interpolation (docs/adr/0012): the metric seam follows the
+  // render, so the Playhead lands exactly on the noteheads VexFlow drew.
+  it('maps every stroke beat offset to that stroke notehead x, inside triplets too', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1.0, hits: [{ voice: 'tom_floor', dynamic: 'normal' }] },
+    ];
+
+    const layout = renderer.render(container, strokes, { width: 500, height: 140, targetBeats: 2 });
+
+    for (const coord of layout.strokeCoordinates) {
+      expect(layout.getXForBeatOffset(coord.beatOffset, 2)).toBeCloseTo(coord.x, 6);
+    }
+  });
+
+  it('interpolates piecewise-linear between anchors and inverts exactly', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 0.5, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'tom_high', dynamic: 'normal' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'tom_mid', dynamic: 'normal' }] },
+    ];
+
+    const layout = renderer.render(container, strokes, { width: 500, height: 140, targetBeats: 2 });
+    const coords = layout.strokeCoordinates;
+    expect(coords.length).toBe(4);
+
+    // Halfway between the offsets of strokes 1 and 2 maps halfway between their noteheads.
+    const midOffset = (coords[1].beatOffset + coords[2].beatOffset) / 2;
+    const midX = layout.getXForBeatOffset(midOffset, 2);
+    expect(midX).toBeCloseTo((coords[1].x + coords[2].x) / 2, 6);
+
+    // Strictly increasing metric.
+    expect(coords.every((c, i) => i === 0 || c.x > coords[i - 1].x)).toBe(true);
+
+    // The inverse mapping round-trips at every anchor.
+    for (const coord of coords) {
+      expect(layout.getBeatOffsetForX(coord.x, 2)).toBeCloseTo(coord.beatOffset, 6);
+    }
+
+    // Endpoints keep their contract: before the note area is beat 0, past it is totalBeats.
+    expect(layout.getBeatOffsetForX(layout.stave.getNoteStartX() - 10, 2)).toBe(0);
+    expect(layout.getBeatOffsetForX(layout.stave.getNoteEndX() + 10, 2)).toBe(2);
+  });
 });

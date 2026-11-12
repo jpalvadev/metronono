@@ -398,34 +398,68 @@ export class DrumStaffFormulaRenderer {
       return closestVoice;
     };
 
-    const getStepForX = (x: number, gridResolution: number = 16): number => {
-      const startX = stave.getNoteStartX();
-      const endX = stave.getNoteEndX();
-      if (x <= startX) return 0;
-      if (x >= endX) return gridResolution - 1;
+    // Note-Anchored Interpolation (docs/adr/0012): piecewise-linear inverses through
+    // each stroke's real beat offset and notehead x, bracketed by the note area ends.
+    interface MetricAnchor {
+      beat: number;
+      x: number;
+    }
 
-      const progress = (x - startX) / (endX - startX);
-      return Math.min(
-        gridResolution - 1,
-        Math.max(0, Math.round(progress * (gridResolution - 1)))
-      );
+    const metricAnchors: MetricAnchor[] = [];
+    for (const coord of strokeCoordinates) {
+      if (metricAnchors.length > 0 && coord.beatOffset <= metricAnchors[metricAnchors.length - 1].beat) {
+        continue;
+      }
+      metricAnchors.push({ beat: coord.beatOffset, x: coord.x });
+    }
+
+    const segmentPoints = (totalBeats: number): MetricAnchor[] => {
+      const pts = metricAnchors.filter((a) => a.beat >= 0 && a.beat <= totalBeats);
+      const withStart = pts.length > 0 && pts[0].beat === 0
+        ? [...pts]
+        : [{ beat: 0, x: stave.getNoteStartX() }, ...pts];
+      if (withStart[withStart.length - 1].beat < totalBeats) {
+        withStart.push({ beat: totalBeats, x: stave.getNoteEndX() });
+      }
+      return withStart;
+    };
+
+    const getStepForX = (x: number, gridResolution: number = 16): number => {
+      if (x <= stave.getNoteStartX()) return 0;
+      if (x >= stave.getNoteEndX()) return gridResolution - 1;
+      const beat = getBeatOffsetForX(x, targetBeats);
+      const progress = targetBeats > 0 ? beat / targetBeats : 0;
+      return Math.min(gridResolution - 1, Math.max(0, Math.round(progress * (gridResolution - 1))));
     };
 
     const getBeatOffsetForX = (x: number, totalBeats: number = targetBeats): number => {
-      const startX = stave.getNoteStartX();
-      const endX = stave.getNoteEndX();
-      if (x <= startX) return 0;
-      if (x >= endX) return totalBeats;
-
-      const progress = (x - startX) / (endX - startX);
-      return Math.min(totalBeats, Math.max(0, progress * totalBeats));
+      if (x <= stave.getNoteStartX()) return 0;
+      if (x >= stave.getNoteEndX()) return totalBeats;
+      const pts = segmentPoints(totalBeats);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        if (x <= b.x) {
+          const span = b.x - a.x;
+          const offset = span <= 0 ? b.beat : a.beat + ((x - a.x) / span) * (b.beat - a.beat);
+          return Math.min(totalBeats, Math.max(0, offset));
+        }
+      }
+      return totalBeats;
     };
 
     const getXForBeatOffset = (beatOffset: number, totalBeats: number = targetBeats): number => {
-      const startX = stave.getNoteStartX();
-      const endX = stave.getNoteEndX();
-      const progress = Math.max(0, Math.min(1.0, beatOffset / totalBeats));
-      return startX + progress * (endX - startX);
+      const pts = segmentPoints(totalBeats);
+      const clamped = Math.max(0, Math.min(totalBeats, beatOffset));
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        if (clamped <= b.beat) {
+          const span = b.beat - a.beat;
+          return span <= 0 ? b.x : a.x + ((clamped - a.beat) / span) * (b.x - a.x);
+        }
+      }
+      return pts[pts.length - 1].x;
     };
 
     return {

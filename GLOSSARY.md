@@ -101,3 +101,11 @@ _Avoid_: Fixed stave offset, magic 25, clipping margin
 **Note-Anchored Interpolation**:
 The metric mapping between beat offsets and pixels in a drum staff layout: piecewise-linear through each stroke's real notehead x and beat offset, bracketed by the note start and end — the playhead lands exactly on noteheads, and the inverse mapping round-trips.
 _Avoid_: Linear drift, start-to-end guess
+
+**Continuous Metric Timeline**:
+The partiture canvas's representation of a measure as metric events at fractional time-in-measure offsets — the same offsets the audio scheduler uses — rather than a coerced homogeneous slot grid; mixed ratios (1/3 swing beside 1/4 straight) coexist without collision.
+_Avoid_: Slot array, slot grid, fixed grid, quantized measure
+
+**Quantization Adapter**:
+The single place quantization is allowed: when an edit gesture *creates* a new event, its time is snapped to the current subdivision grid (16ths or triplets per selectedDuration); existing events keep their exact ratios.
+_Avoid_: Re-quantizing on every edit, coercing the measure

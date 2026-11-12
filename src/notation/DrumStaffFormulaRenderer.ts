@@ -24,6 +24,7 @@ export const BEAM_STACK_GAP_PX = 3;
 export const TUPLET_CLEARANCE_PX = 15;
 export const NOTE_HALF_HEIGHT_PX = 6;
 export const ACCENT_CLEARANCE_PX = 9;
+export const REST_VOICE_LINE = 2.0; // rests sit on the middle line (c/5)
 
 /** VexFlow beams a sounding note carries: eighth 1, 16th 2, 32nd 3. */
 function beamFlagsForVexDuration(duration: string): number {
@@ -172,8 +173,8 @@ export class DrumStaffFormulaRenderer {
     // Dynamic Headroom & Footroom (docs/adr/0012): vertical margins earned from the
     // voice lines and engraving clearances actually drawn, never a magic offset and
     // never clipping; the viewport grows to fit content past the requested height.
-    let topVoiceLine = 2.0;
-    let bottomVoiceLine = 2.0;
+    let topVoiceLine = REST_VOICE_LINE;
+    let bottomVoiceLine = REST_VOICE_LINE;
     effectiveStrokes.forEach((stroke) => {
       stroke.hits.forEach((hit) => {
         const line = DRUM_VOICE_PAS_MAP[hit.voice]?.line;

@@ -41,8 +41,8 @@ The pre-resolved schedule of one reading-line measure: its Scheduled Drum Events
 _Avoid_: Tick resolution, on-the-beat resolve
 
 **Audio Voice Pool**:
-The finite set of audio nodes a drum rig holds per voice slot — a ring of interchangeable synth instances cycled per stroke, and one reusable Gain per custom-sample voice — so strokes allocate no nodes and retired BufferSources disconnect once their playback window ends.
-_Avoid_: Per-stroke spawning, dangling gain node
+The finite set of audio nodes a drum rig holds per voice slot — a ring of interchangeable synth instances cycled per stroke (two per slot in an audible rig, one in an Audition rig), and one reusable Gain per custom-sample voice — so strokes allocate no nodes and retired BufferSources disconnect once their playback window ends. Only the audible rigs are earned at page load; an Audition rig earns its nodes at the tap gesture that first hears it.
+_Avoid_: Per-stroke spawning, dangling gain node, three-member cymbal ring
 
 **Subdivision Formula**:
 The sequence of sub-beat strokes and rests (monophonic hits or stacked unisons like kick and cymbal) applied to a single short or long note trigger.

@@ -24,6 +24,8 @@ Skipping phases or jumping from grilling directly into bulk code implementation 
 When instructed to work through the architecture review candidates:
 Process each candidate from the HTML review report located in `.scratch/` (e.g. `.scratch/architecture-review-*.html`) one by one in sequence, following the full Matt Pocock Engineering Flow above (phases 1–7) per candidate: grill-and-answer (docs only), spec, tickets, implement via TDD, code-review and fix, retro, apply findings. Then **`/clear`** context and start the next candidate from a clean window. Repeat until all candidates defined in the HTML review in `.scratch/` are completed.
 
+Only candidates whose work is still live count: a candidate lands on its own `feat/*` branch, so skip any whose branch `git branch --merged main` lists — finished batches stay in `.scratch/` as history, not as work to redo.
+
 ## Skills
 
 Every skill lives in `.agents/skills/<name>/SKILL.md` (with support docs alongside it, e.g. `tests.md`, `ADR-FORMAT.md`). If the skill tool cannot resolve a name, read its `SKILL.md` directly from that folder and follow it inline — the skills there are the source of truth and every one of them can be invoked from disk.

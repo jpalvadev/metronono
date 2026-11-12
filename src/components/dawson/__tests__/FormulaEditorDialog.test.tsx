@@ -296,4 +296,18 @@ describe('FormulaEditorDialog Component (Partiture Drum Staff)', () => {
     expect(mockOnDelete).toHaveBeenCalledWith('custom_test_formula');
     expect(mockOnClose).toHaveBeenCalled();
   });
+
+  it('adapts header and field labels when editing an ostinato (targetBeats = 4)', () => {
+    render(
+      <FormulaEditorDialog
+        open={true}
+        onClose={mockOnClose}
+        targetBeats={4}
+        onSave={mockOnSave}
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: /Ostinato Editor/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Ostinato Name/i)).toBeInTheDocument();
+  });
 });

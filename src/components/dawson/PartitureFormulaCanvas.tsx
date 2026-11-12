@@ -269,6 +269,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
   className,
   playheadBeat = null,
 }) => {
+  const stageRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<DrumStaffFormulaRenderer>(new DrumStaffFormulaRenderer());
   const layoutRef = useRef<DrumStaffFormulaLayout | null>(null);
@@ -312,7 +313,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
 
   const getEventCoords = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.DragEvent<HTMLDivElement> | React.PointerEvent<HTMLDivElement>) => {
-      const rect = containerRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
+      const rect = stageRef.current?.getBoundingClientRect() || containerRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
       const native = (e.nativeEvent as unknown as Record<string, unknown>) || {};
       const clientX =
         typeof e.clientX === 'number' && !isNaN(e.clientX)
@@ -691,108 +692,115 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       }`}
       style={{ minHeight: height }}
     >
-      {/* Visual Subdivision Slot Grid Guidelines */}
-      {layoutRef.current && (
-        <div className="absolute inset-0 pointer-events-none">
-          {Array.from({ length: totalSlots }).map((_, s) => {
-            const geom = getSlotGeometry(s, totalSlots, layoutRef.current);
-            const slotLabel = slotLabels[s] || `${s + 1}`;
-            const isHovered = hoverSlot?.slotIndex === s;
-            const isDownbeat = (s * slotDuration) % 1.0 < 0.01;
+      {/* Centered Stave Stage matching exact SVG bounds */}
+      <div
+        ref={stageRef}
+        className="relative"
+        style={{ width, height }}
+      >
+        {/* VexFlow 5-Line Percussion Score Container */}
+        <div ref={containerRef} style={{ width, height }} />
 
-            return (
-              <React.Fragment key={s}>
-                {/* Slot Column Guideline */}
-                {s > 0 && (
-                  <div
-                    className={cn(
-                      'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
-                      isDownbeat ? 'border-border' : 'border-dashed border-border/80'
-                    )}
-                    style={{ left: `${geom.leftBoundary}px` }}
-                  />
-                )}
+        {/* Visual Subdivision Slot Grid Guidelines */}
+        {layoutRef.current && (
+          <div className="absolute inset-0 pointer-events-none">
+            {Array.from({ length: totalSlots }).map((_, s) => {
+              const geom = getSlotGeometry(s, totalSlots, layoutRef.current);
+              const slotLabel = slotLabels[s] || `${s + 1}`;
+              const isHovered = hoverSlot?.slotIndex === s;
+              const isDownbeat = (s * slotDuration) % 1.0 < 0.01;
 
-                {/* Hover Column Wash */}
-                {isHovered && (
+              return (
+                <React.Fragment key={s}>
+                  {/* Slot Column Guideline */}
+                  {s > 0 && (
+                    <div
+                      className={cn(
+                        'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
+                        isDownbeat ? 'border-border' : 'border-dashed border-border/80'
+                      )}
+                      style={{ left: `${geom.leftBoundary}px` }}
+                    />
+                  )}
+
+                  {/* Hover Column Wash */}
+                  {isHovered && (
+                    <div
+                      className="absolute top-7 bottom-3 pointer-events-none bg-primary/10 border-x border-primary/30 rounded-none transition-all"
+                      style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
+                    />
+                  )}
+
+                  {/* Slot Header Label */}
                   <div
-                    className="absolute top-7 bottom-3 pointer-events-none bg-primary/10 border-x border-primary/30 rounded-none transition-all"
+                    className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
                     style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
-                  />
-                )}
-
-                {/* Slot Header Label */}
-                <div
-                  className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
-                  style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
-                >
-                  <span
-                    className={cn(
-                      'px-1.5 py-0.2 rounded-none transition-colors',
-                      isHovered
-                        ? 'bg-primary text-primary-foreground font-bold shadow-xs'
-                        : isDownbeat
-                        ? 'text-primary font-bold bg-primary/10 border border-primary/30'
-                        : 'text-muted-foreground'
-                    )}
                   >
-                    {slotLabel}
-                  </span>
-                </div>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.2 rounded-none transition-colors',
+                        isHovered
+                          ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                          : isDownbeat
+                          ? 'text-primary font-bold bg-primary/10 border border-primary/30'
+                          : 'text-muted-foreground'
+                      )}
+                    >
+                      {slotLabel}
+                    </span>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
 
-      {/* VexFlow 5-Line Percussion Score Container */}
-      <div ref={containerRef} className="w-full flex justify-center" />
-
-      {/* Animated Audition Playhead */}
-      {playheadBeat !== null && playheadBeat !== undefined && layoutRef.current && (
-        <div
-          data-testid="audition-playhead"
-          className="absolute top-0 bottom-0 w-[2px] bg-primary playhead-glow pointer-events-none transition-all duration-75"
-          style={{
-            left: `${layoutRef.current.getXForBeatOffset(playheadBeat, targetBeats)}px`,
-          }}
-        />
-      )}
-
-      {/* Visual Snap & Target Guide Overlay */}
-      {dragGuide && (
-        <div
-          data-testid="drag-target-guide"
-          className="absolute inset-0 pointer-events-none"
-        >
-          {/* Vertical Snap Guide Line */}
+        {/* Animated Audition Playhead */}
+        {playheadBeat !== null && playheadBeat !== undefined && layoutRef.current && (
           <div
-            className="absolute top-0 bottom-0 w-[2px] bg-primary playhead-glow"
-            style={{ left: `${dragGuide.x}px` }}
+            data-testid="audition-playhead"
+            className="absolute top-0 bottom-0 w-[2px] bg-primary playhead-glow pointer-events-none transition-all duration-75"
+            style={{
+              left: `${layoutRef.current.getXForBeatOffset(playheadBeat, targetBeats)}px`,
+            }}
           />
+        )}
 
-          {/* Target Voice Guide / Badge */}
-          {dragGuide.voice && (
+        {/* Visual Snap & Target Guide Overlay */}
+        {dragGuide && (
+          <div
+            data-testid="drag-target-guide"
+            className="absolute inset-0 pointer-events-none"
+          >
+            {/* Vertical Snap Guide Line */}
             <div
-              className={`absolute px-2 py-0.5 rounded-none text-[10px] font-mono font-bold shadow-md transition-all ${
-                dragGuide.isOffStave
-                  ? 'bg-destructive text-destructive-foreground'
-                  : 'bg-primary text-primary-foreground'
-              }`}
-              style={{
-                left: `${dragGuide.x + 8}px`,
-                top: `${Math.max(4, Math.min(height - 24, dragGuide.y - 12))}px`,
-              }}
-            >
-              {dragGuide.isOffStave
-                ? 'Remove'
-                : `${dragGuide.slotLabel ? `${dragGuide.slotLabel} • ` : ''}${
-                    DRUM_VOICE_PAS_MAP[dragGuide.voice]?.label || dragGuide.voice
-                  }`}
-            </div>
-          )}
-        </div>
-      )}
+              className="absolute top-0 bottom-0 w-[2px] bg-primary playhead-glow"
+              style={{ left: `${dragGuide.x}px` }}
+            />
+
+            {/* Target Voice Guide / Badge */}
+            {dragGuide.voice && (
+              <div
+                className={`absolute px-2 py-0.5 rounded-none text-[10px] font-mono font-bold shadow-md transition-all ${
+                  dragGuide.isOffStave
+                    ? 'bg-destructive text-destructive-foreground'
+                    : 'bg-primary text-primary-foreground'
+                }`}
+                style={{
+                  left: `${dragGuide.x + 8}px`,
+                  top: `${Math.max(4, Math.min(height - 24, dragGuide.y - 12))}px`,
+                }}
+              >
+                {dragGuide.isOffStave
+                  ? 'Remove'
+                  : `${dragGuide.slotLabel ? `${dragGuide.slotLabel} • ` : ''}${
+                      DRUM_VOICE_PAS_MAP[dragGuide.voice]?.label || dragGuide.voice
+                    }`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

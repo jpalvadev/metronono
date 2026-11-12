@@ -22,10 +22,16 @@ Judge the *role*, not the spelling: Warning marks genuine attention, Destructive
 
 The theme's single definition point is `src/index.css` (tokens and the named utilities) plus `tailwind.config.js` (role registration); the decision and its rejected alternatives are in `docs/adr/0007-single-light-theme-token-palette.md`.
 
+## Audio seams (judgement call)
+
+Audio behaviour is asserted at two seams, and only their union covers what the user hears. The fake Tone recorder in `src/test/fakeTone.ts` (jsdom, `vi.mock('tone')`) settles graph contracts: which nodes exist, their labels and routing, node counts across ticks, retirement as `stoppedAt`/`disposed`/`stoppedWithoutScheduleTime`. It cannot see what a real audio context pays for, so any change to the audio graph must also pass `npm run check:live`, which drives a real Chromium and asserts the eager graph's node budget, beat cadence against the configured tempo, a source started per beat, and a clean console. Never claim audio works from the jsdom suites alone: the doubled voice pool passed all 389 tests while the browser played nothing.
+
+A pooled voice is a whole subgraph, not a node, so ring widths and rig eagerness are the budget knob (ADR-0011 amendment): keep `VOICE_POOL_SIZE` at the narrowest width that gives a stroke its own live attack, and earn a rig only when the session can hear it.
+
 ## Checks
 
 `npm run check` (`node scripts/one-style.mjs && tsc --noEmit && vitest run`) is the repo's guardrail, enforced by a pre-commit hook and by CI (`.github/workflows/check.yml`, on pushes to `main` and `feat/**`). Diff review should confirm the changed files pass it; run it rather than assuming.
 
 The guardrail hook is tracked at `.githooks/pre-commit` (throwaway `scratch-*` probes must not ship, and `npm run check` must pass). A fresh clone or worktree gets it with one command: `git config core.hooksPath .githooks`.
 
-`npm run check:style` is the deterministic one-style sweep — raw palette classes, `dark:` variants, `rgba(` glows, and any radius other than `rounded-none` in component string literals, plus dead theme blocks in `src/index.css` and `tailwind.config.js`, plus Tailwind compile warnings. It reports file and line, so reach for it instead of hand-built shell regexes. `npm run check:tokens` prints which theme tokens the app consumes.
+`npm run check:style` is the deterministic one-style sweep — raw palette classes, `dark:` variants, `rgba(` glows, and any radius other than `rounded-none` in component string literals, plus dead theme blocks in `src/index.css` and `tailwind.config.js`, plus Tailwind compile warnings. It reports file and line, so reach for it instead of hand-built shell regexes. `npm run check:tokens` prints which theme tokens the app consumes. `npm run check:live` (`scripts/live-audio-guard.mjs`) runs the browser-seam audio guard: it boots its own vite and drives Chromium, so it is deliberately outside `npm run check`, which must stay fast and headless.

@@ -101,53 +101,111 @@ export function slotsToStrokes(slots: FormulaSlot[], preserveAll = false): Orche
     ];
   }
 
-  let limit = slots.length;
-  if (!preserveAll) {
-    let lastNonRestIdx = -1;
-    for (let i = slots.length - 1; i >= 0; i--) {
-      const slot = slots[i];
-      if (slot && !slot.isRest && slot.hits.length > 0) {
-        lastNonRestIdx = i;
-        break;
-      }
-    }
-    if (lastNonRestIdx === -1) {
-      const firstRest = slots[0];
-      return [
-        {
-          durationRatio: firstRest ? firstRest.durationRatio : 0.25,
-          isRest: true,
-          hits: [],
-        },
-      ];
-    }
-    limit = lastNonRestIdx + 1;
+  if (preserveAll) {
+    return slots.map((s) => ({
+      durationRatio: s.durationRatio,
+      isRest: s.isRest || s.hits.length === 0,
+      hits: s.hits,
+    }));
   }
 
-  const result: OrchestratedStroke[] = [];
-  let i = 0;
-  while (i < limit) {
+  let lastNonRestIdx = -1;
+  for (let i = slots.length - 1; i >= 0; i--) {
     const slot = slots[i];
-    if (slot.isRest || !slot.hits || slot.hits.length === 0) {
-      let j = i + 1;
-      while (j < limit && (slots[j].isRest || !slots[j].hits || slots[j].hits.length === 0)) {
-        j++;
-      }
-      const dur = Math.round((j - i) * slot.durationRatio * 1000) / 1000;
-      result.push({ durationRatio: dur, isRest: true, hits: [] });
-      i = j;
-    } else {
-      let j = i + 1;
-      while (j < limit && (slots[j].isRest || !slots[j].hits || slots[j].hits.length === 0)) {
-        j++;
-      }
-      const dur = Math.round((j - i) * slot.durationRatio * 1000) / 1000;
-      result.push({ durationRatio: dur, isRest: false, hits: [...slot.hits] });
-      i = j;
+    if (slot && !slot.isRest && slot.hits.length > 0) {
+      lastNonRestIdx = i;
+      break;
     }
   }
+  if (lastNonRestIdx === -1) {
+    const firstRest = slots[0];
+    return [
+      {
+        durationRatio: firstRest ? firstRest.durationRatio : 0.25,
+        isRest: true,
+        hits: [],
+      },
+    ];
+  }
 
-  return result;
+  return slots.slice(0, lastNonRestIdx + 1).map((s) => ({
+    durationRatio: s.durationRatio,
+    isRest: s.isRest || s.hits.length === 0,
+    hits: s.hits,
+  }));
+}
+
+export function getSlotGeometry(
+  slotIndex: number,
+  totalSlots: number,
+  layout: DrumStaffFormulaLayout | null
+): { centerX: number; leftBoundary: number; rightBoundary: number; width: number } {
+  if (!layout) {
+    return { centerX: 0, leftBoundary: 0, rightBoundary: 0, width: 0 };
+  }
+
+  const coords = layout.strokeCoordinates;
+  const startX = layout.stave.getNoteStartX();
+  const endX = layout.stave.getNoteEndX();
+  const noteWidth = Math.max(10, endX - startX);
+  const fallbackSlotWidth = noteWidth / totalSlots;
+
+  if (coords && coords.length === totalSlots && coords[slotIndex]) {
+    const currentX = coords[slotIndex].x;
+    const prevX = slotIndex > 0 && coords[slotIndex - 1] ? coords[slotIndex - 1].x : startX;
+    const nextX = slotIndex < totalSlots - 1 && coords[slotIndex + 1] ? coords[slotIndex + 1].x : endX;
+
+    const leftBoundary = slotIndex === 0 ? startX : (prevX + currentX) / 2;
+    const rightBoundary = slotIndex === totalSlots - 1 ? endX : (currentX + nextX) / 2;
+
+    return {
+      centerX: currentX,
+      leftBoundary,
+      rightBoundary,
+      width: Math.max(1, rightBoundary - leftBoundary),
+    };
+  }
+
+  const leftBoundary = startX + slotIndex * fallbackSlotWidth;
+  const rightBoundary = leftBoundary + fallbackSlotWidth;
+  return {
+    centerX: leftBoundary + fallbackSlotWidth / 2,
+    leftBoundary,
+    rightBoundary,
+    width: fallbackSlotWidth,
+  };
+}
+
+export function getSlotIndexForX(
+  x: number,
+  totalSlots: number,
+  layout: DrumStaffFormulaLayout | null
+): number {
+  if (!layout) return 0;
+  const coords = layout.strokeCoordinates;
+
+  if (coords && coords.length === totalSlots) {
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    for (let i = 0; i < totalSlots; i++) {
+      const geom = getSlotGeometry(i, totalSlots, layout);
+      if (x >= geom.leftBoundary && x <= geom.rightBoundary) {
+        return i;
+      }
+      const diff = Math.abs(geom.centerX - x);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }
+
+  const startX = layout.stave.getNoteStartX();
+  const endX = layout.stave.getNoteEndX();
+  const noteWidth = Math.max(10, endX - startX);
+  const slotWidth = noteWidth / totalSlots;
+  return Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
 }
 
 export function getSlotLabels(totalSlots: number, slotDuration: number, _targetBeats?: number): string[] {
@@ -279,8 +337,9 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
   const commitSlots = useCallback(
     (updatedSlots: FormulaSlot[]) => {
       const preserveAll =
-        strokes.length > 0 &&
-        Math.abs(calculateFormulaDuration(strokes) - targetBeats) < 0.05;
+        (targetBeats !== undefined && targetBeats > 1.0) ||
+        (strokes.length > 0 &&
+        Math.abs(calculateFormulaDuration(strokes) - targetBeats) < 0.05);
       onChangeStrokes(slotsToStrokes(updatedSlots, preserveAll));
     },
     [strokes, targetBeats, onChangeStrokes]
@@ -317,11 +376,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     }
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
-    const startX = layout.stave.getNoteStartX();
-    const endX = layout.stave.getNoteEndX();
-    const noteWidth = Math.max(10, endX - startX);
-    const slotWidth = noteWidth / totalSlots;
-    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
     const voice = layout.getDrumVoiceForY(y);
     setHoverSlot({ slotIndex, voice });
   };
@@ -341,12 +396,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || 'snare';
-
-    const startX = layout.stave.getNoteStartX();
-    const endX = layout.stave.getNoteEndX();
-    const noteWidth = Math.max(10, endX - startX);
-    const slotWidth = noteWidth / totalSlots;
-    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
 
     const slots = strokesToSlots(strokes, targetBeats, slotDuration);
     const targetSlot = slots[slotIndex];
@@ -419,16 +469,11 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const voice = layout.getDrumVoiceForY(y);
-
-    const startX = layout.stave.getNoteStartX();
-    const endX = layout.stave.getNoteEndX();
-    const noteWidth = Math.max(10, endX - startX);
-    const slotWidth = noteWidth / totalSlots;
-    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
-    const snappedX = startX + (slotIndex + 0.5) * slotWidth;
+    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
+    const geom = getSlotGeometry(slotIndex, totalSlots, layout);
 
     setDragGuide({
-      x: snappedX,
+      x: geom.centerX,
       y,
       voice,
       slotLabel: slotLabels[slotIndex],
@@ -459,12 +504,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || payload?.voice || 'snare';
-
-    const startX = layout.stave.getNoteStartX();
-    const endX = layout.stave.getNoteEndX();
-    const noteWidth = Math.max(10, endX - startX);
-    const slotWidth = noteWidth / totalSlots;
-    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
 
     if (player && drumVoice) {
       player.triggerVoice(drumVoice, 0, dynamicToVelocity(dynamic), 'orchestration');
@@ -491,11 +531,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
 
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
-    const startX = layout.stave.getNoteStartX();
-    const endX = layout.stave.getNoteEndX();
-    const noteWidth = Math.max(10, endX - startX);
-    const slotWidth = noteWidth / totalSlots;
-    const slotIndex = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
 
     const slots = strokesToSlots(strokes, targetBeats, slotDuration);
     const slot = slots[slotIndex];
@@ -545,11 +581,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     }
 
     const layout = layoutRef.current;
-    const startX = layout.stave.getNoteStartX();
-    const endX = layout.stave.getNoteEndX();
-    const noteWidth = Math.max(10, endX - startX);
-    const slotWidth = noteWidth / totalSlots;
-    const targetSlot = Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+    const targetSlot = getSlotIndexForX(x, totalSlots, layout);
 
     const isOffStave = y < -20 || y > height + 20;
     const currentVoice = layout.getDrumVoiceForY(y);
@@ -565,9 +597,9 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     state.targetSlotIndex = targetSlot;
     state.isOffStave = isOffStave;
 
-    const snappedX = startX + (targetSlot + 0.5) * slotWidth;
+    const geom = getSlotGeometry(targetSlot, totalSlots, layout);
     setDragGuide({
-      x: snappedX,
+      x: geom.centerX,
       y,
       voice: currentVoice,
       slotLabel: slotLabels[targetSlot],
@@ -663,11 +695,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       {layoutRef.current && (
         <div className="absolute inset-0 pointer-events-none">
           {Array.from({ length: totalSlots }).map((_, s) => {
-            const startX = layoutRef.current!.stave.getNoteStartX();
-            const endX = layoutRef.current!.stave.getNoteEndX();
-            const noteWidth = Math.max(10, endX - startX);
-            const slotWidth = noteWidth / totalSlots;
-            const slotLeft = startX + s * slotWidth;
+            const geom = getSlotGeometry(s, totalSlots, layoutRef.current);
             const slotLabel = slotLabels[s] || `${s + 1}`;
             const isHovered = hoverSlot?.slotIndex === s;
             const isDownbeat = (s * slotDuration) % 1.0 < 0.01;
@@ -681,7 +709,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
                       'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
                       isDownbeat ? 'border-border' : 'border-dashed border-border/80'
                     )}
-                    style={{ left: `${slotLeft}px` }}
+                    style={{ left: `${geom.leftBoundary}px` }}
                   />
                 )}
 
@@ -689,14 +717,14 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
                 {isHovered && (
                   <div
                     className="absolute top-7 bottom-3 pointer-events-none bg-primary/10 border-x border-primary/30 rounded-none transition-all"
-                    style={{ left: `${slotLeft}px`, width: `${slotWidth}px` }}
+                    style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
                   />
                 )}
 
                 {/* Slot Header Label */}
                 <div
                   className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
-                  style={{ left: `${slotLeft}px`, width: `${slotWidth}px` }}
+                  style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
                 >
                   <span
                     className={cn(

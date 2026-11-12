@@ -105,13 +105,11 @@ export class DrumStaffFormulaRenderer {
     const formulaDuration = calculateFormulaDuration(strokes);
     const targetBeats = options.targetBeats || (formulaDuration > 0 ? formulaDuration : 1.0);
 
-    // Check if there are true polyphonic unisons between hands and feet on the SAME stroke
-    const hasSimultaneousUnisons = strokes.some(
+    // Polyphonic Voice 2 check: True if ANY stroke contains foot hits (stemVoice === 2)
+    const hasVoice2 = strokes.some(
       (s) =>
         !s.isRest &&
         s.hits &&
-        s.hits.length > 1 &&
-        s.hits.some((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1) &&
         s.hits.some((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2)
     );
 
@@ -128,36 +126,41 @@ export class DrumStaffFormulaRenderer {
       const stroke = effectiveStrokes[i];
       const vexDur = durationRatioToVexDuration(stroke.durationRatio);
 
-      if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
-        // Voice 1 Rest
-        const restV1 = new StaveNote({
-          clef: 'percussion',
-          keys: ['c/5/r'],
-          duration: `${vexDur}r`,
-          stemDirection: Stem.UP,
-        });
-        voice1Notes.push(restV1);
-
-        if (hasSimultaneousUnisons) {
-          const restV2 = new StaveNote({
+      if (!hasVoice2) {
+        // Linear mode (Hands only): all hits share Voice 1 Stem.UP
+        if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
+          const restV1 = new StaveNote({
             clef: 'percussion',
-            keys: ['d/4/r'],
+            keys: ['c/5/r'],
             duration: `${vexDur}r`,
-            stemDirection: Stem.DOWN,
+            stemDirection: Stem.UP,
           });
-          restV2.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
-          voice2Notes.push(restV2);
+          voice1Notes.push(restV1);
+        } else {
+          const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
+          const noteV1 = new StaveNote({
+            clef: 'percussion',
+            keys,
+            duration: vexDur,
+            stemDirection: Stem.UP,
+          });
+          noteV1.setStemDirection(Stem.UP);
+          stroke.hits.forEach((hit) => {
+            if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
+          });
+          voice1Notes.push(noteV1);
         }
       } else {
-        const v1Hits = stroke.hits.filter(
-          (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1
-        );
-        const v2Hits = stroke.hits.filter(
-          (h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2
-        );
+        // Polyphonic mode: Voice 1 (Hands, Stem UP) & Voice 2 (Feet, Stem DOWN)
+        const v1Hits = stroke.isRest || !stroke.hits
+          ? []
+          : stroke.hits.filter((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1);
+        const v2Hits = stroke.isRest || !stroke.hits
+          ? []
+          : stroke.hits.filter((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2);
 
-        if (v1Hits.length > 0 && v2Hits.length > 0) {
-          // True Polyphonic Unison: Hands Stem.UP in Voice 1, Feet Stem.DOWN in Voice 2
+        // Voice 1 (Hands - Stem UP)
+        if (v1Hits.length > 0) {
           const keysV1 = v1Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
           const noteV1 = new StaveNote({
             clef: 'percussion',
@@ -170,7 +173,21 @@ export class DrumStaffFormulaRenderer {
             if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
           });
           voice1Notes.push(noteV1);
+        } else {
+          const restV1 = new StaveNote({
+            clef: 'percussion',
+            keys: ['c/5/r'],
+            duration: `${vexDur}r`,
+            stemDirection: Stem.UP,
+          });
+          if (v2Hits.length > 0) {
+            restV1.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
+          }
+          voice1Notes.push(restV1);
+        }
 
+        // Voice 2 (Feet - Stem DOWN)
+        if (v2Hits.length > 0) {
           const keysV2 = v2Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'f/4');
           const noteV2 = new StaveNote({
             clef: 'percussion',
@@ -188,31 +205,15 @@ export class DrumStaffFormulaRenderer {
           });
           voice2Notes.push(noteV2);
         } else {
-          // Linear Stroke: All hits share Stem.UP in Voice 1 so linear phrases beam continuously
-          const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
-          const noteV1 = new StaveNote({
+          const restV2 = new StaveNote({
             clef: 'percussion',
-            keys,
-            duration: vexDur,
-            stemDirection: Stem.UP,
+            keys: ['d/4/r'],
+            duration: `${vexDur}r`,
+            stemDirection: Stem.DOWN,
           });
-          noteV1.setStemDirection(Stem.UP);
-          stroke.hits.forEach((hit) => {
-            if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
-          });
-          voice1Notes.push(noteV1);
-
-          if (hasSimultaneousUnisons) {
-            const restV2 = new StaveNote({
-              clef: 'percussion',
-              keys: ['d/4/r'],
-              duration: `${vexDur}r`,
-              stemDirection: Stem.DOWN,
-            });
-            restV2.setStemDirection(Stem.DOWN);
-            restV2.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
-            voice2Notes.push(restV2);
-          }
+          restV2.setStemDirection(Stem.DOWN);
+          restV2.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
+          voice2Notes.push(restV2);
         }
       }
     }
@@ -297,7 +298,7 @@ export class DrumStaffFormulaRenderer {
     v1.addTickables(voice1Notes);
     voicesToFormat.push(v1);
 
-    if (hasSimultaneousUnisons && voice2Notes.length > 0) {
+    if (hasVoice2 && voice2Notes.length > 0) {
       const v2 = new Voice({ numBeats: Math.max(1, Math.ceil(targetBeats)), beatValue: 4 });
       v2.setMode(Voice.Mode.SOFT);
       v2.addTickables(voice2Notes);
@@ -350,7 +351,7 @@ export class DrumStaffFormulaRenderer {
       });
 
       // Voice 2 beams (if any unisons exist)
-      if (hasSimultaneousUnisons && voice2Notes.length > 0) {
+      if (hasVoice2 && voice2Notes.length > 0) {
         const v2BeatGroups = new Map<number, StaveNote[]>();
         for (let i = 0; i < voice2Notes.length; i++) {
           const n = voice2Notes[i];
@@ -380,7 +381,7 @@ export class DrumStaffFormulaRenderer {
 
     // Draw voices AFTER beams are attached so no stray flags are drawn under beams
     v1.draw(context, stave);
-    if (hasSimultaneousUnisons && voice2Notes.length > 0) {
+    if (hasVoice2 && voice2Notes.length > 0) {
       voicesToFormat[1].draw(context, stave);
     }
 

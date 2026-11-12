@@ -277,42 +277,37 @@ export const FACTORY_OSTINATOS: Record<string, OstinatoPattern> = {
     description: 'Ride cymbal pattern with hi-hat foot on 2 and 4',
     timeSignature: [4, 4],
     strokes: [
-      // Beat 1: Ride (quarter note, 1.0)
-      {
-        durationRatio: 1.0,
-        hits: [{ voice: 'ride', dynamic: 'normal' }],
-      },
-      // Beat 2: Ride + Hi-hat foot (duration 2/3)
-      {
-        durationRatio: 2 / 3,
-        hits: [
-          { voice: 'ride', dynamic: 'normal' },
-          { voice: 'hihat_foot', dynamic: 'accent' },
-        ],
-      },
-      // Beat 2 skip: Ride (duration 1/3)
+      // Beat 1: 1, trip, let (Ride on 1)
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+
+      // Beat 2: 2, trip, let (Ride + Hi-hat foot on 2, Ride on let)
       {
         durationRatio: 1 / 3,
-        hits: [{ voice: 'ride', dynamic: 'normal' }],
-      },
-      // Beat 3: Ride (quarter note, 1.0)
-      {
-        durationRatio: 1.0,
-        hits: [{ voice: 'ride', dynamic: 'normal' }],
-      },
-      // Beat 4: Ride + Hi-hat foot (duration 2/3)
-      {
-        durationRatio: 2 / 3,
         hits: [
           { voice: 'ride', dynamic: 'normal' },
-          { voice: 'hihat_foot', dynamic: 'accent' },
+          { voice: 'hihat_foot', dynamic: 'normal' },
         ],
       },
-      // Beat 4 skip: Ride (duration 1/3)
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
+
+      // Beat 3: 3, trip, let (Ride on 3)
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+
+      // Beat 4: 4, trip, let (Ride + Hi-hat foot on 4, Ride on let)
       {
         durationRatio: 1 / 3,
-        hits: [{ voice: 'ride', dynamic: 'normal' }],
+        hits: [
+          { voice: 'ride', dynamic: 'normal' },
+          { voice: 'hihat_foot', dynamic: 'normal' },
+        ],
       },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
     ],
   },
   straight_8ths_hihat: {

@@ -489,7 +489,7 @@ const VoiceRow: React.FC<VoiceRowProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept="audio/*,.wav,.mp3,.ogg,.flac,.aac"
+          accept=".wav,audio/wav"
           data-testid={`upload-${voice.id}`}
           onChange={handleFileChange}
           className="hidden"

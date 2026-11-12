@@ -18,6 +18,7 @@ export interface IDrumKitPlayer {
     source?: DrumLane
   ): void;
   loadSampleBuffer?(voice: DrumVoice, buffer: any): void;
+  loadDefaultSampleBuffer?(voice: DrumVoice, buffer: any): void;
   removeSampleBuffer?(voice: DrumVoice): void;
   hasCustomSample?(voice: DrumVoice): boolean;
   clearAllCustomSamples?(): void;

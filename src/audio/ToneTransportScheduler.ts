@@ -21,6 +21,7 @@ import {
 import { AudioMixer, IGainNodeLike } from './AudioMixer';
 import { DrumKitPlayer } from './DrumKitPlayer';
 import { SampleStrokePlayer } from './NativeSamplePlayback';
+import { DefaultSampleLoader } from './DefaultSampleLoader';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
 import { BackgroundAudioService } from './BackgroundAudioService';
@@ -261,6 +262,9 @@ export class ToneTransportScheduler {
     });
   }
 
+  private defaultSampleLoader = new DefaultSampleLoader();
+  private defaultSamplesLoaded = false;
+
   // Lazy acquisition of the Tone transport and audio clock (retryable)
   private async ensureInitialized(): Promise<{
     transport: IAudioClockTransport;
@@ -269,6 +273,10 @@ export class ToneTransportScheduler {
   }> {
     // An audio context that was not ready at construction may be ready now.
     this.buildAudioGraph();
+    if (!this.defaultSamplesLoaded) {
+      this.defaultSamplesLoaded = true;
+      void this.loadDefaultSamples();
+    }
 
     if (!this.transport) {
       await Tone.start();
@@ -591,6 +599,21 @@ export class ToneTransportScheduler {
     return () => {
       this.playStateListeners.delete(listener);
     };
+  }
+
+  public async loadDefaultSamples(): Promise<void> {
+    const buffers = await this.defaultSampleLoader.loadAll();
+    buffers.forEach((buffer, voiceId) => {
+      if (voiceId === 'click_downbeat') {
+        this.clickPlayer?.loadDefaultSampleBuffer?.('downbeat', buffer);
+      } else if (voiceId === 'click_regular') {
+        this.clickPlayer?.loadDefaultSampleBuffer?.('regular', buffer);
+      } else if (voiceId === 'click_subdivision') {
+        this.clickPlayer?.loadDefaultSampleBuffer?.('subdivision', buffer);
+      } else {
+        this.drumKitPlayer?.loadDefaultSampleBuffer?.(voiceId, buffer);
+      }
+    });
   }
 
   public async start(): Promise<void> {

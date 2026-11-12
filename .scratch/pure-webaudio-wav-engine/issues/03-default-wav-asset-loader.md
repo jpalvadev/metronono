@@ -4,10 +4,10 @@
 
 **Blocked by:** 02-pure-webaudio-mixer-and-sample-player
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Default `.wav` assets for all 15 canonical voices load and decode once into cached `AudioBuffer` instances from `public/samples/<voiceId>.wav`.
-- [ ] Missing or unreadable `.wav` files log a single warning and leave the voice silent with zero synthesized fallback.
-- [ ] Custom `.wav` overrides in Sample Bank take precedence over default `public/samples/<voiceId>.wav` buffers, and resetting restores the default `.wav` buffer.
-- [ ] Sample Bank upload input restricts selection to `.wav` files (`accept=".wav,audio/wav"`).
-- [ ] `npm run check` passes cleanly.
+- [x] Default `.wav` assets for all 15 canonical voices load and decode once into cached `AudioBuffer` instances from `public/samples/<voiceId>.wav`.
+- [x] Missing or unreadable `.wav` files log a single warning and leave the voice silent with zero synthesized fallback.
+- [x] Custom `.wav` overrides in Sample Bank take precedence over default `public/samples/<voiceId>.wav` buffers, and resetting restores the default `.wav` buffer.
+- [x] Sample Bank upload input restricts selection to `.wav` files (`accept=".wav,audio/wav"`).
+- [x] `npm run check` passes cleanly.

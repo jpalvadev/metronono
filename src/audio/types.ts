@@ -38,6 +38,7 @@ export interface IClickPlayer {
     }
   ): void;
   loadSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void;
+  loadDefaultSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision', buffer: any): void;
   removeSampleBuffer?(voice: 'downbeat' | 'regular' | 'subdivision'): void;
   hasCustomSample?(voice: 'downbeat' | 'regular' | 'subdivision'): boolean;
   // Retire every still-pending sample source when the transport stops.

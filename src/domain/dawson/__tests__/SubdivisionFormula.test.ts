@@ -12,6 +12,8 @@ import {
   DEFAULT_SHORT_FORMULAS,
   DEFAULT_LONG_FORMULAS,
   DEFAULT_DAWSON_SYSTEMS,
+  FACTORY_DAWSON_SYSTEMS,
+  FACTORY_OSTINATOS,
   DawsonPresetManager,
 } from '../SubdivisionFormula';
 import { createRhythmicEvent, Measure } from '../../rhythm/types';
@@ -166,7 +168,7 @@ describe('Default Built-in Formula Library', () => {
     expect(DEFAULT_DAWSON_SYSTEMS.linear_diddle_fusion).toBeDefined();
 
     expect(DEFAULT_DAWSON_SYSTEMS.tony_williams_flr.shortFormula.id).toBe('flr_triplet');
-    expect(DEFAULT_DAWSON_SYSTEMS.tony_williams_flr.ostinatoId).toBe('jazz_swing');
+    expect(DEFAULT_DAWSON_SYSTEMS.tony_williams_flr.longFormula.id).toBe('single_kick');
 
     expect(DEFAULT_DAWSON_SYSTEMS.linear_diddle_fusion.longFormula.id).toBe('linear_diddle');
   });
@@ -298,14 +300,16 @@ describe('DawsonEngine Polyphonic Orchestration with Formulas', () => {
     expect(events[0].dynamic).toBe('accent');
   });
 
-  it('applies a complete DawsonSystem preset via setSystem', () => {
-    const system = DEFAULT_DAWSON_SYSTEMS.tony_williams_flr;
+  it('applies a complete DawsonSystem preset via setSystem without changing ostinato', () => {
+    engine.setOstinato('straight_8ths_hihat');
+    const system = FACTORY_DAWSON_SYSTEMS.snare_and_kick || DEFAULT_DAWSON_SYSTEMS.classic_bop;
     engine.setSystem(system);
 
-    expect(engine.getSystem()?.id).toBe('tony_williams_flr');
-    expect(engine.getShortFormula().id).toBe('flr_triplet');
+    expect(engine.getSystem()?.id).toBe(system.id);
+    expect(engine.getShortFormula().id).toBe('single_snare');
     expect(engine.getLongFormula().id).toBe('single_kick');
-    expect(engine.getOstinato()).toBe('jazz_swing');
+    // Crucial decoupling requirement: setting a system does not change ostinato!
+    expect(engine.getOstinato()).toBe('straight_8ths_hihat');
   });
 });
 
@@ -372,13 +376,12 @@ describe('DawsonPresetManager CRUD & Persistence', () => {
     expect(manager.deleteSystem('classic_bop')).toBe(false);
   });
 
-  it('allows saving and deleting custom systems', () => {
+  it('allows saving and deleting custom systems without ostinatoId', () => {
     const customSystem: DawsonSystem = {
       id: 'custom_bop_fusion',
       name: 'Custom Bop Fusion',
       shortFormula: DEFAULT_SHORT_FORMULAS.flr_triplet,
       longFormula: DEFAULT_LONG_FORMULAS.linear_diddle,
-      ostinatoId: 'jazz_swing',
     };
 
     manager.saveSystem(customSystem);
@@ -387,5 +390,61 @@ describe('DawsonPresetManager CRUD & Persistence', () => {
     const deleted = manager.deleteSystem('custom_bop_fusion');
     expect(deleted).toBe(true);
     expect(manager.getSystem('custom_bop_fusion')).toBeUndefined();
+  });
+
+  describe('Factory Ostinatos & Systems Immutability and Decoupled CRUD', () => {
+    it('provides FACTORY_OSTINATOS and FACTORY_DAWSON_SYSTEMS with accurate definitions', () => {
+      expect(FACTORY_OSTINATOS.jazz_swing).toBeDefined();
+      expect(FACTORY_OSTINATOS.jazz_swing.timeSignature).toEqual([4, 4]);
+      expect(calculateFormulaDuration(FACTORY_OSTINATOS.jazz_swing.strokes)).toBe(4.0);
+
+      expect(FACTORY_OSTINATOS.straight_8ths_hihat).toBeDefined();
+      expect(FACTORY_OSTINATOS.straight_8ths_hihat.timeSignature).toEqual([4, 4]);
+      expect(calculateFormulaDuration(FACTORY_OSTINATOS.straight_8ths_hihat.strokes)).toBe(4.0);
+
+      expect(FACTORY_DAWSON_SYSTEMS.snare_and_kick).toBeDefined();
+      expect(FACTORY_DAWSON_SYSTEMS.snare_and_kick.shortFormula.id).toBe('single_snare');
+      expect(FACTORY_DAWSON_SYSTEMS.snare_and_kick.longFormula.id).toBe('single_kick');
+
+      expect(FACTORY_DAWSON_SYSTEMS.hihat_foot_and_kick).toBeDefined();
+      expect(FACTORY_DAWSON_SYSTEMS.hihat_foot_and_kick.shortFormula.id).toBe('single_hihat_foot');
+      expect(FACTORY_DAWSON_SYSTEMS.hihat_foot_and_kick.longFormula.id).toBe('single_kick');
+    });
+
+    it('manages full CRUD for OstinatoPattern entities with persistence', () => {
+      const allOstinatos = manager.getAllOstinatos();
+      expect(allOstinatos.length).toBeGreaterThanOrEqual(2);
+      expect(allOstinatos.some((o) => o.id === 'jazz_swing')).toBe(true);
+      expect(allOstinatos.some((o) => o.id === 'straight_8ths_hihat')).toBe(true);
+
+      const customOstinato = {
+        id: 'baiao_feet',
+        name: 'Baiao Ostinato',
+        timeSignature: [4, 4] as [number, number],
+        strokes: [
+          { durationRatio: 1.0, hits: [{ voice: 'hihat_foot' as const, dynamic: 'normal' as const }] },
+          { durationRatio: 1.0, hits: [{ voice: 'hihat_foot' as const, dynamic: 'accent' as const }] },
+          { durationRatio: 1.0, hits: [{ voice: 'hihat_foot' as const, dynamic: 'normal' as const }] },
+          { durationRatio: 1.0, hits: [{ voice: 'hihat_foot' as const, dynamic: 'accent' as const }] },
+        ],
+      };
+
+      manager.saveOstinato(customOstinato);
+      const retrieved = manager.getOstinato('baiao_feet');
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.isCustom).toBe(true);
+      expect(retrieved?.strokes).toHaveLength(4);
+
+      // Verify deletion of custom ostinato
+      expect(manager.deleteOstinato('baiao_feet')).toBe(true);
+      expect(manager.getOstinato('baiao_feet')).toBeUndefined();
+    });
+
+    it('prevents deletion of factory ostinatos and factory systems', () => {
+      expect(manager.deleteOstinato('jazz_swing')).toBe(false);
+      expect(manager.deleteOstinato('straight_8ths_hihat')).toBe(false);
+      expect(manager.deleteSystem('snare_and_kick')).toBe(false);
+      expect(manager.deleteSystem('hihat_foot_and_kick')).toBe(false);
+    });
   });
 });

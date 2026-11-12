@@ -13,7 +13,7 @@ import {
   strokesToSlots,
   slotsToStrokes,
 } from './PartitureFormulaCanvas';
-import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumStaffRenderer';
+import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumVoicePAS';
 import { cn } from '../../lib/utils';
 import { RotateCcw, Volume2 } from 'lucide-react';
 

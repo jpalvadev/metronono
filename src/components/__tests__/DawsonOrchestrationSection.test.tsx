@@ -53,9 +53,7 @@ describe('DawsonOrchestrationSection', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
     expect(screen.getByText(/^Alan Dawson Orchestration$/)).toBeInTheDocument();
-    expect(screen.getByText(/Classic Bop/i)).toBeInTheDocument();
-    expect(screen.getByText(/Inverted Bop/i)).toBeInTheDocument();
-    expect(screen.getByText(/Straight Rock/i)).toBeInTheDocument();
+    expect(screen.getByTestId('system-select')).toBeInTheDocument();
 
     // The Real-Time Drum Monitor is gone: no pads, no monitor header, no audition prompt.
     for (const pad of ['drum-pad-kick', 'drum-pad-snare', 'drum-pad-ride', 'drum-pad-hihat']) {
@@ -75,34 +73,111 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.queryByRole('button', { name: /^(Mute|Unmute) (Click|Ostinato|Orchestrated Line)$/i })).not.toBeInTheDocument();
   });
 
-  it('offers "No Ostinato" in the ostinato selector, and it still means no Ostinato layer', () => {
+  describe('Two-Column Decoupled Layout & Inline Staves', () => {
+    it('renders header with Tone.js badge and Manage Systems, Formulas & Ostinatos button', () => {
+      render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+      expect(screen.getByText(/Alan Dawson Orchestration/i)).toBeInTheDocument();
+      expect(screen.getByText('Tone.js')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Manage Systems, Formulas & Ostinatos/i })
+      ).toBeInTheDocument();
+    });
+
+    it('renders Ostinato and System dropdowns including Ninguno and factory presets', () => {
+      render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+      const ostinatoSelect = screen.getByTestId('ostinato-select') as HTMLSelectElement;
+      expect(ostinatoSelect).toBeInTheDocument();
+      expect(ostinatoSelect.value).toBe('jazz_swing');
+
+      const systemSelect = screen.getByTestId('system-select') as HTMLSelectElement;
+      expect(systemSelect).toBeInTheDocument();
+
+      // Check options in ostinato dropdown
+      const ostinatoOptions = Array.from(ostinatoSelect.options).map((o) => o.text);
+      expect(ostinatoOptions).toContain('Ninguno');
+      expect(ostinatoOptions).toContain('Jazz Swing');
+      expect(ostinatoOptions).toContain('Corcheas en Hi-Hat');
+
+      // Check options in system dropdown
+      const systemOptions = Array.from(systemSelect.options).map((o) => o.text);
+      expect(systemOptions).toContain('Ninguno');
+      expect(systemOptions).toContain('Snare & Kick');
+      expect(systemOptions).toContain('Hi-Hat Foot & Kick');
+    });
+
+    it('updates ostinato independently without mutating interpretation system', () => {
+      render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+      const ostinatoSelect = screen.getByTestId('ostinato-select') as HTMLSelectElement;
+      const systemSelect = screen.getByTestId('system-select') as HTMLSelectElement;
+
+      // Select Corcheas en Hi-Hat
+      fireEvent.change(ostinatoSelect, { target: { value: 'straight_8ths_hihat' } });
+      expect(engine.getOstinato()).toBe('straight_8ths_hihat');
+      expect(ostinatoSelect.value).toBe('straight_8ths_hihat');
+
+      // Interpretation system remains unchanged
+      expect(systemSelect.value).not.toBe('none');
+
+      // Select Ninguno in Ostinato dropdown
+      fireEvent.change(ostinatoSelect, { target: { value: 'none' } });
+      expect(engine.getOstinato()).toBe('none');
+      // Silencio badge should now appear on the ostinato staff
+      expect(screen.getByText('Silencio')).toBeInTheDocument();
+    });
+
+    it('updates interpretation system independently without mutating ostinato', () => {
+      render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+      const ostinatoSelect = screen.getByTestId('ostinato-select') as HTMLSelectElement;
+      const systemSelect = screen.getByTestId('system-select') as HTMLSelectElement;
+
+      // Select Hi-Hat Foot & Kick
+      fireEvent.change(systemSelect, { target: { value: 'hihat_foot_and_kick' } });
+      expect(engine.getSystem()?.id).toBe('hihat_foot_and_kick');
+      // Ostinato preserved!
+      expect(engine.getOstinato()).toBe('jazz_swing');
+      expect(ostinatoSelect.value).toBe('jazz_swing');
+
+      // Select Ninguno in System dropdown
+      fireEvent.change(systemSelect, { target: { value: 'none' } });
+      expect(engine.getSystem()).toBeUndefined();
+      expect(systemSelect.value).toBe('none');
+      // Ostinato still preserved!
+      expect(engine.getOstinato()).toBe('jazz_swing');
+    });
+
+    it('auditions ostinato pattern on demand when clicking Audition', () => {
+      render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+      const auditionOstinatoBtn = screen.getByTestId('ostinato-audition-btn');
+      fireEvent.click(auditionOstinatoBtn);
+
+      expect(mockTriggerVoice).toHaveBeenCalled();
+    });
+
+    it('opens editor when clicking Edit under Ostinato or Formula staves', () => {
+      render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+      const editOstinatoBtn = screen.getByTestId('ostinato-edit-btn');
+      fireEvent.click(editOstinatoBtn);
+
+      // Formula / Pattern editor dialog opened
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('offers "Ninguno" in the ostinato selector, and it still means no Ostinato layer', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-    const noOstinatoBtn = screen.getByRole('button', { name: 'No Ostinato' });
-    expect(noOstinatoBtn).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Silenced' })).not.toBeInTheDocument();
+    const ostinatoSelect = screen.getByTestId('ostinato-select') as HTMLSelectElement;
+    fireEvent.change(ostinatoSelect, { target: { value: 'none' } });
 
-    fireEvent.click(noOstinatoBtn);
     expect(engine.getOstinato()).toBe('none');
     // Muting the Ostinato Mixing Channel is a different thing entirely.
     expect(mixer.isChannelMuted('ostinato')).toBe(false);
-  });
-
-  it('switches between Dawson orchestration modes', () => {
-    render(<DawsonOrchestrationSection scheduler={scheduler} />);
-
-    const invertedBtn = screen.getByRole('button', { name: /Inverted Bop/i });
-    fireEvent.click(invertedBtn);
-    expect(engine.getMode()).toBe('inverted_bop');
-
-    const rockBtn = screen.getByRole('button', { name: /Straight Rock/i });
-    fireEvent.click(rockBtn);
-    expect(engine.getMode()).toBe('straight_rock');
-    expect(engine.getOstinato()).toBe('straight_rock');
-
-    const classicBtn = screen.getByRole('button', { name: /Classic Bop/i });
-    fireEvent.click(classicBtn);
-    expect(engine.getMode()).toBe('classic_bop');
   });
 
   it('retires pad auditioning and pad illumination entirely', () => {
@@ -116,26 +191,20 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.queryByText(/Spang-a-lang/i)).not.toBeInTheDocument();
   });
 
-  it('selects Tony Williams and Linear Fusion systems', () => {
+  it('selects preset systems from dropdown without affecting ostinato', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-    const tonyBtn = screen.getByTestId('system-btn-tony_williams_flr');
-    fireEvent.click(tonyBtn);
+    const systemSelect = screen.getByTestId('system-select') as HTMLSelectElement;
+    fireEvent.change(systemSelect, { target: { value: 'hihat_foot_and_kick' } });
 
-    expect(engine.getShortFormula().id).toBe('flr_triplet');
+    expect(engine.getSystem()?.id).toBe('hihat_foot_and_kick');
     expect(engine.getOstinato()).toBe('jazz_swing');
-
-    const linearBtn = screen.getByTestId('system-btn-linear_diddle_fusion');
-    fireEvent.click(linearBtn);
-
-    expect(engine.getLongFormula().id).toBe('linear_diddle');
-    expect(engine.getOstinato()).toBe('straight_rock');
   });
 
   it('opens and closes PresetManager modal', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-    const manageBtn = screen.getByRole('button', { name: /Manage Systems & Formulas/i });
+    const manageBtn = screen.getByRole('button', { name: /Manage Systems, Formulas & Ostinatos/i });
     fireEvent.click(manageBtn);
 
     expect(screen.getByText(/Dawson Systems & Formula Manager/i)).toBeInTheDocument();
@@ -146,17 +215,17 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.queryByText(/Dawson Systems & Formula Manager/i)).not.toBeInTheDocument();
   });
 
-  it('opens FormulaEditorDialog from customize button and auditions formula', () => {
+  it('opens FormulaEditorDialog from formula Edit button and auditions formula', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-    // Short formula audition
+    // Formula audition
     const auditionBtns = screen.getAllByRole('button', { name: /Audition/i });
-    fireEvent.click(auditionBtns[0]);
+    fireEvent.click(auditionBtns[1]); // Short formula audition button
     expect(mockTriggerVoice).toHaveBeenCalled();
 
-    // Customize short formula
-    const customizeBtns = screen.getAllByRole('button', { name: /Customize/i });
-    fireEvent.click(customizeBtns[0]);
+    // Edit formula
+    const editBtns = screen.getAllByRole('button', { name: /Edit/i });
+    fireEvent.click(editBtns[1]); // Short formula edit button
 
     expect(screen.getByText(/Subdivision Formula Editor/i)).toBeInTheDocument();
   });

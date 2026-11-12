@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Stem } from 'vexflow';
 import { DrumStaffFormulaRenderer } from '../DrumStaffFormulaRenderer';
 import { OrchestratedStroke } from '../../domain/dawson/types';
+import { FACTORY_OSTINATOS } from '../../domain/dawson/SubdivisionFormula';
 
 describe('DrumStaffFormulaRenderer', () => {
   let container: HTMLDivElement;
@@ -29,7 +30,7 @@ describe('DrumStaffFormulaRenderer', () => {
     expect(layout.strokeCoordinates.length).toBeGreaterThan(0);
   });
 
-  it('separates hand hits into Voice 1 (Stem.UP) and foot hits into Voice 2 (Stem.DOWN)', () => {
+  it('renders all hits (hands and feet) in Voice 1 unified with Stem.UP', () => {
     const strokes: OrchestratedStroke[] = [
       // Beat 0: Kick + Crash unison (polyphonic chord)
       {
@@ -48,19 +49,11 @@ describe('DrumStaffFormulaRenderer', () => {
 
     const layout = renderer.render(container, strokes, { width: 500 });
 
-    // Voice 1 should have hands (crash, snare) with Stem.UP
+    // Voice 1 should have all notes with Stem.UP
     expect(layout.voice1Notes.length).toBeGreaterThan(0);
     layout.voice1Notes.forEach((note) => {
       if (!note.isRest()) {
         expect(note.getStemDirection()).toBe(Stem.UP);
-      }
-    });
-
-    // Voice 2 should have feet (kick) with Stem.DOWN
-    expect(layout.voice2Notes.length).toBeGreaterThan(0);
-    layout.voice2Notes.forEach((note) => {
-      if (!note.isRest()) {
-        expect(note.getStemDirection()).toBe(Stem.DOWN);
       }
     });
   });
@@ -162,5 +155,48 @@ describe('DrumStaffFormulaRenderer', () => {
 
     expect(xHalf).toBeGreaterThan(x0);
     expect(x1).toBeGreaterThan(xHalf);
+  });
+
+  it('renders a full 4/4 ostinato with stacked unison hits without formatting errors', () => {
+    const jazzSwingStrokes = FACTORY_OSTINATOS.jazz_swing.strokes;
+    expect(jazzSwingStrokes).toBeDefined();
+
+    const layout = renderer.render(container, jazzSwingStrokes, {
+      width: 600,
+      targetBeats: 4,
+    });
+
+    expect(container.querySelector('svg')).toBeTruthy();
+    expect(layout.stave).toBeDefined();
+    expect(layout.voice1Notes.length).toBeGreaterThan(0);
+
+    // All sounding notes should be Stem.UP
+    const nonRestV1 = layout.voice1Notes.filter((n) => !n.isRest());
+    expect(nonRestV1.length).toBeGreaterThanOrEqual(6);
+    nonRestV1.forEach((n) => {
+      expect(n.getStemDirection()).toBe(Stem.UP);
+    });
+  });
+
+  it('renders a 4/4 measure of rests when empty strokes are passed with targetBeats: 4', () => {
+    const layout = renderer.render(container, [], {
+      width: 500,
+      targetBeats: 4,
+    });
+
+    expect(container.querySelector('svg')).toBeTruthy();
+    expect(layout.voice1Notes.length).toBeGreaterThanOrEqual(1);
+    expect(layout.voice1Notes.every((n) => n.isRest())).toBe(true);
+  });
+
+  it('does not expose voice2Notes and renders noteheads in the SVG DOM', () => {
+    const jazzSwingStrokes = FACTORY_OSTINATOS.jazz_swing.strokes;
+    const layout = renderer.render(container, jazzSwingStrokes, {
+      width: 600,
+      targetBeats: 4,
+    });
+
+    expect('voice2Notes' in layout).toBe(false);
+    expect(container.querySelectorAll('svg path, svg g').length).toBeGreaterThan(0);
   });
 });

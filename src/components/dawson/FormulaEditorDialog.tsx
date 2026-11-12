@@ -29,6 +29,7 @@ export interface FormulaEditorDialogProps {
   onClose: () => void;
   formula?: SubdivisionFormula | null;
   defaultTrigger?: 'short' | 'long';
+  targetBeats?: number;
   onSave: (formula: SubdivisionFormula) => void;
   onDelete?: (formulaId: string) => void;
   player?: IDrumKitPlayer;
@@ -39,6 +40,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
   onClose,
   formula,
   defaultTrigger = 'short',
+  targetBeats,
   onSave,
   onDelete,
   player,
@@ -51,6 +53,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
   const [playheadBeat, setPlayheadBeat] = useState<number | null>(null);
 
   const auditionTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const isOstinatoMode = targetBeats === 4;
 
   // Initialize or reset state when dialog opens or formula changes
   useEffect(() => {
@@ -65,7 +68,13 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
         }))
       );
     } else {
-      setName(trigger === 'short' ? 'New Short Formula' : 'New Long Formula');
+      setName(
+        isOstinatoMode
+          ? 'New Ostinato'
+          : defaultTrigger === 'short'
+          ? 'New Short Formula'
+          : 'New Long Formula'
+      );
       setTrigger(defaultTrigger);
       setDescription('');
       setStrokes([
@@ -82,7 +91,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
     }
     setPlayheadBeat(null);
     setIsAuditioning(false);
-  }, [formula, defaultTrigger, open]);
+  }, [formula, defaultTrigger, open, isOstinatoMode]);
 
   // Clean up any audition timers on unmount or close
   useEffect(() => {
@@ -93,7 +102,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
   }, []);
 
   const totalDuration = useMemo(() => calculateFormulaDuration(strokes), [strokes]);
-  const expectedDuration = trigger === 'short' ? 0.5 : 1.0;
+  const expectedDuration = targetBeats ?? (trigger === 'short' ? 0.5 : 1.0);
   const isBudgetMatched = Math.abs(totalDuration - expectedDuration) < 0.01;
   const isOverBudget = totalDuration > expectedDuration + 0.01;
   const isUnderBudget = totalDuration < expectedDuration - 0.01;
@@ -162,12 +171,22 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
 
   const handleSave = () => {
     if (strokes.length === 0) return;
-    const formulaId =
+    let saveName = name.trim() || 'Custom Formula';
+    let saveId =
       formula?.id ||
       `formula_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    // Factory protection: If formula was built-in (not custom), save as a new custom copy with (Copia)
+    if (formula && !formula.isCustom) {
+      if (!saveName.includes('(Copia)')) {
+        saveName = `${saveName} (Copia)`;
+      }
+      saveId = `custom_${formula.id}_${Date.now()}`;
+    }
+
     const updatedFormula: SubdivisionFormula = {
-      id: formulaId,
-      name: name.trim() || 'Custom Formula',
+      id: saveId,
+      name: saveName,
       trigger,
       description: description.trim() || undefined,
       strokes,
@@ -200,13 +219,15 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
             </div>
             <div>
               <h2 id="formula-editor-title" className="text-base font-bold text-foreground flex items-center gap-2">
-                Subdivision Formula Editor
+                {isOstinatoMode ? 'Ostinato Editor' : 'Subdivision Formula Editor'}
                 <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary rounded-none">
-                  Partiture Drum Staff
+                  {isOstinatoMode ? '4/4 Stave' : 'Partiture Drum Staff'}
                 </Badge>
               </h2>
               <p className="text-xs text-muted-foreground">
-                Compose multi-surface drum phrases and unisons on a standard 5-line percussion staff
+                {isOstinatoMode
+                  ? 'Compose 4-beat rhythm patterns on a standard 5-line percussion staff'
+                  : 'Compose multi-surface drum phrases and unisons on a standard 5-line percussion staff'}
               </p>
             </div>
           </div>
@@ -222,50 +243,56 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
         {/* Modal Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Metadata Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            <div className="flex flex-col gap-1.5 md:col-span-2">
+          <div className={cn('grid grid-cols-1 gap-3.5', !isOstinatoMode && 'md:grid-cols-3')}>
+            <div className={cn('flex flex-col gap-1.5', !isOstinatoMode ? 'md:col-span-2' : 'col-span-1')}>
               <label htmlFor="formula-name-input" className="text-xs font-semibold text-foreground">
-                Formula Name
+                {isOstinatoMode ? 'Ostinato Name' : 'Formula Name'}
               </label>
               <input
                 id="formula-name-input"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Tony Williams Triplet / Kick + Crash Downbeat"
+                placeholder={
+                  isOstinatoMode
+                    ? 'e.g. Jazz Swing / Linear 4/4 Ostinato'
+                    : 'e.g. Tony Williams Triplet / Kick + Crash Downbeat'
+                }
                 className="bg-muted/30 border border-border rounded-none px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground">Trigger Classification</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTrigger('short')}
-                  className={cn(
-                    'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
-                    trigger === 'short'
-                      ? 'bg-primary/20 border-primary text-primary ring-1 ring-primary/40'
-                      : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
-                  )}
-                >
-                  Short (&lt; 1 Beat)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTrigger('long')}
-                  className={cn(
-                    'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
-                    trigger === 'long'
-                      ? 'bg-primary/20 border-primary text-primary ring-1 ring-primary/40'
-                      : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
-                  )}
-                >
-                  Long (≥ 1 Beat)
-                </button>
+            {!isOstinatoMode && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-foreground">Trigger Classification</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTrigger('short')}
+                    className={cn(
+                      'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
+                      trigger === 'short'
+                        ? 'bg-primary/20 border-primary text-primary ring-1 ring-primary/40'
+                        : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
+                    )}
+                  >
+                    Short (&lt; 1 Beat)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTrigger('long')}
+                    className={cn(
+                      'py-1.5 px-3 rounded-none text-xs font-semibold border transition-all text-center',
+                      trigger === 'long'
+                        ? 'bg-primary/20 border-primary text-primary ring-1 ring-primary/40'
+                        : 'bg-muted/30 border-border/70 text-muted-foreground hover:bg-muted/60'
+                    )}
+                  >
+                    Long (≥ 1 Beat)
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -7,10 +7,9 @@ import {
   getReedExercise,
 } from '../domain/rhythm/ReedLibrary';
 import { ReadingView } from './notation/ReadingView';
-import { DrumStaffView, NotationViewMode } from './notation/DrumStaffView';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import { Button } from './ui/button';
-import { Wand2, BookOpen, RotateCw, Sparkles, Music, FileMusic } from 'lucide-react';
+import { Wand2, BookOpen, RotateCw, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export type ReadingMode = 'generator' | 'library';
@@ -18,24 +17,13 @@ export type ReadingMode = 'generator' | 'library';
 export interface ReadingTrainingSectionProps {
   scheduler?: ToneTransportScheduler;
   className?: string;
-  viewMode?: NotationViewMode;
-  onViewModeChange?: (mode: NotationViewMode) => void;
 }
 
 export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
   scheduler,
   className,
-  viewMode: propViewMode,
-  onViewModeChange: propOnViewModeChange,
 }) => {
   const [mode, setMode] = useState<ReadingMode>('generator');
-  const [internalViewMode, setInternalViewMode] = useState<NotationViewMode>('reading');
-  const activeViewMode = propViewMode ?? internalViewMode;
-
-  const handleViewModeChange = (newViewMode: NotationViewMode) => {
-    setInternalViewMode(newViewMode);
-    propOnViewModeChange?.(newViewMode);
-  };
 
   // Generator settings
   const [tier, setTier] = useState<1 | 2 | 3>(1);
@@ -99,36 +87,8 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           </div>
         </div>
 
-        {/* Right side: View Mode Toggle & Exercise Mode Switcher */}
+        {/* Right side: Exercise Mode Switcher */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          {/* View Mode Switcher: 1-Line Reading vs 5-Line Drum Staff */}
-          <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
-            <Button
-              variant={activeViewMode === 'reading' ? 'default' : 'ghost'}
-              size="sm"
-              className={cn(
-                'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
-                activeViewMode === 'reading' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
-              )}
-              onClick={() => handleViewModeChange('reading')}
-            >
-              <Music className="w-3.5 h-3.5" />
-              Reading View
-            </Button>
-            <Button
-              variant={activeViewMode === 'drum_staff' ? 'default' : 'ghost'}
-              size="sm"
-              className={cn(
-                'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
-                activeViewMode === 'drum_staff' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
-              )}
-              onClick={() => handleViewModeChange('drum_staff')}
-            >
-              <FileMusic className="w-3.5 h-3.5" />
-              Drum Staff (5 Lines)
-            </Button>
-          </div>
-
           {/* Mode Switcher Tabs */}
           <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
             <Button
@@ -287,22 +247,11 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
         </div>
       )}
 
-      {/* Score View: Reading View (1 line) vs Drum Staff View (5 lines) */}
-      {activeViewMode === 'reading' ? (
-        <ReadingView
-          readingLine={activeLine}
-          scheduler={scheduler}
-        />
-      ) : (
-        <DrumStaffView
-          readingLine={activeLine}
-          dawsonEngine={scheduler?.getDawsonEngine?.()}
-          scheduler={scheduler}
-          viewMode="drum_staff"
-          onViewModeChange={handleViewModeChange}
-          showViewToggle={false}
-        />
-      )}
+      {/* Score View: Reading View (1 line) */}
+      <ReadingView
+        readingLine={activeLine}
+        scheduler={scheduler}
+      />
     </div>
   );
 };

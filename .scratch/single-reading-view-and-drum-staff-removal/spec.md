@@ -1,6 +1,6 @@
 # Single Reading View and Drum Staff Removal Spec
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

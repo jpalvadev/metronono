@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DawsonEngine } from '../DawsonEngine';
 import { createRhythmicEvent, Measure } from '../../rhythm/types';
 import { REED_PAGE_37_EXERCISE_ONE } from '../../rhythm/ReedLibrary';
+import { FACTORY_DAWSON_SYSTEMS } from '../SubdivisionFormula';
 
 describe('DawsonEngine', () => {
   let engine: DawsonEngine;
@@ -25,6 +26,134 @@ describe('DawsonEngine', () => {
 
       engine.setOstinato('none');
       expect(engine.getOstinato()).toBe('none');
+    });
+  });
+
+  describe('Decoupling & Silence States', () => {
+    it('maintains independent ostinato and system states', () => {
+      engine.setOstinato('jazz_swing');
+      engine.setSystem(FACTORY_DAWSON_SYSTEMS.snare_and_kick);
+      expect(engine.getOstinato()).toBe('jazz_swing');
+      expect(engine.getSystem()?.id).toBe('snare_and_kick');
+
+      // Changing ostinato does not modify active system
+      engine.setOstinato('straight_8ths_hihat');
+      expect(engine.getOstinato()).toBe('straight_8ths_hihat');
+      expect(engine.getSystem()?.id).toBe('snare_and_kick');
+
+      // Changing system does not modify active ostinato
+      engine.setSystem(FACTORY_DAWSON_SYSTEMS.hihat_foot_and_kick);
+      expect(engine.getOstinato()).toBe('straight_8ths_hihat');
+      expect(engine.getSystem()?.id).toBe('hihat_foot_and_kick');
+    });
+
+    it('silences reading line when system is set to none while ostinato continues', () => {
+      engine.setOstinato('jazz_swing');
+      engine.setSystem('none');
+
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: [
+          createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+        ],
+      };
+
+      // Reading line orchestration is completely silenced
+      const orchEvents = engine.resolveOrchestrationEvents(measure);
+      expect(orchEvents).toEqual([]);
+
+      // Ostinato continues playing in resolveMeasure
+      const resolved = engine.resolveMeasure(measure);
+      expect(resolved.length).toBeGreaterThan(0);
+      expect(resolved.every((e) => e.source === 'ostinato')).toBe(true);
+    });
+
+    it('silences ostinato when ostinato is set to none while orchestration continues', () => {
+      engine.setOstinato('none');
+      engine.setSystem(FACTORY_DAWSON_SYSTEMS.snare_and_kick);
+
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: [
+          createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+        ],
+      };
+
+      // Ostinato events are empty
+      expect(engine.getOstinatoEvents()).toEqual([]);
+
+      // Reading line orchestration continues in resolveMeasure
+      const resolved = engine.resolveMeasure(measure);
+      expect(resolved.length).toBeGreaterThan(0);
+      expect(resolved.every((e) => e.source === 'orchestration')).toBe(true);
+    });
+
+    it('produces no audio events when both ostinato and system are none', () => {
+      engine.setOstinato('none');
+      engine.setSystem('none');
+
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: [
+          createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+        ],
+      };
+
+      expect(engine.resolveMeasure(measure)).toEqual([]);
+    });
+
+    it('correctly maps short notes to hihat_foot when using hihat_foot_and_kick system', () => {
+      engine.setSystem(FACTORY_DAWSON_SYSTEMS.hihat_foot_and_kick);
+
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: [
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }), // Short -> hihat_foot
+          createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }), // Long -> kick
+        ],
+      };
+
+      const orchEvents = engine.resolveOrchestrationEvents(measure);
+      expect(orchEvents).toHaveLength(2);
+      expect(orchEvents[0]).toMatchObject({
+        voice: 'hihat_foot',
+        dynamic: 'accent',
+        timeInMeasure: 0,
+      });
+      expect(orchEvents[1]).toMatchObject({
+        voice: 'kick',
+        timeInMeasure: 0.5,
+      });
+    });
+
+    it('resolves custom OstinatoPattern objects set on the engine', () => {
+      engine.setOstinato({
+        id: 'custom_four_on_floor',
+        name: 'Four On Floor',
+        timeSignature: [4, 4],
+        strokes: [
+          { durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+          { durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+          { durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+          { durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+        ],
+      });
+
+      const events = engine.getOstinatoEvents();
+      expect(events).toHaveLength(4);
+      expect(events.map((e) => e.timeInMeasure)).toEqual([0, 1.0, 2.0, 3.0]);
+      expect(events.every((e) => e.voice === 'kick' && e.source === 'ostinato')).toBe(true);
     });
   });
 

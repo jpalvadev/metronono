@@ -1,14 +1,15 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import {
-  DawsonMode,
   OstinatoType,
+  OstinatoPattern,
   SubdivisionFormula,
   DawsonSystem,
 } from '../domain/dawson/types';
 import {
   DawsonPresetManager,
   resolveStrokeOffsets,
+  FACTORY_OSTINATOS,
 } from '../domain/dawson/SubdivisionFormula';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -22,6 +23,7 @@ import {
 import { cn } from '../lib/utils';
 import { FormulaEditorDialog } from './dawson/FormulaEditorDialog';
 import { PresetManager } from './dawson/PresetManager';
+import { DrumStaffViewer } from './dawson/DrumStaffViewer';
 
 export interface DawsonOrchestrationSectionProps {
   scheduler: ToneTransportScheduler;
@@ -42,35 +44,49 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
     [externalPresetManager]
   );
 
-  const [mode, setMode] = useState<DawsonMode>(() => engine.getMode());
   const [ostinato, setOstinato] = useState<OstinatoType>(() => engine.getOstinato());
-  const [activeSystemId, setActiveSystemId] = useState<string>(() => engine.getSystem()?.id ?? 'classic_bop');
+  const [activeSystemId, setActiveSystemId] = useState<string>(() => engine.getSystem()?.id ?? 'snare_and_kick');
   const [shortFormula, setShortFormula] = useState<SubdivisionFormula>(() => engine.getShortFormula());
   const [longFormula, setLongFormula] = useState<SubdivisionFormula>(() => engine.getLongFormula());
+
+  // Listen to engine changes
+  useEffect(() => {
+    return engine.onChange(() => {
+      setOstinato(engine.getOstinato());
+      const sys = engine.getSystem();
+      setActiveSystemId(sys ? sys.id : 'none');
+      setShortFormula(engine.getShortFormula());
+      setLongFormula(engine.getLongFormula());
+    });
+  }, [engine]);
 
   // Modal dialog states
   const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
   const [isFormulaDialogOpen, setIsFormulaDialogOpen] = useState(false);
+  const [isEditingOstinato, setIsEditingOstinato] = useState(false);
   const [editingFormula, setEditingFormula] = useState<SubdivisionFormula | null>(null);
+  const [editingTargetBeats, setEditingTargetBeats] = useState<number | undefined>(undefined);
   const [formulaDefaultTrigger, setFormulaDefaultTrigger] = useState<'short' | 'long'>('short');
 
-  const handleModeChange = useCallback(
-    (newMode: DawsonMode) => {
-      setMode(newMode);
-      engine.setMode(newMode);
-      setActiveSystemId(newMode);
-      setShortFormula(engine.getShortFormula());
-      setLongFormula(engine.getLongFormula());
+  const activeOstinatoPattern = useMemo(() => {
+    if (ostinato === 'none') return undefined;
+    return engine.getOstinatoPattern();
+  }, [engine, ostinato]);
 
-      if (newMode === 'straight_rock') {
-        engine.setOstinato('straight_rock');
-        setOstinato('straight_rock');
-      } else if ((newMode === 'classic_bop' || newMode === 'inverted_bop') && ostinato === 'straight_rock') {
-        engine.setOstinato('jazz_swing');
-        setOstinato('jazz_swing');
-      }
-    },
-    [engine, ostinato]
+  const allOstinatos = useMemo(() => presetManager.getAllOstinatos(), [presetManager]);
+  const customOstinatos = useMemo(() => allOstinatos.filter((o) => o.isCustom), [allOstinatos]);
+
+  const allSystems = useMemo(() => presetManager.getAllSystems(), [presetManager]);
+  const customSystems = useMemo(() => allSystems.filter((s) => s.isCustom), [allSystems]);
+  const legacySystems = useMemo(
+    () =>
+      allSystems.filter(
+        (s) =>
+          !s.isCustom &&
+          s.id !== 'snare_and_kick' &&
+          s.id !== 'hihat_foot_and_kick'
+      ),
+    [allSystems]
   );
 
   const handleSelectSystem = useCallback(
@@ -79,19 +95,43 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       setActiveSystemId(system.id);
       setShortFormula(system.shortFormula);
       setLongFormula(system.longFormula);
-      setOstinato(system.ostinatoId);
-      setMode(engine.getMode());
       setIsPresetManagerOpen(false);
     },
     [engine]
   );
 
+  const handleSelectSystemId = useCallback(
+    (systemId: string) => {
+      setActiveSystemId(systemId);
+      if (systemId === 'none') {
+        engine.setSystem('none');
+      } else {
+        const found = presetManager.getSystem(systemId);
+        if (found) {
+          engine.setSystem(found);
+          setShortFormula(found.shortFormula);
+          setLongFormula(found.longFormula);
+        }
+      }
+    },
+    [engine, presetManager]
+  );
+
   const handleOstinatoChange = useCallback(
     (newOstinato: OstinatoType) => {
       setOstinato(newOstinato);
-      engine.setOstinato(newOstinato);
+      if (newOstinato === 'none') {
+        engine.setOstinato('none');
+      } else {
+        const found = presetManager.getOstinato(newOstinato);
+        if (found) {
+          engine.setOstinato(found);
+        } else {
+          engine.setOstinato(newOstinato);
+        }
+      }
     },
-    [engine]
+    [engine, presetManager]
   );
 
   const handleAuditionFormula = useCallback(
@@ -119,28 +159,84 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
     [player, engine]
   );
 
+  const handleAuditionOstinato = useCallback(() => {
+    if (!player || ostinato === 'none' || !activeOstinatoPattern || activeOstinatoPattern.strokes.length === 0) {
+      return;
+    }
+    const tempoBpm = 100;
+    const beatDurationMs = (60 / tempoBpm) * 1000;
+    const resolved = resolveStrokeOffsets(activeOstinatoPattern.strokes, 0);
+
+    resolved.forEach(({ stroke, offset }) => {
+      if (stroke.isRest || !stroke.hits) return;
+      const delayMs = offset * beatDurationMs;
+      stroke.hits.forEach((hit) => {
+        const vel = engine.dynamicToVelocity(hit.dynamic);
+        if (delayMs <= 0) {
+          player.triggerVoice(hit.voice, 0, vel, 'ostinato');
+        } else {
+          setTimeout(() => {
+            player.triggerVoice(hit.voice, 0, vel, 'ostinato');
+          }, delayMs);
+        }
+      });
+    });
+  }, [player, ostinato, activeOstinatoPattern, engine]);
+
   const handleOpenFormulaEditor = useCallback(
     (formula: SubdivisionFormula, trigger: 'short' | 'long') => {
       setEditingFormula(formula);
       setFormulaDefaultTrigger(trigger);
+      setEditingTargetBeats(trigger === 'short' ? 0.5 : 1.0);
+      setIsEditingOstinato(false);
       setIsFormulaDialogOpen(true);
     },
     []
   );
 
+  const handleEditOstinato = useCallback(() => {
+    const pattern = activeOstinatoPattern || FACTORY_OSTINATOS.jazz_swing;
+    setEditingFormula({
+      id: pattern.id,
+      name: pattern.name,
+      trigger: 'long',
+      strokes: pattern.strokes,
+      isCustom: pattern.isCustom,
+      description: pattern.description,
+    });
+    setFormulaDefaultTrigger('long');
+    setEditingTargetBeats(4.0);
+    setIsEditingOstinato(true);
+    setIsFormulaDialogOpen(true);
+  }, [activeOstinatoPattern]);
+
   const handleSaveFormulaFromDialog = useCallback(
-    (updatedFormula: SubdivisionFormula) => {
-      presetManager.saveFormula(updatedFormula);
-      if (updatedFormula.trigger === 'short') {
-        engine.setShortFormula(updatedFormula);
-        setShortFormula(updatedFormula);
+    (updated: SubdivisionFormula) => {
+      if (isEditingOstinato) {
+        const ostinatoToSave: OstinatoPattern = {
+          id: updated.id,
+          name: updated.name,
+          timeSignature: [4, 4],
+          strokes: updated.strokes,
+          description: updated.description,
+          isCustom: true,
+        };
+        presetManager.saveOstinato(ostinatoToSave);
+        engine.setOstinato(ostinatoToSave);
+        setOstinato(ostinatoToSave.id);
       } else {
-        engine.setLongFormula(updatedFormula);
-        setLongFormula(updatedFormula);
+        presetManager.saveFormula(updated);
+        if (updated.trigger === 'short') {
+          engine.setShortFormula(updated);
+          setShortFormula(updated);
+        } else {
+          engine.setLongFormula(updated);
+          setLongFormula(updated);
+        }
       }
       setIsFormulaDialogOpen(false);
     },
-    [engine, presetManager]
+    [engine, isEditingOstinato, presetManager]
   );
 
   return (
@@ -169,291 +265,213 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           </div>
         </div>
 
-        {/* Ostinato Quick Selector */}
-        <div className="flex items-center gap-1 bg-secondary/40 p-1 rounded-none border border-border self-start sm:self-auto">
-          <span className="text-[11px] font-medium text-muted-foreground px-1.5 uppercase font-mono">Ostinato:</span>
-          <Button
-            variant={ostinato === 'jazz_swing' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[11px] rounded-none"
-            onClick={() => handleOstinatoChange('jazz_swing')}
-          >
-            Jazz Swing
-          </Button>
-          <Button
-            variant={ostinato === 'straight_rock' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[11px] rounded-none"
-            onClick={() => handleOstinatoChange('straight_rock')}
-          >
-            Straight 8ths
-          </Button>
-          <Button
-            variant={ostinato === 'none' ? 'destructive' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[11px] rounded-none"
-            onClick={() => handleOstinatoChange('none')}
-          >
-            No Ostinato
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setIsPresetManagerOpen(true)}
+          className="h-7 text-xs border-border gap-1.5 rounded-none self-start sm:self-auto"
+        >
+          <Sliders className="w-3.5 h-3.5 text-primary" />
+          Manage Systems, Formulas & Ostinatos
+        </Button>
       </div>
 
-      {/* Dawson Interpretation System Selector */}
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-primary" />
-            Interpretation System
-          </label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPresetManagerOpen(true)}
-            className="h-6 text-[11px] border-border gap-1.5 rounded-none"
-          >
-            <Sliders className="w-3 h-3 text-primary" />
-            Manage Systems & Formulas
-          </Button>
-        </div>
-
-        {/* System Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {/* Classic Bop */}
-          <button
-            type="button"
-            onClick={() => handleModeChange('classic_bop')}
-            className={cn(
-              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
-              activeSystemId === 'classic_bop' || (mode === 'classic_bop' && activeSystemId === 'classic_bop')
-                ? 'bg-secondary border-primary ring-1 ring-primary'
-                : 'bg-secondary/30 border-border hover:bg-secondary/60'
-            )}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-xs font-semibold uppercase text-foreground">Classic Bop</span>
-              {activeSystemId === 'classic_bop' && (
-                <span className="w-1.5 h-1.5 rounded-none bg-primary" />
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Shorts (≤ 8th) → <strong className="text-primary">Snare</strong>
-              <br />
-              Longs (≥ Qtr) → <strong className="text-destructive">Kick</strong>
-            </p>
-          </button>
-
-          {/* Inverted Bop */}
-          <button
-            type="button"
-            onClick={() => handleModeChange('inverted_bop')}
-            className={cn(
-              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
-              activeSystemId === 'inverted_bop' || (mode === 'inverted_bop' && activeSystemId === 'inverted_bop')
-                ? 'bg-secondary border-primary ring-1 ring-primary'
-                : 'bg-secondary/30 border-border hover:bg-secondary/60'
-            )}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-xs font-semibold uppercase text-foreground">Inverted Bop</span>
-              {activeSystemId === 'inverted_bop' && (
-                <span className="w-1.5 h-1.5 rounded-none bg-primary" />
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Shorts (≤ 8th) → <strong className="text-destructive">Kick</strong>
-              <br />
-              Longs (≥ Qtr) → <strong className="text-primary">Snare</strong>
-            </p>
-          </button>
-
-          {/* Straight Rock */}
-          <button
-            type="button"
-            onClick={() => handleModeChange('straight_rock')}
-            className={cn(
-              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
-              activeSystemId === 'straight_rock'
-                ? 'bg-secondary border-primary ring-1 ring-primary'
-                : 'bg-secondary/30 border-border hover:bg-secondary/60'
-            )}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-xs font-semibold uppercase text-foreground">Straight Rock</span>
-              {activeSystemId === 'straight_rock' && (
-                <span className="w-1.5 h-1.5 rounded-none bg-primary" />
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              8th Hi-Hat Groove
-              <br />
-              Shorts → <strong className="text-primary">Snare</strong>, Longs →{' '}
-              <strong className="text-destructive">Kick</strong>
-            </p>
-          </button>
-
-          {/* Tony Williams F-L-R Triplet */}
-          <button
-            type="button"
-            data-testid="system-btn-tony_williams_flr"
-            onClick={() => {
-              const sys = presetManager.getSystem('tony_williams_flr');
-              if (sys) handleSelectSystem(sys);
-            }}
-            className={cn(
-              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
-              activeSystemId === 'tony_williams_flr'
-                ? 'bg-secondary border-primary ring-1 ring-primary'
-                : 'bg-secondary/30 border-border hover:bg-secondary/60'
-            )}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-xs font-semibold uppercase text-foreground">Tony Williams</span>
-              {activeSystemId === 'tony_williams_flr' && (
-                <span className="w-1.5 h-1.5 rounded-none bg-primary" />
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Shorts → <strong className="text-primary">F-L-R Triplet</strong>
-              <br />
-              Longs → <strong className="text-destructive">Kick</strong>
-            </p>
-          </button>
-
-          {/* Linear Diddle Fusion */}
-          <button
-            type="button"
-            data-testid="system-btn-linear_diddle_fusion"
-            onClick={() => {
-              const sys = presetManager.getSystem('linear_diddle_fusion');
-              if (sys) handleSelectSystem(sys);
-            }}
-            className={cn(
-              'flex flex-col items-start p-3 rounded-none border text-left transition-all',
-              activeSystemId === 'linear_diddle_fusion'
-                ? 'bg-secondary border-primary ring-1 ring-primary'
-                : 'bg-secondary/30 border-border hover:bg-secondary/60'
-            )}
-          >
-            <div className="flex items-center justify-between w-full mb-1">
-              <span className="text-xs font-semibold uppercase text-foreground">Linear Fusion</span>
-              {activeSystemId === 'linear_diddle_fusion' && (
-                <span className="w-1.5 h-1.5 rounded-none bg-primary" />
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Shorts → <strong className="text-primary">Snare</strong>
-              <br />
-              Longs → <strong className="text-warning">Linear Diddle</strong>
-            </p>
-          </button>
-        </div>
-      </div>
-
-      {/* Active Subdivision Formulas Display & Customization Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-secondary/20 p-3 rounded-none border border-border">
-        {/* Short Note Formula Card */}
-        <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col justify-between gap-2.5">
+      {/* Two-Column Responsive Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left Column: Ostinato */}
+        <div className="flex flex-col gap-3 p-3.5 rounded-none border border-border bg-card shadow-xs">
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                  Short Formula
-                </span>
-                <span className="text-xs font-semibold text-foreground">
-                  {shortFormula.name}
-                </span>
-              </div>
-              <Badge variant="outline" className="text-[10px] font-mono border-border text-muted-foreground rounded-none">
-                {shortFormula.strokes.length} stroke{shortFormula.strokes.length === 1 ? '' : 's'}
-              </Badge>
-            </div>
-
-            {/* Strokes mini-summary */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {shortFormula.strokes.map((s, idx) => (
-                <span
-                  key={idx}
-                  className="px-1.5 py-0.5 rounded-none bg-secondary border border-border text-[10px] font-mono text-foreground"
-                >
-                  {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
-                </span>
-              ))}
-            </div>
+            <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
+              <Disc className="w-3.5 h-3.5 text-primary" />
+              Ostinato
+            </label>
+            <select
+              data-testid="ostinato-select"
+              value={ostinato}
+              onChange={(e) => handleOstinatoChange(e.target.value as OstinatoType)}
+              className="w-full bg-background border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+            >
+              <option value="none">Ninguno</option>
+              <optgroup label="Presets de Fábrica">
+                <option value="jazz_swing">Jazz Swing</option>
+                <option value="straight_8ths_hihat">Corcheas en Hi-Hat</option>
+              </optgroup>
+              {customOstinatos.length > 0 && (
+                <optgroup label="Ostinatos Personalizados">
+                  {customOstinatos.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
           </div>
 
-          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleAuditionFormula(shortFormula)}
-              className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
-            >
-              <Play className="w-3 h-3 fill-current" /> Audition
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
-              className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
-            >
-              <Edit3 className="w-3 h-3" /> Customize
-            </Button>
+          {/* Ostinato 5-line drum stave */}
+          <DrumStaffViewer
+            strokes={activeOstinatoPattern?.strokes}
+            isSilenced={ostinato === 'none'}
+            targetBeats={4}
+            height={130}
+          />
+
+          {/* Ostinato Action Footer */}
+          <div className="flex items-center justify-between pt-1 border-t border-border/60">
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {ostinato === 'none' ? 'Silenciado' : `${activeOstinatoPattern?.name ?? 'Jazz Swing'}`}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                data-testid="ostinato-audition-btn"
+                variant="ghost"
+                size="sm"
+                disabled={ostinato === 'none'}
+                onClick={handleAuditionOstinato}
+                className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
+              >
+                <Play className="w-3 h-3 fill-current" /> Audition
+              </Button>
+              <Button
+                type="button"
+                data-testid="ostinato-edit-btn"
+                variant="outline"
+                size="sm"
+                onClick={handleEditOstinato}
+                className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
+              >
+                <Edit3 className="w-3 h-3" /> Edit
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Long Note Formula Card */}
-        <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col justify-between gap-2.5">
+        {/* Right Column: Interpretation System */}
+        <div className="flex flex-col gap-3 p-3.5 rounded-none border border-border bg-card shadow-xs">
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-destructive uppercase tracking-wider">
-                  Long Formula
-                </span>
-                <span className="text-xs font-semibold text-foreground">
-                  {longFormula.name}
-                </span>
-              </div>
-              <Badge variant="outline" className="text-[10px] font-mono border-border text-muted-foreground rounded-none">
-                {longFormula.strokes.length} stroke{longFormula.strokes.length === 1 ? '' : 's'}
-              </Badge>
-            </div>
-
-            {/* Strokes mini-summary */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {longFormula.strokes.map((s, idx) => (
-                <span
-                  key={idx}
-                  className="px-1.5 py-0.5 rounded-none bg-secondary border border-border text-[10px] font-mono text-foreground"
-                >
-                  {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
-                </span>
-              ))}
-            </div>
+            <label className="text-xs font-semibold text-foreground/90 uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              Interpretation System
+            </label>
+            <select
+              data-testid="system-select"
+              value={activeSystemId}
+              onChange={(e) => handleSelectSystemId(e.target.value)}
+              className="w-full bg-background border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+            >
+              <option value="none">Ninguno</option>
+              <optgroup label="Sistemas de Fábrica">
+                <option value="snare_and_kick">Snare & Kick</option>
+                <option value="hihat_foot_and_kick">Hi-Hat Foot & Kick</option>
+              </optgroup>
+              {legacySystems.length > 0 && (
+                <optgroup label="Sistemas Predefinidos">
+                  {legacySystems.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {customSystems.length > 0 && (
+                <optgroup label="Sistemas Personalizados">
+                  {customSystems.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
           </div>
 
-          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handleAuditionFormula(longFormula)}
-              className="h-6 px-2 text-[11px] text-destructive gap-1 rounded-none"
-            >
-              <Play className="w-3 h-3 fill-current" /> Audition
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
-              className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
-            >
-              <Edit3 className="w-3 h-3" /> Customize
-            </Button>
+          {/* Stacked Formula Staves */}
+          <div className="flex flex-col gap-2.5">
+            {/* Short Formula Card */}
+            <div className="p-2.5 rounded-none border border-border bg-secondary/20 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-primary uppercase tracking-wider">
+                  Short Formula: <span className="text-foreground font-normal">{activeSystemId === 'none' ? 'Ninguno' : shortFormula.name}</span>
+                </span>
+                <Badge variant="outline" className="text-[10px] font-mono border-border text-muted-foreground rounded-none">
+                  {activeSystemId === 'none' ? '0 strokes' : `${shortFormula.strokes.length} stroke${shortFormula.strokes.length === 1 ? '' : 's'}`}
+                </Badge>
+              </div>
+
+              <DrumStaffViewer
+                strokes={activeSystemId === 'none' ? [] : shortFormula.strokes}
+                isSilenced={activeSystemId === 'none'}
+                targetBeats={0.5}
+                height={120}
+              />
+
+              <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={activeSystemId === 'none'}
+                  onClick={() => handleAuditionFormula(shortFormula)}
+                  className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
+                >
+                  <Play className="w-3 h-3 fill-current" /> Audition
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={activeSystemId === 'none'}
+                  onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
+                  className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
+                >
+                  <Edit3 className="w-3 h-3" /> Edit
+                </Button>
+              </div>
+            </div>
+
+            {/* Long Formula Card */}
+            <div className="p-2.5 rounded-none border border-border bg-secondary/20 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-destructive uppercase tracking-wider">
+                  Long Formula: <span className="text-foreground font-normal">{activeSystemId === 'none' ? 'Ninguno' : longFormula.name}</span>
+                </span>
+                <Badge variant="outline" className="text-[10px] font-mono border-border text-muted-foreground rounded-none">
+                  {activeSystemId === 'none' ? '0 strokes' : `${longFormula.strokes.length} stroke${longFormula.strokes.length === 1 ? '' : 's'}`}
+                </Badge>
+              </div>
+
+              <DrumStaffViewer
+                strokes={activeSystemId === 'none' ? [] : longFormula.strokes}
+                isSilenced={activeSystemId === 'none'}
+                targetBeats={1.0}
+                height={120}
+              />
+
+              <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={activeSystemId === 'none'}
+                  onClick={() => handleAuditionFormula(longFormula)}
+                  className="h-6 px-2 text-[11px] text-destructive gap-1 rounded-none"
+                >
+                  <Play className="w-3 h-3 fill-current" /> Audition
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={activeSystemId === 'none'}
+                  onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
+                  className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
+                >
+                  <Edit3 className="w-3 h-3" /> Edit
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -470,13 +488,14 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
         />
       )}
 
-      {/* Formula Editor Modal Dialog */}
+      {/* Formula & Ostinato Editor Modal Dialog */}
       {isFormulaDialogOpen && (
         <FormulaEditorDialog
           open={isFormulaDialogOpen}
           onClose={() => setIsFormulaDialogOpen(false)}
           formula={editingFormula}
           defaultTrigger={formulaDefaultTrigger}
+          targetBeats={editingTargetBeats}
           onSave={handleSaveFormulaFromDialog}
           player={player}
         />

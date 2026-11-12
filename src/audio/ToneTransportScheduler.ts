@@ -1,4 +1,3 @@
-import * as Tone from 'tone';
 import {
   MetronomeEngine,
   BeatEvent,
@@ -22,6 +21,8 @@ import { AudioMixer, IGainNodeLike } from './AudioMixer';
 import { DrumKitPlayer } from './DrumKitPlayer';
 import { SampleStrokePlayer } from './NativeSamplePlayback';
 import { DefaultSampleLoader } from './DefaultSampleLoader';
+import { NativeLookaheadTransport } from './NativeLookaheadTransport';
+import { getAudioContext, resumeAudioContext } from './WebAudioContext';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
 import { BackgroundAudioService } from './BackgroundAudioService';
@@ -264,8 +265,9 @@ export class ToneTransportScheduler {
 
   private defaultSampleLoader = new DefaultSampleLoader();
   private defaultSamplesLoaded = false;
+  private pendingDrawTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
-  // Lazy acquisition of the Tone transport and audio clock (retryable)
+  // Lazy acquisition of the native Lookahead transport and audio clock (retryable)
   private async ensureInitialized(): Promise<{
     transport: IAudioClockTransport;
     clickPlayer?: IClickPlayer;
@@ -279,16 +281,29 @@ export class ToneTransportScheduler {
     }
 
     if (!this.transport) {
-      await Tone.start();
-      const realTransport = Tone.getTransport();
-      realTransport.bpm.value = this.engine.getTempo();
-      realTransport.timeSignature = this.engine.getTimeSignature().beats;
-      this.transport = realTransport as unknown as IAudioClockTransport;
+      await resumeAudioContext().catch(() => {});
+      const nativeTransport = new NativeLookaheadTransport();
+      nativeTransport.bpm.value = this.engine.getTempo();
+      nativeTransport.timeSignature = this.engine.getTimeSignature().beats;
+      this.transport = nativeTransport;
     }
 
     if (!this.drawSync) {
       this.drawSync = (fn, time) => {
-        Tone.getDraw().schedule(fn, time);
+        const ctx = getAudioContext();
+        const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
+        const timer = setTimeout(() => {
+          this.pendingDrawTimers.delete(timer);
+          if (!this.playing) return;
+          if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+              if (this.playing) fn();
+            });
+          } else {
+            fn();
+          }
+        }, delayMs);
+        this.pendingDrawTimers.add(timer);
       };
     }
 
@@ -647,6 +662,8 @@ export class ToneTransportScheduler {
 
     this.engine.reset();
     this.playing = false;
+    this.pendingDrawTimers.forEach((timer) => clearTimeout(timer));
+    this.pendingDrawTimers.clear();
     this.playStateListeners.forEach((listener) => listener(false));
     this.backgroundAudioService?.onPlaybackStop?.();
     this.drumKitPlayer?.stopPendingSamples?.();

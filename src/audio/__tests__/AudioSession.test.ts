@@ -1,19 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ToneTransportScheduler } from '../ToneTransportScheduler';
 import { MetronomeEngine } from '../../domain/metronome/MetronomeEngine';
 import { createRhythmicEvent } from '../../domain/rhythm/types';
-import { fakeToneRecorder } from '../../test/fakeTone';
 import { getAudioContext } from '../WebAudioContext';
+import { LOOKAHEAD_INTERVAL_MS } from '../NativeLookaheadTransport';
 import { FakeAudioBuffer, FakeAudioContext } from '../../test/fakeWebAudio';
-
-// A full practice session through the transport interface alone (ADR-0014):
-// 16+ fired beats with an ostinato active and a custom sample voice loaded must
-// resolve the domain once per cycled measure, keep zero live synths, disconnect
-// finished sample sources on `ended`, and leave nothing on destination after dispose.
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
 
 function fakeCtx(): FakeAudioContext {
   return getAudioContext() as unknown as FakeAudioContext;
@@ -21,7 +12,11 @@ function fakeCtx(): FakeAudioContext {
 
 describe('Zero-allocation audio session (Pure Web Audio)', () => {
   beforeEach(() => {
-    fakeToneRecorder.reset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('holds the discipline across a full session', async () => {
@@ -70,20 +65,15 @@ describe('Zero-allocation audio session (Pure Web Audio)', () => {
     await scheduler.start();
     expect(dawson.resolveCalls).toBe(2);
 
-    fakeToneRecorder.transport.fireRepeats(16);
+    const ctx = fakeCtx();
+    const beatSec = 60 / 200;
+    for (let i = 0; i < 16; i++) {
+      ctx.advanceTime(beatSec);
+      vi.advanceTimersByTime(LOOKAHEAD_INTERVAL_MS);
+    }
 
     // One resolve per cycled measure: sixteen beats = four measures over a two-measure plan.
     expect(dawson.resolveCalls).toBe(2);
-
-    // Zero Tone.js synth nodes exist.
-    expect(
-      fakeToneRecorder.nodesOfKind('MembraneSynth').length +
-      fakeToneRecorder.nodesOfKind('MetalSynth').length +
-      fakeToneRecorder.nodesOfKind('NoiseSynth').length +
-      fakeToneRecorder.nodesOfKind('Synth').length
-    ).toBe(0);
-
-    const ctx = fakeCtx();
     expect(ctx.bufferSources.length).toBeGreaterThan(0);
 
     // When sources finish playing (onended), both source and per-hit GainNode disconnect.

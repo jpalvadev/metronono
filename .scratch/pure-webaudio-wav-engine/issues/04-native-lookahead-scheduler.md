@@ -4,10 +4,10 @@
 
 **Blocked by:** 02-pure-webaudio-mixer-and-sample-player
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Native Lookahead Scheduler schedules beats and subdivisions against `AudioContext.currentTime` without `Tone.Transport`.
-- [ ] Tempo ramps, Gap Clicks, stochastic muting, Ostinato, and Dawson System `MeasurePlan` execution preserve exact beat cadence and measure boundaries.
-- [ ] Playhead and beat-readout UI callbacks synchronize with scheduled audio time without blocking the audio thread.
-- [ ] Stopping the scheduler halts the lookahead timer and drains all active `AudioBufferSourceNode` instances cleanly.
-- [ ] `npm run check` passes cleanly.
+- [x] Native Lookahead Scheduler schedules beats and subdivisions against `AudioContext.currentTime` without `Tone.Transport`.
+- [x] Tempo ramps, Gap Clicks, stochastic muting, Ostinato, and Dawson System `MeasurePlan` execution preserve exact beat cadence and measure boundaries.
+- [x] Playhead and beat-readout UI callbacks synchronize with scheduled audio time without blocking the audio thread.
+- [x] Stopping the scheduler halts the lookahead timer and drains all active `AudioBufferSourceNode` instances cleanly.
+- [x] `npm run check` passes cleanly.

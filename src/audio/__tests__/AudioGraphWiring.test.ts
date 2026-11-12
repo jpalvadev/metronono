@@ -1,17 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AudioMixer } from '../AudioMixer';
 import { DrumKitPlayer } from '../DrumKitPlayer';
 import { ToneTransportScheduler } from '../ToneTransportScheduler';
-import { fakeToneRecorder } from '../../test/fakeTone';
 import { getAudioContext } from '../WebAudioContext';
+import { LOOKAHEAD_INTERVAL_MS } from '../NativeLookaheadTransport';
 import { FakeAudioBuffer, FakeAudioContext, FakeAudioNode } from '../../test/fakeWebAudio';
-
-// A real click and a real composed drum hit must reach the audio destination through the
-// Mixing Channel they belong to, on a graph the Transport builds eagerly (ADR-0005 / ADR-0014).
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
 
 function fakeCtx(): FakeAudioContext {
   return getAudioContext() as unknown as FakeAudioContext;
@@ -29,7 +22,11 @@ const dummyBuffer = new FakeAudioBuffer(1, 2048, 44100) as unknown as AudioBuffe
 
 describe('Transport audio graph (Pure Web Audio)', () => {
   beforeEach(() => {
-    fakeToneRecorder.reset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('routes both click samples and drum samples to the audio destination through their Mixing Channels', async () => {
@@ -54,10 +51,11 @@ describe('Transport audio graph (Pure Web Audio)', () => {
     }
     expect(ctx.destination.incoming).toHaveLength(1);
 
-    // Load click sample buffers and fire a repeat tick.
+    // Load click sample buffers and advance one beat on the native lookahead clock.
     scheduler.getClickPlayer()?.loadSampleBuffer?.('downbeat', dummyBuffer);
     scheduler.getClickPlayer()?.loadSampleBuffer?.('regular', dummyBuffer);
-    fakeToneRecorder.transport.fireRepeats();
+    ctx.advanceTime(0.5);
+    vi.advanceTimersByTime(LOOKAHEAD_INTERVAL_MS);
 
     const clickChannel = nodeByLabel('mixer:click');
     const clickSources = ctx.bufferSources.filter((s) =>
@@ -79,6 +77,8 @@ describe('Transport audio graph (Pure Web Audio)', () => {
       expect(ctx.routeTo(src, nodeByLabel('audition:click'))).not.toBeNull();
       expect(ctx.routeTo(src, clickChannel)).toBeNull();
     }
+
+    scheduler.dispose();
   });
 
   it('routes a composed drum hit through the Mixing Channel of its source', async () => {
@@ -94,6 +94,8 @@ describe('Transport audio graph (Pure Web Audio)', () => {
     const kickSource = ctx.bufferSources[0];
     expect(ctx.routeTo(kickSource, nodeByLabel('mixer:orchestration'))).not.toBeNull();
     expect(ctx.routeTo(kickSource, ctx.destination)).not.toBeNull();
+
+    scheduler.dispose();
   });
 
   it('builds the graph once even when start is called again', async () => {
@@ -102,6 +104,7 @@ describe('Transport audio graph (Pure Web Audio)', () => {
     await scheduler.start();
 
     expect(fakeCtx().destination.incoming).toHaveLength(1);
+    scheduler.dispose();
   });
 
   it('gives a Mixer it is handed the eager graph instead of building a second one', () => {
@@ -113,6 +116,7 @@ describe('Transport audio graph (Pure Web Audio)', () => {
     expect(scheduler.getDrumKitPlayer()).toBe(player);
     expect(fakeCtx().destination.incoming).toHaveLength(1);
     expect(mixer.isGraphInitialized()).toBe(true);
+    scheduler.dispose();
   });
 
   it('disconnects the graph it owns on dispose', async () => {

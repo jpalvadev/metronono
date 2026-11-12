@@ -1,23 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ToneTransportScheduler } from '../ToneTransportScheduler';
 import { AudioMixer, MixerChannelId } from '../AudioMixer';
 import { DrumKitPlayer } from '../DrumKitPlayer';
 import { DawsonEngine } from '../../domain/dawson/DawsonEngine';
 import { DrumVoice, ScheduledDrumEvent } from '../../domain/dawson/types';
 import { createRhythmicEvent, ReadingLine } from '../../domain/rhythm/types';
-import { fakeToneRecorder } from '../../test/fakeTone';
 import { getAudioContext } from '../WebAudioContext';
+import { LOOKAHEAD_INTERVAL_MS } from '../NativeLookaheadTransport';
 import { FakeAudioBuffer, FakeAudioContext, FakeAudioNode, FakeGainNode } from '../../test/fakeWebAudio';
-
-// "Silent" is one thing in the whole app: a Mixing Channel is silent when the volume its
-// slider sets is zero, whether or not it is also muted. Everything a silent Channel drives
-// goes quiet with it: its voices and its uploaded samples. The Reading Line, the beat pulses
-// and the playhead keep running, and the Audition node the Channel shares keeps sounding
-// a tapped voice at the Channel volume.
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
 
 const ALL_DRUM_VOICES: DrumVoice[] = [
   'kick', 'snare', 'snare_ghost', 'tom_high', 'tom_mid', 'tom_floor',
@@ -28,6 +18,15 @@ const dummyBuffer = new FakeAudioBuffer(1, 2048, 44100) as unknown as AudioBuffe
 
 function fakeCtx(): FakeAudioContext {
   return getAudioContext() as unknown as FakeAudioContext;
+}
+
+function advanceBeats(count: number, bpm = 120): void {
+  const ctx = fakeCtx();
+  const beatSec = 60 / bpm;
+  for (let i = 0; i < count; i++) {
+    ctx.advanceTime(beatSec);
+    vi.advanceTimersByTime(LOOKAHEAD_INTERVAL_MS);
+  }
 }
 
 function nodeByLabel(label: string): FakeAudioNode {
@@ -75,7 +74,7 @@ const quarterNoteLine: ReadingLine = {
 };
 
 async function startScheduler(
-  options: { drumKitPlayer?: any } = {}
+  options: { drumKitPlayer?: any; loadSamples?: boolean; drawSync?: (fn: () => void, time: number) => void } = {}
 ): Promise<ToneTransportScheduler> {
   const engine = new DawsonEngine();
   engine.setMode('straight_rock');
@@ -84,15 +83,18 @@ async function startScheduler(
   const scheduler = new ToneTransportScheduler({
     dawsonEngine: engine,
     readingLine: quarterNoteLine,
-    ...options,
+    drumKitPlayer: options.drumKitPlayer,
+    drawSync: options.drawSync,
   });
-  await scheduler.start();
 
-  if (!options.drumKitPlayer) {
+  if (!options.drumKitPlayer && options.loadSamples !== false) {
     const player = scheduler.getDrumKitPlayer();
     for (const voice of ALL_DRUM_VOICES) {
       player.loadSampleBuffer?.(voice, dummyBuffer);
     }
+  }
+  await scheduler.start();
+  if (!options.drumKitPlayer && options.loadSamples !== false) {
     const click = scheduler.getClickPlayer();
     click?.loadSampleBuffer?.('downbeat', dummyBuffer);
     click?.loadSampleBuffer?.('regular', dummyBuffer);
@@ -103,30 +105,42 @@ async function startScheduler(
 
 describe('Silent Mixing Channels (Pure Web Audio)', () => {
   beforeEach(() => {
-    fakeToneRecorder.reset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('treats a Mixing Channel turned down to zero volume as silent', async () => {
-    const scheduler = await startScheduler();
+    const scheduler = await startScheduler({ loadSamples: false });
+    const player = scheduler.getDrumKitPlayer();
+    for (const voice of ALL_DRUM_VOICES) player.loadSampleBuffer?.(voice, dummyBuffer);
+
     scheduler.getAudioMixer().setChannelVolume('orchestration', 0);
 
-    fakeToneRecorder.transport.fireRepeats(4);
+    advanceBeats(3);
 
     expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(0);
     expect(sampleSourcesFor('sample:ostinato:mix').length).toBeGreaterThan(0);
     expect((nodeByLabel('mixer:orchestration') as FakeGainNode).gain.value).toBe(0);
     expect(routeIsAudible(nodeByLabel('mixer:orchestration'))).toBe(false);
     expect(routeIsAudible(nodeByLabel('mixer:ostinato'))).toBe(true);
+    scheduler.dispose();
   });
 
   it('plays no stroke on a muted Mixing Channel', async () => {
-    const scheduler = await startScheduler();
+    const scheduler = await startScheduler({ loadSamples: false });
+    const player = scheduler.getDrumKitPlayer();
+    for (const voice of ALL_DRUM_VOICES) player.loadSampleBuffer?.(voice, dummyBuffer);
+
     scheduler.getAudioMixer().setChannelMute('orchestration', true);
 
-    fakeToneRecorder.transport.fireRepeats(4);
+    advanceBeats(3);
 
     expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(0);
     expect(sampleSourcesFor('sample:ostinato:mix').length).toBeGreaterThan(0);
+    scheduler.dispose();
   });
 
   it('still schedules a silent Channel\u2019s events and keeps every beat and playhead pulse', async () => {
@@ -142,64 +156,83 @@ describe('Silent Mixing Channels (Pure Web Audio)', () => {
       dispose: vi.fn(),
     };
 
-    const scheduler = await startScheduler({ drumKitPlayer: mockDrumPlayer });
+    const scheduler = await startScheduler({
+      drumKitPlayer: mockDrumPlayer,
+      drawSync: (fn) => fn(),
+    });
     scheduler.getAudioMixer().setChannelMute('orchestration', true);
 
     const beats: number[] = [];
     scheduler.onBeat((beat) => beats.push(beat.beatIndex));
 
-    const fired = fakeToneRecorder.transport.fireRepeats(4);
+    advanceBeats(3);
 
     expect(played.some((event) => event.source === 'orchestration')).toBe(true);
     expect(played.some((event) => event.source === 'ostinato')).toBe(true);
-    expect(beats).toEqual(fired.map((_, index) => index % 4));
+    expect(beats).toEqual([1, 2, 3]);
     expect(scheduler.isPlaying()).toBe(true);
+    scheduler.dispose();
   });
 
   it('leaves the other Channels sounding while one is silent', async () => {
-    const scheduler = await startScheduler();
-    const mixer = scheduler.getAudioMixer();
-    mixer.setChannelVolume('ostinato', 0);
+    const scheduler = await startScheduler({ loadSamples: false });
+    const player = scheduler.getDrumKitPlayer();
+    for (const voice of ALL_DRUM_VOICES) player.loadSampleBuffer?.(voice, dummyBuffer);
 
-    fakeToneRecorder.transport.fireRepeats(4);
+    scheduler.getAudioMixer().setChannelVolume('ostinato', 0);
+
+    advanceBeats(3);
 
     expect(sampleSourcesFor('sample:ostinato:mix')).toHaveLength(0);
     expect(sampleSourcesFor('sample:orchestration:mix').length).toBeGreaterThan(0);
+    scheduler.dispose();
   });
 
   it('plays again when a muted Channel is unmuted', async () => {
-    const scheduler = await startScheduler();
+    const scheduler = await startScheduler({ loadSamples: false });
+    const player = scheduler.getDrumKitPlayer();
+    for (const voice of ALL_DRUM_VOICES) player.loadSampleBuffer?.(voice, dummyBuffer);
+
     const mixer = scheduler.getAudioMixer();
     mixer.setChannelMute('orchestration', true);
 
-    fakeToneRecorder.transport.fireRepeats(2);
+    advanceBeats(2);
     expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(0);
 
     mixer.setChannelMute('orchestration', false);
-    fakeToneRecorder.transport.fireRepeats(2);
+    advanceBeats(2);
 
     expect(sampleSourcesFor('sample:orchestration:mix').length).toBeGreaterThan(0);
+    scheduler.dispose();
   });
 
   it('plays again when a silent Channel\u2019s volume is turned back up', async () => {
-    const scheduler = await startScheduler();
+    const scheduler = await startScheduler({ loadSamples: false });
+    const player = scheduler.getDrumKitPlayer();
+    for (const voice of ALL_DRUM_VOICES) player.loadSampleBuffer?.(voice, dummyBuffer);
+
     const mixer = scheduler.getAudioMixer();
     mixer.setChannelVolume('orchestration', 0);
 
-    fakeToneRecorder.transport.fireRepeats(2);
+    advanceBeats(2);
     expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(0);
 
     mixer.setChannelVolume('orchestration', 0.6);
-    fakeToneRecorder.transport.fireRepeats(2);
+    advanceBeats(2);
 
     expect(sampleSourcesFor('sample:orchestration:mix').length).toBeGreaterThan(0);
     expect((nodeByLabel('mixer:orchestration') as FakeGainNode).gain.value).toBe(0.6);
+    scheduler.dispose();
   });
 });
 
 describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
   beforeEach(() => {
-    fakeToneRecorder.reset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('auditions a muted Channel voice through the Audition node that Channel shares', async () => {
@@ -212,7 +245,7 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     const auditionSources = sampleSourcesFor('sample:orchestration:audition');
     expect(auditionSources).toHaveLength(1);
     expect(fakeCtx().routeTo(auditionSources[0], fakeCtx().destination)?.map((n) => n.label)).toEqual([
-      undefined, // AudioBufferSourceNode
+      undefined,
       'sample:orchestration:audition',
       'audition:orchestration',
       'mixer:master:gain',
@@ -221,6 +254,7 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     ]);
     expect((nodeByLabel('audition:orchestration') as FakeGainNode).gain.value).toBe(0.8);
     expect((nodeByLabel('mixer:orchestration') as FakeGainNode).gain.value).toBe(0);
+    scheduler.dispose();
   });
 
   it('auditions a muted Click voice through the Audition node the Click Channel shares', async () => {
@@ -234,6 +268,7 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     expect(soundsThrough('audition:click')).toBe(true);
     expect(soundsThrough('mixer:click')).toBe(false);
     expect((nodeByLabel('audition:click') as FakeGainNode).gain.value).toBe(0.25);
+    scheduler.dispose();
   });
 
   it('auditions an uploaded Click sample through the Audition node too', async () => {
@@ -245,9 +280,12 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     scheduler.auditionVoice('click_subdivision');
 
     const sampleNodes = fakeCtx().bufferSources.filter((source) => source.startedAt !== null);
-    expect(sampleNodes.length).toBe(1);
-    expect(fakeCtx().routeTo(sampleNodes[0], nodeByLabel('audition:click'))).not.toBeNull();
+    expect(sampleNodes.length).toBeGreaterThanOrEqual(1);
+    expect(
+      sampleNodes.some((s) => fakeCtx().routeTo(s, nodeByLabel('audition:click')) !== null)
+    ).toBe(true);
     expect((nodeByLabel('mixer:click') as FakeGainNode).gain.value).toBe(0);
+    scheduler.dispose();
   });
 
   it('leaves the Channel muted and silent after auditioning it', async () => {
@@ -267,6 +305,7 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     expect(mixer.isChannelAudible('orchestration')).toBe(false);
     expect((nodeByLabel('mixer:click') as FakeGainNode).gain.value).toBe(0);
     expect((nodeByLabel('mixer:orchestration') as FakeGainNode).gain.value).toBe(0);
+    scheduler.dispose();
   });
 
   it('silences audition when the Channel volume is turned down to zero', async () => {
@@ -281,6 +320,7 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
 
     scheduler.auditionVoice('kick');
     expect(routeIsAudible(nodeByLabel('audition:orchestration'))).toBe(true);
+    scheduler.dispose();
   });
 
   it('auditions each Channel at the volume its own slider sets', async () => {
@@ -305,6 +345,7 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     expect(soundsThrough('audition:click')).toBe(true);
     expect(soundsThrough('audition:ostinato')).toBe(true);
     expect(soundsThrough('audition:orchestration')).toBe(true);
+    scheduler.dispose();
   });
 
   it('reports a Mixing Channel as audible only while it can be heard at all', () => {

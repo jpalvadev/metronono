@@ -245,4 +245,57 @@ describe('PartitureFormulaCanvas', () => {
     expect(finalStrokes[0].isRest).toBe(true);
     expect(finalStrokes[0].hits).toHaveLength(0);
   });
+
+  // Note-Anchored Interpolation regression net at the component seam (docs/adr/0012):
+  // the audition Playhead must land on the notehead VexFlow actually drew, even
+  // inside a triplet group where the old linear mapping drifted.
+  it('lands the audition playhead exactly on a triplet notehead', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1.0, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+    ];
+
+    render(
+      <PartitureFormulaCanvas
+        strokes={strokes}
+        onChangeStrokes={vi.fn()}
+        activeTool="note"
+        selectedDuration={1 / 3}
+        selectedDynamic="normal"
+        player={mockPlayer}
+        width={500}
+        targetBeats={2}
+        playheadBeat={1 / 3}
+      />
+    );
+    // A hover gesture mirrors a live session: React re-renders with the layout
+    // ref already set, so the audition Playhead is laid out through the deepened seam.
+    const canvasEl = screen.getByTestId('partiture-formula-canvas');
+    fireEvent.mouseMove(canvasEl, { clientX: 40, clientY: 40 });
+
+    const canvas = screen.getByTestId('partiture-formula-canvas');
+    const playhead = screen.getByTestId('audition-playhead');
+    const style = playhead.getAttribute('style') ?? '';
+    const leftMatch = /left:\s*([0-9.]+)px/.exec(style);
+    expect(leftMatch).toBeTruthy();
+    const playheadLeft = Number((leftMatch as RegExpExecArray)[1]);
+
+    // Rendered SVG ground truth: VexFlow 5 places each notehead in a
+    // vf-stavenote group whose glyph text carries the absolute x.
+    const svg = canvas.querySelector('svg');
+    expect(svg).toBeTruthy();
+    const glyphXs: number[] = [];
+    for (const noteGroup of (svg as Element | null)?.querySelectorAll('g.vf-stavenote') ?? []) {
+      const glyph = noteGroup.querySelector('text');
+      const x = glyph?.getAttribute('x');
+      if (x) glyphXs.push(Number(x));
+    }
+    expect(glyphXs.length).toBe(4);
+
+    // The Playhead for beat offset 1/3 lands on the second stroke's notehead
+    // (sub-pixel tolerance covers glyph justification, not metric drift).
+    expect(Math.abs(glyphXs[1] - playheadLeft)).toBeLessThanOrEqual(2);
+  });
 });

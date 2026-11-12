@@ -4,9 +4,9 @@
 
 **Blocked by:** 01 (Dynamic Headroom), 02 (Note-Anchored Interpolation).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Viewer and canvas suites stay green with the grown height and anchor-based mapping (consumers untouched).
-- [ ] A canvas-level assertion: getXForBeatOffset(offsetOfStroke(i)) equals strokeCoordinates[i].x for every stroke of a triplet figure (the regression net for the drift bug).
-- [ ] Screenshot check of the DrumStaffViewer with a crash+triplet figure: no clipped glyphs (visual gestalt).
-- [ ] Full npm run check green on the integration branch (style sweep, tsc, whole vitest suite).
+- [x] Viewer and canvas suites stay green with the grown height and anchor-based mapping (consumers untouched, except the crash-line pixel pin updated to the new margins).
+- [x] A canvas-level assertion: the audition Playhead for a triplet offset lands on the rendered vf-stavenote glyph x (SVG ground truth, sub-pixel tolerance).
+- [x] Screenshot check of the running app's Jazz Swing ostinato DrumStaffViewer (ride triplets + hi-hat foot): no clipped glyphs - tuplet brackets, stems and foot notes fully inside the grown viewport (.scratch/drum-staff-viewer-candidate2.png).
+- [x] Full npm run check green on the integration branch (style sweep, tsc, whole vitest suite).

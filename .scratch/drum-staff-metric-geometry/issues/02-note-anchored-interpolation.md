@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] For a measure with an 8th-triplet group, getXForBeatOffset(stroke.beatOffset) equals that stroke's strokeCoordinates x at every anchor (identity contract, floating tolerance).
-- [ ] Between anchors the mapping is strictly increasing and piecewise-linear; outside [0, targetBeats] it clamps as today.
-- [ ] getBeatOffsetForX is the mirrored inverse: round-trip at anchors (getBeatOffsetForX(anchorX) == anchorOffset), and its old endpoints (noteStart -> 0, noteEnd -> targetBeats) hold.
-- [ ] getStepForX routes through the same anchor mapping (editor snapping agrees with the Playhead), keeping gridResolution endpoints.
-- [ ] Existing 'calculates playhead and beat offsets accurately' test stays green (ordering assertions unchanged).
+- [x] For a measure with an 8th-triplet group, getXForBeatOffset(stroke.beatOffset) equals that stroke's strokeCoordinates x at every anchor (identity contract, floating tolerance).
+- [x] Between anchors the mapping is strictly increasing and piecewise-linear; outside [0, targetBeats] it clamps as today.
+- [x] getBeatOffsetForX is the mirrored inverse: round-trip at anchors (getBeatOffsetForX(anchorX) == anchorOffset), and its old endpoints (noteStart -> 0, noteEnd -> targetBeats) hold.
+- [x] getStepForX routes through the same anchor mapping (editor snapping agrees with the Playhead), keeping gridResolution endpoints.
+- [x] Existing 'calculates playhead and beat offsets accurately' test stays green (ordering assertions unchanged).

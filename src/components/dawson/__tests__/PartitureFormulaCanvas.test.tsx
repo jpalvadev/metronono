@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, createEvent } from '@testing-library/react';
 import { PartitureFormulaCanvas } from '../PartitureFormulaCanvas';
 import { OrchestratedStroke } from '../../../domain/dawson/types';
 import { IDrumKitPlayer } from '../../../audio/types';
@@ -340,5 +340,55 @@ describe('PartitureFormulaCanvas', () => {
     // The stamped voice merges into the nearest event as a chord.
     expect(updated[2].hits).toHaveLength(2);
     expect(updated[2].hits.some((h) => h.voice === 'tom_floor')).toBe(true);
+  });
+
+  // Continuous Metric Timeline end-to-end (docs/adr/0013): the same mixed
+  // figure edited by a POINTER DRAG preserves every fractional ratio.
+  it('edits a mixed 1/3 + 1/4 figure by drag without losing either ratio', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 0.25, hits: [{ voice: 'kick', dynamic: 'normal' }] },
+    ];
+    const onChangeStrokes = vi.fn();
+
+    render(
+      <PartitureFormulaCanvas
+        strokes={strokes}
+        onChangeStrokes={onChangeStrokes}
+        activeTool="note"
+        selectedDuration={0.25}
+        selectedDynamic="normal"
+        player={mockPlayer}
+        width={500}
+        targetBeats={1.0}
+      />
+    );
+
+    const canvas = screen.getByTestId('partiture-formula-canvas');
+
+    const firePointer = (type: 'pointerDown' | 'pointerMove' | 'pointerUp', x: number, y: number) => {
+      const event = createEvent[type](canvas);
+      Object.assign(event, { clientX: x, clientY: y });
+      fireEvent(canvas, event);
+    };
+
+    // Pointer down on the downbeat ride notehead, drag right to the 0.5
+    // metric position and release: the ride event moves there while the
+    // 1/4 kick keeps its fractional history (total 1/3 + 1/3 + 0.25).
+    firePointer('pointerDown', 80, 60);
+    firePointer('pointerMove', 280, 60);
+    firePointer('pointerUp', 280, 60);
+
+    expect(onChangeStrokes).toHaveBeenCalledTimes(1);
+    const updated: OrchestratedStroke[] = onChangeStrokes.mock.calls[0][0];
+    const durations = updated.map((s) => s.durationRatio);
+    // Nothing re-quantized: the 1/3 durations survive the drag.
+    expect(durations.filter((d) => Math.abs(d - 1 / 3) < 0.001)).toHaveLength(2);
+    expect(durations.filter((d) => Math.abs(d - 0.25) < 0.001)).toHaveLength(2);
+    // The moved voice landed on a sounding event, not in a colliding slot.
+    const soundingEvents = updated.filter((s) => !s.isRest && s.hits.length > 0);
+    expect(soundingEvents).toHaveLength(2);
+    expect(soundingEvents.every((s) => s.hits.length === 1)).toBe(true);
   });
 });

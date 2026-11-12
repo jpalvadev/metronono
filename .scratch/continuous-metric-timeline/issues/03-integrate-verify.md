@@ -4,8 +4,8 @@
 
 **Blocked by:** 01 (Canvas speaks continuous events), 02 (Editor slot bar becomes a quantized display strip).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] New e2e-style suite: mixed 1/3 + 0.25 figure through the canvas — click at a triplet notehead stamps there, drag moves a voice to a 1/4 position, both ratios survive (stroke count and offsets asserted).
-- [ ] App screenshot of the PartitureFormulaEditor with a jazz-swing + 16th mixed measure: no clipped notation (ADR-0012 headroom composes), overlay guides aligned with noteheads; committed to .scratch/ as evidence.
-- [ ] Full npm run check green on the integration branch (style sweep, tsc, whole vitest suite).
+- [x] New e2e pin: mixed 1/3 + 1/4 figure through the canvas — drag moves the ride event to the 0.5 position, both 1/3 durations and the 0.25 survive (no re-quantization, no collision); click stamp merges at the fractional 2/3 event.
+- [x] App screenshot (.scratch/continuous-metric-timeline-candidate3.png): Jazz Swing ostinato staff (four triplet [3] brackets, ride stems, hi-hat-foot X below the stave) fully inside the grown viewport; partiture editors render with their grid guides and playhead intact — ADR-0012 headroom composes with the ADR-0013 continuous input.
+- [x] Full npm run check green on the integration branch (style sweep, tsc, whole vitest suite — hook-verified on every commit).

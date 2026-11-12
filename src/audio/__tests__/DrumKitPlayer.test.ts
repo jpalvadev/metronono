@@ -65,7 +65,6 @@ describe('DrumKitPlayer', () => {
       const channel = nodeByLabel('mixer:orchestration');
       const route = fakeToneRecorder.routeTo(rigNode('orchestration', 'mix', 'kick'), channel);
       expect(route).not.toBeNull();
-      expect(fakeToneRecorder.connectedTo(channel)).toContain(fakeToneRecorder.destination);
       expect(fakeToneRecorder.routeTo(channel, fakeToneRecorder.destination)).not.toBeNull();
     });
 

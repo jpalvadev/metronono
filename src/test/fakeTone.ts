@@ -514,6 +514,11 @@ export const fakeToneRecorder = {
     return fakeTransport
   },
 
+  /** Advance the shared fake clock used by `Tone.now()`. */
+  setTime(time: number): void {
+    fakeClock.time = time
+  },
+
   /** Run any draw callbacks queued while `deferredDraw` was on. */
   flushDraw(): void {
     const queue = fakeToneRecorder.drawQueue
@@ -664,6 +669,15 @@ export const fakeToneModule = {
       super(nextNodeId('Gain'), initial ?? 1)
       createdNodes.push(this)
       fakeToneRecorder.kinds.Gain = (fakeToneRecorder.kinds.Gain ?? 0) + 1
+    }
+  },
+  Limiter: class FakeLimiterCtor extends FakeToneNode {
+    readonly threshold: { value: number }
+    constructor(threshold?: number) {
+      super(nextNodeId('Limiter'), 'Limiter')
+      this.threshold = { value: threshold ?? -1 }
+      createdNodes.push(this)
+      fakeToneRecorder.kinds.Limiter = (fakeToneRecorder.kinds.Limiter ?? 0) + 1
     }
   },
   Synth: class FakeSynthCtor extends FakeSynth {

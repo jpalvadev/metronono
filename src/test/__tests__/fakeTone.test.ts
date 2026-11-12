@@ -174,12 +174,16 @@ describe('recording fake Tone harness', () => {
       throw new Error('mixer did not build its node graph through the registered fake')
     }
 
+    const masterGain = fakeToneRecorder.nodes.find((n) => n.label === 'mixer:master:gain')
+    const masterLimiter = fakeToneRecorder.nodes.find((n) => n.label === 'mixer:master:limiter')
     expect(fakeToneRecorder.routeToDestination(click)).toEqual([
       asFakeNode(click).id,
+      asFakeNode(masterGain).id,
+      asFakeNode(masterLimiter).id,
       'destination',
     ])
-    // Three mix nodes and three audition nodes all feed the destination directly.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6)
+    // Three mix nodes and three audition nodes all feed the master limiter bus.
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1)
     expect(fakeToneRecorder.gainValue(click)).toBe(0.8)
 
     mixer.setChannelMute('click', true)

@@ -96,8 +96,8 @@ describe('Mixing Channel membership', () => {
     expect(rigTriggers('ostinato', 'audition')).toBe(0);
     expect(rigTriggers('orchestration', 'audition')).toBe(0);
 
-    // Every signal the scheduler produced reaches the output through the channel nodes directly.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    // Every signal the scheduler produced reaches the output through the master limiter bus.
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
   });
 
   it('follows the source, not the voice name: an orchestrated ride is heard on Orchestration', async () => {
@@ -175,8 +175,8 @@ describe('Mixing Channel membership', () => {
       }
     }
 
-    // Channel nodes reach destination directly: no sample bypasses a Mixing Channel.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    // All channel nodes reach destination through the single master limiter bus.
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
   });
 
   it('keeps uploaded samples silent on a muted Mixing Channel', async () => {
@@ -211,6 +211,8 @@ describe('Mixing Channel membership', () => {
       expect(route?.map((node) => node.id)).toEqual([
         sampleNode.id,
         nodeByLabel('mixer:click').id,
+        nodeByLabel('mixer:master:gain').id,
+        nodeByLabel('mixer:master:limiter').id,
         fakeToneRecorder.destination.id,
       ]);
     }
@@ -219,7 +221,7 @@ describe('Mixing Channel membership', () => {
     mixer.setChannelMute('click', true);
     expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:click'))).toBe(0);
     fakeToneRecorder.transport.fireRepeats(2);
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
 
     mixer.setChannelMute('click', false);
     mixer.setChannelVolume('click', 0.25);

@@ -33,13 +33,16 @@ describe('Transport audio graph', () => {
 
     await scheduler.start();
 
+    const masterGain = nodeByLabel('mixer:master:gain');
     for (const channel of ['click', 'ostinato', 'orchestration'] as const) {
       const main = nodeByLabel(`mixer:${channel}`);
       const audition = nodeByLabel(`audition:${channel}`);
-      expect(fakeToneRecorder.connectedTo(main)).toContain(fakeToneRecorder.destination);
-      expect(fakeToneRecorder.connectedTo(audition)).toContain(fakeToneRecorder.destination);
+      expect(fakeToneRecorder.connectedTo(main)).toContain(masterGain);
+      expect(fakeToneRecorder.connectedTo(audition)).toContain(masterGain);
+      expect(fakeToneRecorder.routeTo(main, fakeToneRecorder.destination)).not.toBeNull();
+      expect(fakeToneRecorder.routeTo(audition, fakeToneRecorder.destination)).not.toBeNull();
     }
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
 
     // The built-in click plays through the Click Mixing Channel node.
     fakeToneRecorder.transport.fireRepeats();
@@ -86,7 +89,7 @@ describe('Transport audio graph', () => {
     await scheduler.start();
     await scheduler.start();
 
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
   });
 
   it('gives a Mixer it is handed the eager graph instead of building a second one', () => {
@@ -97,7 +100,7 @@ describe('Transport audio graph', () => {
     expect(scheduler.getAudioMixer()).toBe(mixer);
     expect(scheduler.getDrumKitPlayer()).toBe(player);
     // Reading the graph built the rigs: an instrument exists for each channel line.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
     expect(fakeToneRecorder.nodes.some((created) => created.label === 'rig:orchestration:mix:kick')).toBe(true);
   });
 

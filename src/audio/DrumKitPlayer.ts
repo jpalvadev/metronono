@@ -347,7 +347,11 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   ): void {
     try {
       const audioTime = time > 0 ? time : Tone.now();
-      this.retirePendingSamples(audioTime);
+      // Only retire sources whose playback window has actually elapsed on the hardware clock
+      // (context.currentTime), never at Tone.now() or the future lookahead audioTime (both
+      // include lookAhead), or dispose() will disconnect still-playing .wav samples.
+      const hardwareNow = Tone.getContext?.()?.currentTime ?? Tone.now();
+      this.retirePendingSamples(Math.min(audioTime, hardwareNow));
 
       const poolKey = `${lane}:${mode}`;
       let byBuffer = this.sampleGains.get(poolKey);

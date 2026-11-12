@@ -110,6 +110,8 @@ export class AudioMixer implements IAudioMixer {
   };
 
   private channelNodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
+  private masterGain: IGainNodeLike | null = null;
+  private masterLimiter: Tone.Limiter | null = null;
   private listeners: Set<(state: AudioMixerState) => void> = new Set();
 
   constructor(options?: AudioMixerOptions) {
@@ -137,33 +139,50 @@ export class AudioMixer implements IAudioMixer {
   public initToneNodes(): boolean {
     if (this.isGraphInitialized()) return true;
 
+    let masterLimiter: Tone.Limiter | null = null;
+    let masterGain: IGainNodeLike | null = null;
+    const nodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
+
     try {
-      const nodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
+      // Master bus with headroom (-8 dB) and a limiter (-3 dBFS) so summing simultaneous
+      // click, ostinato, and orchestration transients never clips digital output.
+      masterLimiter = labelNode(new Tone.Limiter(-3) as unknown as IGainNodeLike, 'mixer:master:limiter') as unknown as Tone.Limiter;
+      masterLimiter.toDestination();
+
+      masterGain = labelNode(new Tone.Gain(0.4) as unknown as IGainNodeLike, 'mixer:master:gain');
+      masterGain.connect?.(masterLimiter);
+
       for (const channel of MIXING_CHANNELS) {
         const mainGain = new Tone.Gain(this.getEffectiveVolume(channel));
-        mainGain.toDestination();
+        mainGain.connect(masterGain as any);
 
         // The Audition node is never silenced: it holds the channel volume so a tap on a
         // muted channel is still heard at that channel's volume.
         const auditionGain = new Tone.Gain(this.channels[channel].volume);
-        auditionGain.toDestination();
+        auditionGain.connect(masterGain as any);
 
         nodes[channel] = {
           main: labelNode(mainGain as unknown as IGainNodeLike, `mixer:${channel}`),
           audition: labelNode(auditionGain as unknown as IGainNodeLike, `audition:${channel}`),
         };
       }
+      this.masterLimiter = masterLimiter;
+      this.masterGain = masterGain;
       this.channelNodes = nodes;
       return true;
     } catch {
       // Fail closed: a half built graph is torn down so no sound can reach the destination.
       for (const channel of MIXING_CHANNELS) {
-        const nodes = this.channelNodes[channel];
-        if (nodes) {
-          nodes.main.disconnect?.();
-          nodes.audition.disconnect?.();
+        const built = nodes[channel];
+        if (built) {
+          built.main.disconnect?.();
+          built.audition.disconnect?.();
         }
       }
+      masterGain?.disconnect?.();
+      masterLimiter?.disconnect?.();
+      this.masterGain = null;
+      this.masterLimiter = null;
       this.channelNodes = {};
       return false;
     }
@@ -255,6 +274,10 @@ export class AudioMixer implements IAudioMixer {
         nodes.audition.dispose?.();
       }
     }
+    this.masterGain?.dispose?.();
+    this.masterLimiter?.dispose?.();
+    this.masterGain = null;
+    this.masterLimiter = null;
     this.channelNodes = {};
   }
 

@@ -112,20 +112,27 @@ describe('AudioMixer', () => {
       expect(fakeToneRecorder.destination.incoming).toHaveLength(0);
     });
 
-    it('builds the three Mixing Channel nodes and the Audition nodes directly to destination', () => {
+    it('builds the three Mixing Channel nodes and the Audition nodes through the master limiter bus to destination', () => {
       expect(mixer.initToneNodes()).toBe(true);
       expect(mixer.isGraphInitialized()).toBe(true);
+
+      const masterGain = nodeByLabel('mixer:master:gain');
+      const masterLimiter = nodeByLabel('mixer:master:limiter');
+      expect(fakeToneRecorder.connectedTo(masterGain)).toContain(masterLimiter);
+      expect(fakeToneRecorder.connectedTo(masterLimiter)).toContain(fakeToneRecorder.destination);
 
       for (const channel of MIXING_CHANNELS) {
         const main = nodeByLabel(`mixer:${channel}`);
         const audition = nodeByLabel(`audition:${channel}`);
-        expect(fakeToneRecorder.connectedTo(main)).toContain(fakeToneRecorder.destination);
-        expect(fakeToneRecorder.connectedTo(audition)).toContain(fakeToneRecorder.destination);
+        expect(fakeToneRecorder.connectedTo(main)).toContain(masterGain);
+        expect(fakeToneRecorder.connectedTo(audition)).toContain(masterGain);
+        expect(fakeToneRecorder.routeTo(main, fakeToneRecorder.destination)).not.toBeNull();
+        expect(fakeToneRecorder.routeTo(audition, fakeToneRecorder.destination)).not.toBeNull();
         expect(fakeToneRecorder.gainValue(main)).toBe(0.8);
         expect(fakeToneRecorder.gainValue(audition)).toBe(0.8);
       }
 
-      expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+      expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
     });
 
     it('keeps the nodes it already built when initToneNodes is called again', () => {

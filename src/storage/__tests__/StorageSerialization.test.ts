@@ -411,7 +411,7 @@ describe('DrumKitPlayer & ToneTransportScheduler Custom Sample Playback', () => 
     player.triggerVoice('kick', 2.0, 0.9);
     expect(triggerCountFor('rig:orchestration:audition:kick')).toBeGreaterThan(0);
     // The stored sample never leaves its Mixing Channel.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(6);
+    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
   });
 
   it('synchronizes custom samples between StorageManager and ToneTransportScheduler', async () => {

@@ -48,11 +48,13 @@ describe('Sample stroke lifecycle', () => {
     await scheduler.start();
 
     player.loadSampleBuffer?.('ride', rideSample);
+    fakeToneRecorder.setTime(1.0);
     player.play(
       { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
       1.0
     );
-    // A stroke one second later passes the 0.1s window of the first source.
+    // A stroke one second later passes the 0.1s window of the first source on the hardware clock.
+    fakeToneRecorder.setTime(2.0);
     player.play(
       { timeInMeasure: 1.0, voice: 'ride', velocity: 0.6, dynamic: 'normal', source: 'orchestration' },
       2.0
@@ -70,6 +72,42 @@ describe('Sample stroke lifecycle', () => {
     const live = sources.find((s) => s.startedAt === 2.0);
     expect(live).not.toBeUndefined();
     expect((live as { stoppedAt: null | number }).stoppedAt).toBeNull();
+  });
+
+  it('does not retire a playing sample early when lookahead audioTime is ahead of hardware currentTime', async () => {
+    const scheduler = new ToneTransportScheduler();
+    const player = scheduler.getDrumKitPlayer();
+    await scheduler.start();
+
+    const oneSecondSample = fakeAudioBuffer(1, 44100, 44100);
+    player.loadSampleBuffer?.('ride', oneSecondSample);
+
+    fakeToneRecorder.setTime(1.0);
+    player.play(
+      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
+      1.05
+    );
+
+    // At hardware time 2.00s, the sample (endsAt = 2.05s) is still playing, even though
+    // the next stroke's lookahead audioTime (2.10s) is already past 2.05s.
+    fakeToneRecorder.setTime(2.0);
+    player.play(
+      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
+      2.1
+    );
+
+    const first = fakeToneRecorder.bufferSources().find((s) => s.startedAt === 1.05);
+    expect(first).toBeDefined();
+    expect(first?.disposed).toBe(false);
+    expect(first?.stoppedAt).toBeNull();
+
+    // Once hardware currentTime passes 2.05s, the next stroke retires it cleanly.
+    fakeToneRecorder.setTime(2.06);
+    player.play(
+      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
+      2.16
+    );
+    expect(first?.disposed).toBe(true);
   });
 
   it('strokes keep per-stroke velocity through the pooled gain', async () => {

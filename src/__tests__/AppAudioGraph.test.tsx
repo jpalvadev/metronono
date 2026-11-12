@@ -18,14 +18,7 @@ function liveOutputSources() {
 }
 
 describe('App audio graph lifecycle', () => {
-  const EXPECTED_OUTPUTS = [
-    'audition:click',
-    'audition:orchestration',
-    'audition:ostinato',
-    'mixer:click',
-    'mixer:orchestration',
-    'mixer:ostinato',
-  ];
+  const EXPECTED_OUTPUTS = ['mixer:master:limiter'];
 
   beforeEach(() => {
     fakeToneRecorder.reset();
@@ -35,10 +28,19 @@ describe('App audio graph lifecycle', () => {
     fakeToneRecorder.reset();
   });
 
-  it('gives the shell one graph whose mixing channel and audition nodes feed destination directly', () => {
+  it('gives the shell one graph whose mixing channel and audition nodes feed destination through the master limiter bus', () => {
     render(<App />);
 
     expect(liveOutputSources().sort()).toEqual(EXPECTED_OUTPUTS);
+    const masterGain = fakeToneRecorder.nodes.find((n) => n.label === 'mixer:master:gain');
+    expect(masterGain?.incoming.map((n) => n.label).sort()).toEqual([
+      'audition:click',
+      'audition:orchestration',
+      'audition:ostinato',
+      'mixer:click',
+      'mixer:orchestration',
+      'mixer:ostinato',
+    ]);
   });
 
   it('does not leak a second graph when StrictMode mounts the shell twice', () => {

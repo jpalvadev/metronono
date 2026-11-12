@@ -29,8 +29,8 @@ The precision audio clock and beat generator supporting variable accents, gap cl
 _Avoid_: Click track, timer
 
 **Sample Bank**:
-The audio asset registry providing user-configurable samples for drum kit voices and metronome subdivisions.
-_Avoid_: Sound font, sound pack
+The `.wav` audio asset registry providing default bundled samples (`public/samples/<voiceId>.wav`) and user-configurable overrides for drum kit voices and metronome subdivisions, with zero synthesized fallback.
+_Avoid_: Sound font, sound pack, synth fallback
 
 **Lookahead Scheduler**:
 The audio timing architecture that decouples a coarse JavaScript interval from the hardware-timed audio rendering thread to achieve sample-accurate beat delivery without jitter.
@@ -41,8 +41,8 @@ The pre-resolved schedule of one reading-line measure: its Scheduled Drum Events
 _Avoid_: Tick resolution, on-the-beat resolve
 
 **Audio Voice Pool**:
-The finite set of audio nodes a drum rig holds per voice slot — a ring of interchangeable synth instances cycled per stroke (two per slot in an audible rig, one in an Audition rig), and one reusable Gain per custom-sample voice — so strokes allocate no nodes and retired BufferSources disconnect once their playback window ends. Only the audible rigs are earned at page load; an Audition rig earns its nodes at the tap gesture that first hears it.
-_Avoid_: Per-stroke spawning, dangling gain node, three-member cymbal ring
+The pure Web Audio sample playback model: decoded `AudioBuffer` assets cached once per voice and triggered via lightweight `AudioBufferSourceNode` → per-hit `GainNode` chains into the target Mixing Channel, self-cleaning on `ended` with natural polyphony and zero live synth nodes.
+_Avoid_: Live synth ring, Tone.js MetalSynth/MembraneSynth, shared per-voice GainNode, dangling gain node
 
 **Subdivision Formula**:
 The sequence of sub-beat strokes and rests (monophonic hits or stacked unisons like kick and cymbal) applied to a single short or long note trigger.

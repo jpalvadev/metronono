@@ -93,3 +93,11 @@ _Avoid_: Backdrop, blackout, frosted panel
 **Playhead**:
 The Accent-colored marker showing the current sounding position in notation and formula views; every view renders the same Playhead.
 _Avoid_: Cursor, scrubber, position line, play head (two words)
+
+**Headroom**:
+The vertical clearance a drum staff reserves above and below its stave, computed from the highest and lowest voice lines actually drawn plus named engraving clearances (stem reach, beam stack, tuplet bracket, accent) — the viewport grows to fit it, never clips notes.
+_Avoid_: Fixed stave offset, magic 25, clipping margin
+
+**Note-Anchored Interpolation**:
+The metric mapping between beat offsets and pixels in a drum staff layout: piecewise-linear through each stroke's real notehead x and beat offset, bracketed by the note start and end — the playhead lands exactly on noteheads, and the inverse mapping round-trips.
+_Avoid_: Linear drift, start-to-end guess

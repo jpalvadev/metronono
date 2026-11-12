@@ -1,6 +1,6 @@
 # Decoupled Dawson Orchestration & First-Class Drum Staff Ostinatos Spec
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

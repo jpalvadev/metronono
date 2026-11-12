@@ -13,6 +13,26 @@ import { DrumVoice, OrchestratedStroke } from '../domain/dawson/types';
 import { DRUM_VOICE_PAS_MAP } from './DrumVoicePAS';
 import { calculateFormulaDuration, resolveStrokeOffsets } from '../domain/dawson/SubdivisionFormula';
 
+// Engraving geometry (CODING_STANDARDS § Notation renderers): module-level named
+// consts so tests import them to assert real coordinates (docs/adr/0012 Headroom).
+export const STAVE_LINE_SPACING_PX = 10;
+export const STAVE_LINE_COUNT = 5;
+export const STAVE_HEIGHT_PX = (STAVE_LINE_COUNT - 1) * STAVE_LINE_SPACING_PX;
+export const STEM_REACH_PX = 30;
+export const BEAM_THICKNESS_PX = 5;
+export const BEAM_STACK_GAP_PX = 3;
+export const TUPLET_CLEARANCE_PX = 15;
+export const NOTE_HALF_HEIGHT_PX = 6;
+export const ACCENT_CLEARANCE_PX = 9;
+
+/** VexFlow beams a sounding note carries: eighth 1, 16th 2, 32nd 3. */
+function beamFlagsForVexDuration(duration: string): number {
+  if (duration === '32') return 3;
+  if (duration === '16') return 2;
+  if (duration === '8') return 1;
+  return 0;
+}
+
 export interface DrumStaffFormulaRenderOptions {
   width?: number;
   height?: number;
@@ -84,27 +104,12 @@ export class DrumStaffFormulaRenderer {
     }
 
     const width = options.width ?? (container.clientWidth || 500);
-    const height = options.height ?? 160;
+    const requestedHeight = options.height ?? 160;
     const padding = options.padding ?? 15;
-
-    const renderer = new Renderer(container, Renderer.Backends.SVG);
-    renderer.resize(width, height);
-    const context = renderer.getContext();
-
-    // Create 5-line percussion stave
-    const staveX = padding;
-    const staveY = 25;
-    const staveWidth = Math.max(100, width - padding * 2);
-
-    const stave = new Stave(staveX, staveY, staveWidth);
-    stave.addClef('percussion');
-    stave.setContext(context).draw();
 
     // Determine total formula duration
     const formulaDuration = calculateFormulaDuration(strokes);
     const targetBeats = options.targetBeats || (formulaDuration > 0 ? formulaDuration : 1.0);
-
-    const voice1Notes: StaveNote[] = [];
 
     // Fallback if no strokes provided
     const effectiveStrokes: OrchestratedStroke[] =
@@ -112,35 +117,8 @@ export class DrumStaffFormulaRenderer {
         ? strokes
         : [{ durationRatio: 1.0, isRest: true, hits: [] }];
 
-    for (let i = 0; i < effectiveStrokes.length; i++) {
-      const stroke = effectiveStrokes[i];
-      const vexDur = durationRatioToVexDuration(stroke.durationRatio);
-
-      if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
-        const restV1 = new StaveNote({
-          clef: 'percussion',
-          keys: ['c/5/r'],
-          duration: `${vexDur}r`,
-          stemDirection: Stem.UP,
-        });
-        voice1Notes.push(restV1);
-      } else {
-        const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
-        const noteV1 = new StaveNote({
-          clef: 'percussion',
-          keys,
-          duration: vexDur,
-          stemDirection: Stem.UP,
-        });
-        noteV1.setStemDirection(Stem.UP);
-        stroke.hits.forEach((hit) => {
-          if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
-        });
-        voice1Notes.push(noteV1);
-      }
-    }
-
-    // Build stroke offsets first so we can detect tuplets and group beams by metric windows
+    // Build stroke offsets first so we can detect tuplets and group beams by metric
+    // windows, before any geometry is drawn.
     const strokeOffsets = resolveStrokeOffsets(effectiveStrokes, 0);
 
     // Identify tuplet groups across strokes
@@ -188,6 +166,97 @@ export class DrumStaffFormulaRenderer {
           numNotes: 3,
           notesOccupied: 2,
         });
+      }
+    }
+
+    // Dynamic Headroom & Footroom (docs/adr/0012): vertical margins earned from the
+    // voice lines and engraving clearances actually drawn, never a magic offset and
+    // never clipping; the viewport grows to fit content past the requested height.
+    let topVoiceLine = 2.0;
+    let bottomVoiceLine = 2.0;
+    effectiveStrokes.forEach((stroke) => {
+      stroke.hits.forEach((hit) => {
+        const line = DRUM_VOICE_PAS_MAP[hit.voice]?.line;
+        if (line === undefined) return;
+        if (line < topVoiceLine) topVoiceLine = line;
+        if (line > bottomVoiceLine) bottomVoiceLine = line;
+      });
+    });
+
+    let maxBeamFlags = 0;
+    effectiveStrokes.forEach((stroke) => {
+      if (stroke.isRest || stroke.hits.length === 0) return;
+      const flags = beamFlagsForVexDuration(durationRatioToVexDuration(stroke.durationRatio));
+      if (flags > maxBeamFlags) maxBeamFlags = flags;
+    });
+
+    const hasAccents = effectiveStrokes.some(
+      (stroke) => stroke.hits.some((hit) => hit.dynamic === 'accent')
+    );
+    const beamStackPx =
+      maxBeamFlags > 0
+        ? maxBeamFlags * BEAM_THICKNESS_PX + (maxBeamFlags - 1) * BEAM_STACK_GAP_PX
+        : 0;
+    const tupletPx = tupletGroups.length > 0 ? TUPLET_CLEARANCE_PX : 0;
+
+    const headroomPx = Math.max(
+      tupletPx + beamStackPx + STEM_REACH_PX + NOTE_HALF_HEIGHT_PX -
+        topVoiceLine * STAVE_LINE_SPACING_PX,
+      padding
+    );
+    const footroomPx = Math.max(
+      bottomVoiceLine * STAVE_LINE_SPACING_PX + NOTE_HALF_HEIGHT_PX +
+        (hasAccents ? ACCENT_CLEARANCE_PX : 0) -
+        (STAVE_LINE_COUNT - 1) * STAVE_LINE_SPACING_PX,
+      padding
+    );
+
+    const contentHeightPx = headroomPx + STAVE_HEIGHT_PX + footroomPx;
+    const height = Math.max(requestedHeight, contentHeightPx);
+    // Screen Y of the drawn top stave line: margins above, slack half below.
+    const topLineY = headroomPx + Math.floor((height - contentHeightPx) / 2);
+
+    const renderer = new Renderer(container, Renderer.Backends.SVG);
+    renderer.resize(width, height);
+    const context = renderer.getContext();
+
+    // Create 5-line percussion stave.
+    // VexFlow 5 quirk: the constructor y sits one staff-height above the drawn
+    // top line (empirically, stave.getYForLine(0) === y + staff height).
+    const staveX = padding;
+    const staveWidth = Math.max(100, width - padding * 2);
+
+    const stave = new Stave(staveX, topLineY - STAVE_HEIGHT_PX, staveWidth);
+    stave.addClef('percussion');
+    stave.setContext(context).draw();
+
+    const voice1Notes: StaveNote[] = [];
+
+    for (let i = 0; i < effectiveStrokes.length; i++) {
+      const stroke = effectiveStrokes[i];
+      const vexDur = durationRatioToVexDuration(stroke.durationRatio);
+
+      if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
+        const restV1 = new StaveNote({
+          clef: 'percussion',
+          keys: ['c/5/r'],
+          duration: `${vexDur}r`,
+          stemDirection: Stem.UP,
+        });
+        voice1Notes.push(restV1);
+      } else {
+        const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
+        const noteV1 = new StaveNote({
+          clef: 'percussion',
+          keys,
+          duration: vexDur,
+          stemDirection: Stem.UP,
+        });
+        noteV1.setStemDirection(Stem.UP);
+        stroke.hits.forEach((hit) => {
+          if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
+        });
+        voice1Notes.push(noteV1);
       }
     }
 

@@ -100,13 +100,14 @@ describe('PartitureFormulaCanvas Drag-and-Drop & Transposition', () => {
 
     const canvas = screen.getByTestId('partiture-formula-canvas');
 
-    // Dragover near Crash line (Y=55)
-    dispatchDragOver(canvas, { clientX: 80, clientY: 55 });
+    // Dragover near Crash line (Y=50: crash sits one line above the top stave
+    // line, which the deepened margins place at Y=60 for this compact figure).
+    dispatchDragOver(canvas, { clientX: 80, clientY: 50 });
 
-    // Drop on Crash line (Y=55) with palette payload
+    // Drop on Crash line (Y=50) with palette payload
     dispatchDrop(
       canvas,
-      { clientX: 80, clientY: 55 },
+      { clientX: 80, clientY: 50 },
       {
         getData: () =>
           JSON.stringify({

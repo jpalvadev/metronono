@@ -1,6 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Stem } from 'vexflow';
 import { DrumStaffFormulaRenderer } from '../DrumStaffFormulaRenderer';
+import {
+  STEM_REACH_PX,
+  BEAM_THICKNESS_PX,
+  BEAM_STACK_GAP_PX,
+  TUPLET_CLEARANCE_PX,
+  NOTE_HALF_HEIGHT_PX,
+  ACCENT_CLEARANCE_PX,
+  STAVE_LINE_SPACING_PX,
+} from '../DrumStaffFormulaRenderer';
 import { OrchestratedStroke } from '../../domain/dawson/types';
 import { FACTORY_OSTINATOS } from '../../domain/dawson/SubdivisionFormula';
 
@@ -198,5 +207,82 @@ describe('DrumStaffFormulaRenderer', () => {
 
     expect('voice2Notes' in layout).toBe(false);
     expect(container.querySelectorAll('svg path, svg g').length).toBeGreaterThan(0);
+  });
+
+  // Headroom & Footroom margins (docs/adr/0012): earned from the voice lines and
+  // engraving clearances actually drawn, never clipping and never a magic 25.
+  it('earns dynamic headroom so a crash triplet bracket never clips at the viewport top', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 3, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1.0, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+    ];
+
+    const layout = renderer.render(container, strokes, { width: 500, height: 90, targetBeats: 2 });
+
+    // The viewport grows past the requested height because content needs it.
+    expect(layout.height).toBeGreaterThan(90);
+    const svg = container.querySelector('svg');
+    expect(svg?.getAttribute('height')).toBe(String(layout.height));
+
+    // Line spacing is the named stave geometry the margins are computed with.
+    const spacing = layout.stave.getYForLine(1) - layout.stave.getYForLine(0);
+    expect(spacing).toBeCloseTo(STAVE_LINE_SPACING_PX, 5);
+
+    // The crash notehead center sits one full line spacing above the top line;
+    // from there the whole engraving stack (notehead, stem, beam, tuplet) fits.
+    const topLineY = layout.stave.getYForLine(0);
+    expect(topLineY).toBeGreaterThan(25); // no more magic staveY = 25
+    const crashCenter = layout.stave.getYForLine(-1.0);
+    const beamTop = crashCenter - NOTE_HALF_HEIGHT_PX - STEM_REACH_PX - BEAM_THICKNESS_PX;
+    const tupletTop = beamTop - TUPLET_CLEARANCE_PX;
+    expect(tupletTop).toBeGreaterThanOrEqual(0);
+  });
+
+  it('stacks two beams and a tuplet over sextuplets without clipping', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 6, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 6, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 6, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 6, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 6, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1 / 6, hits: [{ voice: 'crash', dynamic: 'normal' }] },
+      { durationRatio: 1.0, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+    ];
+
+    const layout = renderer.render(container, strokes, { width: 500, height: 90, targetBeats: 2 });
+    const crashCenter = layout.stave.getYForLine(-1.0);
+    // 16th-flag pair stacked (2 beams with a gap) under a tuplet bracket.
+    const stackTop =
+      crashCenter -
+      NOTE_HALF_HEIGHT_PX -
+      STEM_REACH_PX -
+      (2 * BEAM_THICKNESS_PX + BEAM_STACK_GAP_PX);
+    expect(stackTop - TUPLET_CLEARANCE_PX).toBeGreaterThanOrEqual(0);
+  });
+
+  it('keeps footroom for low voices so accents under a kick notehead never clip', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'accent' }] },
+      { durationRatio: 1.0, hits: [{ voice: 'hihat_foot', dynamic: 'normal' }] },
+    ];
+
+    const layout = renderer.render(container, strokes, { width: 500, height: 140, targetBeats: 2 });
+    const bottomLineY = layout.stave.getYForLine(4);
+    const footCenter = layout.stave.getYForLine(4.5);
+    const accentBottom = footCenter + NOTE_HALF_HEIGHT_PX + ACCENT_CLEARANCE_PX;
+    expect(layout.height - accentBottom).toBeGreaterThanOrEqual(0);
+    expect(bottomLineY).toBeLessThan(layout.height);
+  });
+
+  it('keeps the requested height as a floor, not wasted growth for compact figures', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1.0, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+      { durationRatio: 1.0, hits: [{ voice: 'tom_mid', dynamic: 'normal' }] },
+    ];
+
+    const layout = renderer.render(container, strokes, { width: 500, height: 140, targetBeats: 2 });
+    expect(layout.height).toBe(140);
   });
 });

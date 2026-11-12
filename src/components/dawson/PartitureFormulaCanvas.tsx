@@ -117,6 +117,9 @@ export function getEventIndexForTime(
   return bestDiff <= tolerance ? bestIdx : -1;
 }
 
+// Sequential-safe epsilon: offsets closer than this are the same moment.
+const OFFSET_EPSILON = 0.001;
+
 // Commit continuous events back to the editor's stroke list: gaps between
 // events become explicit rests so the audio scheduler (which consumes the same
 // stroke list) hears the events at the offsets the canvas shows.
@@ -148,7 +151,7 @@ export function commitEvents(
     // than the running cursor is clamped forward.
     const offset = Math.max(event.beatOffset, cursor);
     const gap = offset - cursor;
-    if (gap > 0.001) {
+    if (gap > OFFSET_EPSILON) {
       strokes.push({
         durationRatio: Math.round(gap * 1000) / 1000,
         isRest: true,
@@ -165,7 +168,7 @@ export function commitEvents(
 
   if (preserveAll) {
     const trailing = targetBeats - cursor;
-    if (trailing > 0.001) {
+    if (trailing > OFFSET_EPSILON) {
       strokes.push({
         durationRatio: Math.round(trailing * 1000) / 1000,
         isRest: true,

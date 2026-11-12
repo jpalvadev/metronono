@@ -32,7 +32,7 @@ Every skill lives in `.agents/skills/<name>/SKILL.md` (with support docs alongsi
 
 Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, `Select-String`, `Remove-Item`); the grep/glob tools cover content search, so reach for the shell only for test/build runs and file ops. Statements are separated by `;` (PowerShell has no `&&`), and npm binaries are not on the bare PATH — reach them with `npx` (`npx tsc --noEmit`) or `npm run <script>`.
 
-During TDD slices, run targeted test files (`npx vitest run <file>`) for rapid red/green feedback; the git pre-commit hook automatically verifies full `npm run check` on each ticket commit. Never pipe runner output through `Select-String` with unicode patterns (arrows, ✖) — the PowerShell scanner chokes on them; run the runner raw and let output truncation keep the summary.
+During TDD slices, run targeted test files (`npx vitest run <file>`) for rapid red/green feedback; the git pre-commit hook automatically verifies full `npm run check` on each ticket commit. Never pipe runner output through `Select-String` with unicode patterns (arrows, ✖) — the PowerShell scanner chokes on them; run the runner raw and let output truncation keep the summary. Stage or commit (or `git stash`) before any `git checkout` over tracked files: an unstaged fix does not survive it, and re-applying a whole slice by hand costs more than losing it silently.
 
 Sweep the repo for style drift with `npm run check:style` and read the theme's token budget with `npm run check:tokens`; hand-built PowerShell regex sweeps fight the harness's command scanner and the old PowerShell parser.
 

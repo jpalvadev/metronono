@@ -53,8 +53,9 @@ export function durationRatioToVexDuration(ratio: number): string {
   if (ratio >= 3.9) return 'w'; // whole note / whole rest (4 beats)
   if (ratio >= 1.9) return 'h'; // half note (2 beats)
   if (ratio >= 0.9) return 'q'; // quarter note (1 beat)
+  if (Math.abs(ratio - 2 / 3) < 0.03) return 'q'; // quarter note in swing triplet (2/3 beat)
   if (Math.abs(ratio - 0.5) < 0.05) return '8'; // eighth note
-  if (Math.abs(ratio - 1 / 3) < 0.02) return '8'; // triplet eighth
+  if (Math.abs(ratio - 1 / 3) < 0.03) return '8'; // triplet eighth (1/3 beat)
   if (Math.abs(ratio - 0.25) < 0.03) return '16'; // sixteenth note
   if (Math.abs(ratio - 1 / 6) < 0.02) return '16'; // triplet sixteenth
   if (Math.abs(ratio - 0.125) < 0.02) return '32'; // thirty-second
@@ -179,7 +180,11 @@ export class DrumStaffFormulaRenderer {
           });
           noteV2.setStemDirection(Stem.DOWN);
           v2Hits.forEach((hit) => {
-            if (hit.dynamic === 'accent') noteV2.addModifier(new Articulation('a>'), 0);
+            if (hit.dynamic === 'accent') {
+              const art = new Articulation('a>');
+              art.setPosition(4); // ModifierPosition.BELOW so it renders clearly below foot notes
+              noteV2.addModifier(art, 0);
+            }
           });
           voice2Notes.push(noteV2);
         } else {

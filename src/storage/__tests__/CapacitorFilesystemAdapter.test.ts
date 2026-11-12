@@ -136,7 +136,6 @@ describe('CapacitorFilesystemAdapter', () => {
           trigger: 'long',
           strokes: [{ durationRatio: 1, hits: [{ voice: 'kick', dynamic: 'accent' }] }],
         },
-        ostinatoId: 'jazz_swing',
       },
     ];
 

@@ -18,7 +18,7 @@ export type Dynamic = 'accent' | 'normal' | 'ghost' | 'flam' | 'drag';
 
 export type ChannelSource = 'ostinato' | 'orchestration' | 'click';
 
-export type OstinatoType = 'jazz_swing' | 'straight_rock' | 'none';
+export type OstinatoType = 'jazz_swing' | 'straight_8ths_hihat' | 'straight_rock' | 'none' | (string & {});
 
 export type DawsonMode = 'classic_bop' | 'inverted_bop' | 'straight_rock';
 
@@ -31,6 +31,15 @@ export interface OrchestratedStroke {
   durationRatio: number; // Duration in quarter note fraction (e.g. 0.1667 for 1/16 triplet, 0.25 for 1/16th, 0.3333 for 1/8 triplet, 0.5 for 1/8th, 1.0 for quarter)
   isRest?: boolean;
   hits: DrumHit[];
+}
+
+export interface OstinatoPattern {
+  id: string;
+  name: string;
+  description?: string;
+  timeSignature: [number, number]; // [4, 4]
+  strokes: OrchestratedStroke[];
+  isCustom?: boolean;
 }
 
 export interface SubdivisionFormula {
@@ -47,7 +56,6 @@ export interface DawsonSystem {
   name: string;
   shortFormula: SubdivisionFormula;
   longFormula: SubdivisionFormula;
-  ostinatoId: OstinatoType;
   description?: string;
   isCustom?: boolean;
 }
@@ -65,7 +73,9 @@ export interface ScheduledDrumEvent {
 export interface DawsonEngineOptions {
   mode?: DawsonMode;
   ostinato?: OstinatoType;
-  system?: DawsonSystem;
+  activeOstinatoId?: string | 'none';
+  system?: DawsonSystem | 'none';
+  activeSystemId?: string | 'none';
   shortFormula?: SubdivisionFormula;
   longFormula?: SubdivisionFormula;
 }

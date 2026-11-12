@@ -18,7 +18,6 @@ import {
   Edit3,
   X,
   Check,
-  Disc,
   Sparkles,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -99,7 +98,6 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
       name: trimmedName,
       shortFormula,
       longFormula,
-      ostinatoId: selectedOstinato,
       isCustom: true,
     };
 
@@ -394,18 +392,6 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 {sys.longFormula.name}
                               </span>
                             </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <Disc className="w-3 h-3 text-primary" />
-                            <span>Ostinato: </span>
-                            <span className="text-foreground font-medium">
-                              {sys.ostinatoId === 'jazz_swing'
-                                ? 'Jazz Swing Ride'
-                                : sys.ostinatoId === 'straight_rock'
-                                ? 'Straight 8ths'
-                                : 'Silenced'}
-                            </span>
                           </div>
                         </div>
 

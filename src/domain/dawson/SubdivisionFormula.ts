@@ -2,6 +2,7 @@ import {
   SubdivisionFormula,
   DawsonSystem,
   OrchestratedStroke,
+  OstinatoPattern,
 } from './types';
 
 // ============================================================================
@@ -81,6 +82,18 @@ export const DEFAULT_SHORT_FORMULAS: Record<string, SubdivisionFormula> = {
       {
         durationRatio: 0.5,
         hits: [{ voice: 'snare', dynamic: 'normal' }],
+      },
+    ],
+  },
+  single_hihat_foot: {
+    id: 'single_hihat_foot',
+    name: 'Single Stroke (Hi-Hat Foot)',
+    trigger: 'short',
+    description: 'Alan Dawson short note stepped on the hi-hat pedal',
+    strokes: [
+      {
+        durationRatio: 0.5,
+        hits: [{ voice: 'hihat_foot', dynamic: 'accent' }],
       },
     ],
   },
@@ -254,16 +267,100 @@ export const DEFAULT_LONG_FORMULAS: Record<string, SubdivisionFormula> = {
 };
 
 // ============================================================================
-// Built-in Default Dawson Systems
+// Built-in Factory Ostinatos
 // ============================================================================
 
+export const FACTORY_OSTINATOS: Record<string, OstinatoPattern> = {
+  jazz_swing: {
+    id: 'jazz_swing',
+    name: 'Jazz Swing',
+    description: 'Ride cymbal pattern with hi-hat foot on 2 and 4',
+    timeSignature: [4, 4],
+    strokes: [
+      // Beat 1: Ride (quarter note, 1.0)
+      {
+        durationRatio: 1.0,
+        hits: [{ voice: 'ride', dynamic: 'normal' }],
+      },
+      // Beat 2: Ride + Hi-hat foot (duration 2/3)
+      {
+        durationRatio: 2 / 3,
+        hits: [
+          { voice: 'ride', dynamic: 'accent' },
+          { voice: 'hihat_foot', dynamic: 'accent' },
+        ],
+      },
+      // Beat 2 skip: Ride (duration 1/3)
+      {
+        durationRatio: 1 / 3,
+        hits: [{ voice: 'ride', dynamic: 'normal' }],
+      },
+      // Beat 3: Ride (quarter note, 1.0)
+      {
+        durationRatio: 1.0,
+        hits: [{ voice: 'ride', dynamic: 'normal' }],
+      },
+      // Beat 4: Ride + Hi-hat foot (duration 2/3)
+      {
+        durationRatio: 2 / 3,
+        hits: [
+          { voice: 'ride', dynamic: 'accent' },
+          { voice: 'hihat_foot', dynamic: 'accent' },
+        ],
+      },
+      // Beat 4 skip: Ride (duration 1/3)
+      {
+        durationRatio: 1 / 3,
+        hits: [{ voice: 'ride', dynamic: 'normal' }],
+      },
+    ],
+  },
+  straight_8ths_hihat: {
+    id: 'straight_8ths_hihat',
+    name: 'Corcheas en Hi-Hat',
+    description: 'Straight eighth notes on closed hi-hat',
+    timeSignature: [4, 4],
+    strokes: [
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'accent' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'normal' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'accent' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'normal' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'accent' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'normal' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'accent' }] },
+      { durationRatio: 0.5, hits: [{ voice: 'hihat_closed', dynamic: 'normal' }] },
+    ],
+  },
+};
+
+// ============================================================================
+// Built-in Factory & Default Dawson Systems
+// ============================================================================
+
+export const FACTORY_DAWSON_SYSTEMS: Record<string, DawsonSystem> = {
+  snare_and_kick: {
+    id: 'snare_and_kick',
+    name: 'Snare & Kick',
+    shortFormula: DEFAULT_SHORT_FORMULAS.single_snare,
+    longFormula: DEFAULT_LONG_FORMULAS.single_kick,
+    description: 'Classic Dawson: short notes on snare, long notes on bass drum',
+  },
+  hihat_foot_and_kick: {
+    id: 'hihat_foot_and_kick',
+    name: 'Hi-Hat Foot & Kick',
+    shortFormula: DEFAULT_SHORT_FORMULAS.single_hihat_foot,
+    longFormula: DEFAULT_LONG_FORMULAS.single_kick,
+    description: 'Short notes on hi-hat pedal, long notes on bass drum',
+  },
+};
+
 export const DEFAULT_DAWSON_SYSTEMS: Record<string, DawsonSystem> = {
+  ...FACTORY_DAWSON_SYSTEMS,
   classic_bop: {
     id: 'classic_bop',
     name: 'Classic Bop',
     shortFormula: DEFAULT_SHORT_FORMULAS.single_snare,
     longFormula: DEFAULT_LONG_FORMULAS.single_kick,
-    ostinatoId: 'jazz_swing',
     description: 'Traditional Dawson swing: short notes on snare, long notes on bass drum',
   },
   inverted_bop: {
@@ -271,7 +368,6 @@ export const DEFAULT_DAWSON_SYSTEMS: Record<string, DawsonSystem> = {
     name: 'Inverted Bop',
     shortFormula: DEFAULT_SHORT_FORMULAS.single_kick,
     longFormula: DEFAULT_LONG_FORMULAS.single_snare,
-    ostinatoId: 'jazz_swing',
     description: 'Inverted orchestration: short notes on bass drum, long notes on snare',
   },
   tony_williams_flr: {
@@ -279,7 +375,6 @@ export const DEFAULT_DAWSON_SYSTEMS: Record<string, DawsonSystem> = {
     name: 'Tony Williams F-L-R Triplet',
     shortFormula: DEFAULT_SHORT_FORMULAS.flr_triplet,
     longFormula: DEFAULT_LONG_FORMULAS.single_kick,
-    ostinatoId: 'jazz_swing',
     description: 'Explosive Foot-Left-Right triplet substitution on short notes with jazz swing',
   },
   linear_diddle_fusion: {
@@ -287,7 +382,6 @@ export const DEFAULT_DAWSON_SYSTEMS: Record<string, DawsonSystem> = {
     name: 'Linear Diddle Fusion',
     shortFormula: DEFAULT_SHORT_FORMULAS.single_snare,
     longFormula: DEFAULT_LONG_FORMULAS.linear_diddle,
-    ostinatoId: 'straight_rock',
     description: 'Linear diddle 6-stroke phrasing on long notes over straight 8th groove',
   },
 };
@@ -304,10 +398,51 @@ export class DawsonPresetManager {
   private storagePrefix: string;
   private customFormulas: Map<string, SubdivisionFormula> = new Map();
   private customSystems: Map<string, DawsonSystem> = new Map();
+  private customOstinatos: Map<string, OstinatoPattern> = new Map();
 
   constructor(options?: PresetManagerOptions) {
     this.storagePrefix = options?.storagePrefix ?? 'metronono_dawson_';
     this.loadFromStorage();
+  }
+
+  // --- Ostinatos CRUD ---
+
+  public getAllOstinatos(): OstinatoPattern[] {
+    const builtIn = Object.values(FACTORY_OSTINATOS);
+    const custom = Array.from(this.customOstinatos.values());
+    return [...builtIn, ...custom];
+  }
+
+  public getOstinato(id: string): OstinatoPattern | undefined {
+    if (id === 'straight_rock') {
+      return FACTORY_OSTINATOS.straight_8ths_hihat;
+    }
+    return (
+      FACTORY_OSTINATOS[id] ||
+      this.customOstinatos.get(id) ||
+      this.getAllOstinatos().find((o) => o.id === id)
+    );
+  }
+
+  public saveOstinato(ostinato: OstinatoPattern): void {
+    const updated: OstinatoPattern = {
+      ...ostinato,
+      isCustom: true,
+    };
+    this.customOstinatos.set(ostinato.id, updated);
+    this.saveToStorage();
+  }
+
+  public deleteOstinato(id: string): boolean {
+    if (FACTORY_OSTINATOS[id] || id === 'straight_rock') {
+      // Cannot delete built-in ostinatos
+      return false;
+    }
+    const existed = this.customOstinatos.delete(id);
+    if (existed) {
+      this.saveToStorage();
+    }
+    return existed;
   }
 
   // --- Formulas CRUD ---
@@ -381,7 +516,7 @@ export class DawsonPresetManager {
   }
 
   public deleteSystem(id: string): boolean {
-    if (DEFAULT_DAWSON_SYSTEMS[id]) {
+    if (FACTORY_DAWSON_SYSTEMS[id] || DEFAULT_DAWSON_SYSTEMS[id]) {
       // Cannot delete built-in systems
       return false;
     }
@@ -395,10 +530,12 @@ export class DawsonPresetManager {
   public clearCustomData(): void {
     this.customFormulas.clear();
     this.customSystems.clear();
+    this.customOstinatos.clear();
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(`${this.storagePrefix}formulas`);
         window.localStorage.removeItem(`${this.storagePrefix}systems`);
+        window.localStorage.removeItem(`${this.storagePrefix}ostinatos`);
       }
     } catch {
       // Safe storage access
@@ -410,6 +547,7 @@ export class DawsonPresetManager {
       if (typeof window !== 'undefined' && window.localStorage) {
         const formulasArr = Array.from(this.customFormulas.values());
         const systemsArr = Array.from(this.customSystems.values());
+        const ostinatosArr = Array.from(this.customOstinatos.values());
         window.localStorage.setItem(
           `${this.storagePrefix}formulas`,
           JSON.stringify(formulasArr)
@@ -417,6 +555,10 @@ export class DawsonPresetManager {
         window.localStorage.setItem(
           `${this.storagePrefix}systems`,
           JSON.stringify(systemsArr)
+        );
+        window.localStorage.setItem(
+          `${this.storagePrefix}ostinatos`,
+          JSON.stringify(ostinatosArr)
         );
       }
     } catch {
@@ -437,6 +579,12 @@ export class DawsonPresetManager {
         if (storedSystems) {
           const parsed = JSON.parse(storedSystems) as DawsonSystem[];
           parsed.forEach((s) => this.customSystems.set(s.id, s));
+        }
+
+        const storedOstinatos = window.localStorage.getItem(`${this.storagePrefix}ostinatos`);
+        if (storedOstinatos) {
+          const parsed = JSON.parse(storedOstinatos) as OstinatoPattern[];
+          parsed.forEach((o) => this.customOstinatos.set(o.id, o));
         }
       }
     } catch {

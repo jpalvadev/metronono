@@ -129,7 +129,8 @@ describe('DawsonOrchestrationSection', () => {
     fireEvent.click(linearBtn);
 
     expect(engine.getLongFormula().id).toBe('linear_diddle');
-    expect(engine.getOstinato()).toBe('straight_rock');
+    // Systems are decoupled from ostinatos: selecting a system preserves the active ostinato
+    expect(engine.getOstinato()).toBe('jazz_swing');
   });
 
   it('opens and closes PresetManager modal', () => {

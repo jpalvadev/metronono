@@ -29,7 +29,6 @@ describe('PresetManager Component', () => {
       name: 'Styled Custom System',
       shortFormula: presetManager.getFormula('single_snare')!,
       longFormula: presetManager.getFormula('single_kick')!,
-      ostinatoId: 'jazz_swing',
     });
 
     render(
@@ -149,7 +148,6 @@ describe('PresetManager Component', () => {
       name: 'Temporary System',
       shortFormula: presetManager.getFormula('single_snare')!,
       longFormula: presetManager.getFormula('single_kick')!,
-      ostinatoId: 'jazz_swing',
     });
 
     render(

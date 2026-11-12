@@ -79,7 +79,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       setActiveSystemId(system.id);
       setShortFormula(system.shortFormula);
       setLongFormula(system.longFormula);
-      setOstinato(system.ostinatoId);
       setMode(engine.getMode());
       setIsPresetManagerOpen(false);
     },

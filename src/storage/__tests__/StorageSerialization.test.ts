@@ -64,7 +64,6 @@ const dummySystems: DawsonSystem[] = [
   {
     id: 'dawson-custom-1',
     name: 'Custom Bop Variation',
-    ostinatoId: 'jazz_swing',
     shortFormula: {
       id: 'f-short',
       name: 'Snare Accent',

@@ -1,6 +1,7 @@
 import {
   DawsonMode,
   OstinatoType,
+  OstinatoPattern,
   DrumVoice,
   Dynamic,
   ScheduledDrumEvent,
@@ -14,14 +15,18 @@ import {
   DEFAULT_SHORT_FORMULAS,
   DEFAULT_LONG_FORMULAS,
   DEFAULT_DAWSON_SYSTEMS,
+  FACTORY_DAWSON_SYSTEMS,
+  FACTORY_OSTINATOS,
 } from './SubdivisionFormula';
 
 export class DawsonEngine {
   private mode: DawsonMode;
   private ostinato: OstinatoType;
+  private activeOstinatoPattern?: OstinatoPattern;
   private shortFormula: SubdivisionFormula;
   private longFormula: SubdivisionFormula;
   private activeSystem?: DawsonSystem;
+  private isSystemSilenced: boolean = false;
   private changeListeners: Set<() => void> = new Set();
 
   public onChange(listener: () => void): () => void {
@@ -43,13 +48,22 @@ export class DawsonEngine {
 
   constructor(options?: DawsonEngineOptions) {
     this.mode = options?.mode ?? 'classic_bop';
-    this.ostinato = options?.ostinato ?? 'jazz_swing';
+    this.ostinato = options?.activeOstinatoId ?? options?.ostinato ?? 'jazz_swing';
+    if (this.ostinato !== 'none') {
+      this.activeOstinatoPattern =
+        FACTORY_OSTINATOS[this.ostinato] ||
+        (this.ostinato === 'straight_rock' ? FACTORY_OSTINATOS.straight_8ths_hihat : undefined);
+    }
 
-    if (options?.system) {
+    if (options?.system === 'none' || options?.activeSystemId === 'none') {
+      this.isSystemSilenced = true;
+      this.activeSystem = undefined;
+      this.shortFormula = DEFAULT_SHORT_FORMULAS.single_snare;
+      this.longFormula = DEFAULT_LONG_FORMULAS.single_kick;
+    } else if (options?.system) {
       this.activeSystem = options.system;
       this.shortFormula = options.system.shortFormula;
       this.longFormula = options.system.longFormula;
-      this.ostinato = options.system.ostinatoId;
     } else {
       this.shortFormula =
         options?.shortFormula ??
@@ -64,7 +78,7 @@ export class DawsonEngine {
       this.activeSystem =
         this.mode === 'inverted_bop'
           ? DEFAULT_DAWSON_SYSTEMS.inverted_bop
-          : DEFAULT_DAWSON_SYSTEMS.classic_bop;
+          : FACTORY_DAWSON_SYSTEMS.snare_and_kick || DEFAULT_DAWSON_SYSTEMS.classic_bop;
     }
   }
 
@@ -81,11 +95,11 @@ export class DawsonEngine {
     } else if (mode === 'classic_bop') {
       this.shortFormula = DEFAULT_SHORT_FORMULAS.single_snare;
       this.longFormula = DEFAULT_LONG_FORMULAS.single_kick;
-      this.activeSystem = DEFAULT_DAWSON_SYSTEMS.classic_bop;
+      this.activeSystem = FACTORY_DAWSON_SYSTEMS.snare_and_kick || DEFAULT_DAWSON_SYSTEMS.classic_bop;
     } else if (mode === 'straight_rock') {
       this.shortFormula = DEFAULT_SHORT_FORMULAS.single_snare;
       this.longFormula = DEFAULT_LONG_FORMULAS.single_kick;
-      this.ostinato = 'straight_rock';
+      this.setOstinato('straight_rock');
     }
     this.notifyChange();
   }
@@ -94,26 +108,50 @@ export class DawsonEngine {
     return this.ostinato;
   }
 
-  public setOstinato(ostinato: OstinatoType): void {
-    this.ostinato = ostinato;
+  public getOstinatoPattern(): OstinatoPattern | undefined {
+    if (this.ostinato === 'none') return undefined;
+    return (
+      this.activeOstinatoPattern ||
+      FACTORY_OSTINATOS[this.ostinato] ||
+      (this.ostinato === 'straight_rock' ? FACTORY_OSTINATOS.straight_8ths_hihat : undefined)
+    );
+  }
+
+  public setOstinato(ostinato: OstinatoType | OstinatoPattern): void {
+    if (typeof ostinato === 'string') {
+      this.ostinato = ostinato;
+      if (ostinato === 'none') {
+        this.activeOstinatoPattern = undefined;
+      } else {
+        this.activeOstinatoPattern =
+          FACTORY_OSTINATOS[ostinato] ||
+          (ostinato === 'straight_rock' ? FACTORY_OSTINATOS.straight_8ths_hihat : undefined);
+      }
+    } else {
+      this.activeOstinatoPattern = ostinato;
+      this.ostinato = ostinato.id;
+    }
     this.notifyChange();
   }
 
   public getSystem(): DawsonSystem | undefined {
-    return this.activeSystem;
+    return this.isSystemSilenced ? undefined : this.activeSystem;
   }
 
-  public setSystem(system: DawsonSystem): void {
-    this.activeSystem = system;
-    this.shortFormula = system.shortFormula;
-    this.longFormula = system.longFormula;
-    this.ostinato = system.ostinatoId;
-    if (system.id === 'inverted_bop') {
-      this.mode = 'inverted_bop';
-    } else if (system.id === 'classic_bop') {
-      this.mode = 'classic_bop';
-    } else if (system.ostinatoId === 'straight_rock') {
-      this.mode = 'straight_rock';
+  public setSystem(system: DawsonSystem | 'none'): void {
+    if (system === 'none') {
+      this.isSystemSilenced = true;
+      this.activeSystem = undefined;
+    } else {
+      this.isSystemSilenced = false;
+      this.activeSystem = system;
+      this.shortFormula = system.shortFormula;
+      this.longFormula = system.longFormula;
+      if (system.id === 'inverted_bop') {
+        this.mode = 'inverted_bop';
+      } else if (system.id === 'classic_bop' || system.id === 'snare_and_kick') {
+        this.mode = 'classic_bop';
+      }
     }
     this.notifyChange();
   }
@@ -152,67 +190,44 @@ export class DawsonEngine {
     }
   }
 
-  public getOstinatoEvents(ostinatoType?: OstinatoType): ScheduledDrumEvent[] {
-    const ostinato = ostinatoType ?? this.ostinato;
+  public getOstinatoEvents(ostinatoType?: OstinatoType | OstinatoPattern): ScheduledDrumEvent[] {
+    let pattern: OstinatoPattern | undefined;
+
+    if (ostinatoType) {
+      if (typeof ostinatoType === 'string') {
+        if (ostinatoType === 'none') return [];
+        pattern =
+          FACTORY_OSTINATOS[ostinatoType] ||
+          (ostinatoType === 'straight_rock' ? FACTORY_OSTINATOS.straight_8ths_hihat : undefined);
+      } else {
+        pattern = ostinatoType;
+      }
+    } else {
+      if (this.ostinato === 'none') return [];
+      pattern = this.getOstinatoPattern();
+    }
+
+    if (!pattern || !pattern.strokes || pattern.strokes.length === 0) {
+      return [];
+    }
+
     const events: ScheduledDrumEvent[] = [];
+    let currentOffsetBeats = 0;
 
-    switch (ostinato) {
-      case 'jazz_swing':
-        // Ride cymbal on 1, 2, 2.667, 3, 4, 4.667 (0-based: 0, 1.0, 1.667, 2.0, 3.0, 3.667)
-        const rideBeats = [
-          { time: 0, dynamic: 'normal' as Dynamic, velocity: 0.8 },
-          { time: 1.0, dynamic: 'accent' as Dynamic, velocity: 0.9 },
-          { time: 1.667, dynamic: 'normal' as Dynamic, velocity: 0.75 },
-          { time: 2.0, dynamic: 'normal' as Dynamic, velocity: 0.8 },
-          { time: 3.0, dynamic: 'accent' as Dynamic, velocity: 0.9 },
-          { time: 3.667, dynamic: 'normal' as Dynamic, velocity: 0.75 },
-        ];
-
-        for (const beat of rideBeats) {
+    for (const stroke of pattern.strokes) {
+      if (!stroke.isRest && stroke.hits && stroke.hits.length > 0) {
+        for (const hit of stroke.hits) {
           events.push({
-            timeInMeasure: beat.time,
-            voice: 'ride',
-            velocity: beat.velocity,
-            dynamic: beat.dynamic,
+            timeInMeasure: Math.round(currentOffsetBeats * 1000) / 1000,
+            voice: hit.voice,
+            velocity: this.dynamicToVelocity(hit.dynamic),
+            dynamic: hit.dynamic,
             source: 'ostinato',
+            durationBeats: stroke.durationRatio,
           });
         }
-
-        // Hi-hat pedal on 2 and 4 (0-based: 1.0, 3.0)
-        events.push({
-          timeInMeasure: 1.0,
-          voice: 'hihat_foot',
-          velocity: 0.85,
-          dynamic: 'accent',
-          source: 'ostinato',
-        });
-        events.push({
-          timeInMeasure: 3.0,
-          voice: 'hihat_foot',
-          velocity: 0.85,
-          dynamic: 'accent',
-          source: 'ostinato',
-        });
-        break;
-
-      case 'straight_rock':
-        // Hi-hat closed on all 8 eighths (0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5)
-        const eighths = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5];
-        for (const beat of eighths) {
-          const isDownbeat = Number.isInteger(beat);
-          events.push({
-            timeInMeasure: beat,
-            voice: 'hihat_closed',
-            velocity: isDownbeat ? 0.8 : 0.7,
-            dynamic: isDownbeat ? 'accent' : 'normal',
-            source: 'ostinato',
-          });
-        }
-        break;
-
-      case 'none':
-      default:
-        break;
+      }
+      currentOffsetBeats += stroke.durationRatio;
     }
 
     return events.sort((a, b) => a.timeInMeasure - b.timeInMeasure);
@@ -222,6 +237,9 @@ export class DawsonEngine {
     measure: Measure,
     measureIndex?: number
   ): ScheduledDrumEvent[] {
+    if (this.isSystemSilenced) {
+      return [];
+    }
     const events: ScheduledDrumEvent[] = [];
     let currentOffsetBeats = 0;
 

@@ -32,7 +32,7 @@ Every skill lives in `.agents/skills/<name>/SKILL.md` (with support docs alongsi
 
 Commands run in PowerShell on Windows — use PowerShell idioms (`Get-Content`, `Select-String`, `Remove-Item`); the grep/glob tools cover content search, so reach for the shell only for test/build runs and file ops.
 
-During TDD slices, run targeted test files (`npx vitest run <file>`) for rapid red/green feedback; the git pre-commit hook automatically verifies full `npm run check` on each ticket commit.
+During TDD slices, run targeted test files (`npx vitest run <file>`) for rapid red/green feedback; the git pre-commit hook automatically verifies full `npm run check` on each ticket commit. Never pipe runner output through `Select-String` with unicode patterns (arrows, ✖) — the PowerShell scanner chokes on them; run the runner raw and let output truncation keep the summary.
 
 Sweep the repo for style drift with `npm run check:style` and read the theme's token budget with `npm run check:tokens`; hand-built PowerShell regex sweeps fight the harness's command scanner and the old PowerShell parser.
 
@@ -62,6 +62,7 @@ Single-context layout (`GLOSSARY.md` + `docs/adr/`). See `docs/agents/domain.md`
 
 ## Navigation
 
+- **Audio Transport**: graph owner is `src/audio/ToneTransportScheduler.ts` (also hosts `ToneClickPlayer`), players/mixer in `src/audio/`, eager single-graph contract in `docs/adr/0005` and the zero-allocation tick in `docs/adr/0011`. Suites that inspect the audio graph register the recording fake Tone `src/test/fakeTone.ts` via `vi.mock('tone')` — its recorder (`fireRepeats`, `nodesOfKind`, `gainWrites`, `bufferSources`, `triggers`, `disposed`) is the observation proxy for audio behaviour.
 - **Dawson Orchestration**: UI entry point in `src/components/DawsonOrchestrationSection.tsx`, modal/canvas formula editors in `src/components/dawson/`, domain models/presets in `src/domain/dawson/`.
 - **Notation Renderers**: Drum staff formula renderer in `src/notation/DrumStaffFormulaRenderer.ts`, reading score in `src/notation/ReadingScoreRenderer.ts`.
 

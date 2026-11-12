@@ -4,8 +4,8 @@
 
 **Blocked by:** 03-default-wav-asset-loader, 04-native-lookahead-scheduler
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `tone` is removed from `package.json` and no runtime or test file imports `tone` or `fakeTone`.
-- [ ] `npm run check:live` asserts < 50 `GainNode`s at load, accurate BPM cadence, clean console, and zero clipping (`maxPeak < 1.0`) in real Chromium.
-- [ ] `npm run check` and `npm run check:live` both pass green.
+- [x] `tone` is removed from `package.json` and no runtime or test file imports `tone` or `fakeTone`.
+- [x] `npm run check:live` asserts < 50 `GainNode`s at load, accurate BPM cadence, clean console, and zero clipping (`maxPeak < 1.0`) in real Chromium.
+- [x] `npm run check` and `npm run check:live` both pass green.

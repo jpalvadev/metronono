@@ -1,18 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { StrictMode } from 'react';
 import App from '../App';
-import { fakeToneRecorder } from '../test/fakeTone';
 import { getAudioContext } from '../audio/WebAudioContext';
 import { FakeAudioContext, FakeAudioNode } from '../test/fakeWebAudio';
 
 // The shell owns the audio scheduler, so it owns the graph it builds. Observed through the
 // recording FakeAudioContext (ADR-0014): exactly one graph reaches the audio destination, it
 // reaches it only through the single Master limiter bus, and nothing survives an unmount.
-vi.mock('tone', async () => {
-  const fake = await import('../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
 
 function fakeCtx(): FakeAudioContext {
   return getAudioContext() as unknown as FakeAudioContext;
@@ -24,14 +19,6 @@ function liveOutputSources(): string[] {
 
 describe('App audio graph lifecycle', () => {
   const EXPECTED_OUTPUTS = ['mixer:master:limiter'];
-
-  beforeEach(() => {
-    fakeToneRecorder.reset();
-  });
-
-  afterEach(() => {
-    fakeToneRecorder.reset();
-  });
 
   it('gives the shell one graph whose mixing channel and audition nodes feed destination through the master limiter bus', () => {
     render(<App />);

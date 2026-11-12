@@ -11,14 +11,8 @@ import { StoredSample } from '../types';
 import { DrumKitPlayer } from '../../audio/DrumKitPlayer';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
 import { AudioMixer } from '../../audio/AudioMixer';
-import { fakeToneRecorder } from '../../test/fakeTone';
 import { getAudioContext } from '../../audio/WebAudioContext';
 import { FakeAudioBuffer, FakeAudioContext, FakeGainNode } from '../../test/fakeWebAudio';
-
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
 
 // Helper to create dummy audio data
 function createDummyAudioBuffer(size: number = 64, fillByte: number = 42): ArrayBuffer {
@@ -364,10 +358,6 @@ describe('StorageManager & Fallback Behavior', () => {
 });
 
 describe('DrumKitPlayer & ToneTransportScheduler Custom Sample Playback', () => {
-  beforeEach(() => {
-    fakeToneRecorder.reset();
-  });
-
   it('allows loading and clearing custom sample buffers in DrumKitPlayer', () => {
     const mixer = new AudioMixer();
     mixer.initToneNodes();

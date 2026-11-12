@@ -4,25 +4,41 @@
  * start/stop/onended lifecycles, and `decodeAudioData` calls without Tone.js.
  */
 
+export interface FakeAudioParamWrite {
+  method: 'setValueAtTime' | 'linearRampToValueAtTime' | 'exponentialRampToValueAtTime' | 'setTargetAtTime';
+  value: number;
+  time: number;
+}
+
 export interface FakeAudioParam {
   value: number;
+  writes: FakeAudioParamWrite[];
   setValueAtTime: (value: number, startTime: number) => void;
   linearRampToValueAtTime: (value: number, endTime: number) => void;
   exponentialRampToValueAtTime: (value: number, endTime: number) => void;
+  setTargetAtTime: (target: number, startTime: number, timeConstant: number) => void;
   cancelScheduledValues: (cancelTime: number) => void;
 }
 
 function createFakeAudioParam(initialValue: number): FakeAudioParam {
   const param: FakeAudioParam = {
     value: initialValue,
-    setValueAtTime: (v: number) => {
+    writes: [],
+    setValueAtTime: (v: number, t: number) => {
       param.value = v;
+      param.writes.push({ method: 'setValueAtTime', value: v, time: t });
     },
-    linearRampToValueAtTime: (v: number) => {
+    linearRampToValueAtTime: (v: number, t: number) => {
       param.value = v;
+      param.writes.push({ method: 'linearRampToValueAtTime', value: v, time: t });
     },
-    exponentialRampToValueAtTime: (v: number) => {
+    exponentialRampToValueAtTime: (v: number, t: number) => {
       param.value = v;
+      param.writes.push({ method: 'exponentialRampToValueAtTime', value: v, time: t });
+    },
+    setTargetAtTime: (v: number, t: number) => {
+      param.value = v;
+      param.writes.push({ method: 'setTargetAtTime', value: v, time: t });
     },
     cancelScheduledValues: () => {},
   };
@@ -32,6 +48,7 @@ function createFakeAudioParam(initialValue: number): FakeAudioParam {
 export class FakeAudioNode {
   public label?: string;
   public connectedTo: FakeAudioNode[] = [];
+  public incoming: FakeAudioNode[] = [];
   public disconnected = false;
 
   public connect(destination: FakeAudioNode): FakeAudioNode {
@@ -39,16 +56,23 @@ export class FakeAudioNode {
     if (!this.connectedTo.includes(destination)) {
       this.connectedTo.push(destination);
     }
+    if (!destination.incoming.includes(this)) {
+      destination.incoming.push(this);
+    }
     return destination;
   }
 
   public disconnect(destination?: FakeAudioNode): void {
     if (destination) {
       this.connectedTo = this.connectedTo.filter((n) => n !== destination);
+      destination.incoming = destination.incoming.filter((n) => n !== this);
       if (this.connectedTo.length === 0) {
         this.disconnected = true;
       }
     } else {
+      for (const dest of this.connectedTo) {
+        dest.incoming = dest.incoming.filter((n) => n !== this);
+      }
       this.connectedTo = [];
       this.disconnected = true;
     }
@@ -180,6 +204,21 @@ export class FakeAudioContext {
 
   public advanceTime(seconds: number): void {
     this.currentTime += seconds;
+  }
+
+  public routeTo(from: FakeAudioNode, to: FakeAudioNode): FakeAudioNode[] | null {
+    const visited = new Set<FakeAudioNode>();
+    const dfs = (current: FakeAudioNode): FakeAudioNode[] | null => {
+      if (current === to) return [current];
+      if (visited.has(current)) return null;
+      visited.add(current);
+      for (const next of current.connectedTo) {
+        const sub = dfs(next);
+        if (sub) return [current, ...sub];
+      }
+      return null;
+    };
+    return dfs(from);
   }
 }
 

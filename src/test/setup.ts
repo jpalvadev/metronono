@@ -1,4 +1,20 @@
 import '@testing-library/jest-dom';
+import { beforeEach, afterEach } from 'vitest';
+import { installFakeWebAudio } from './fakeWebAudio';
+import { resetAudioContextForTesting } from '../audio/WebAudioContext';
+
+let restoreWebAudio: (() => void) | null = null;
+
+beforeEach(() => {
+  resetAudioContextForTesting();
+  restoreWebAudio = installFakeWebAudio().restore;
+});
+
+afterEach(() => {
+  resetAudioContextForTesting();
+  restoreWebAudio?.();
+  restoreWebAudio = null;
+});
 
 if (typeof HTMLCanvasElement !== 'undefined') {
   HTMLCanvasElement.prototype.getContext = (() => ({

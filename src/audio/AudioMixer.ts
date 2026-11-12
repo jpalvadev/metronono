@@ -1,5 +1,5 @@
-import * as Tone from 'tone';
 import { OstinatoType } from '../domain/dawson/types';
+import { getAudioContext } from './WebAudioContext';
 
 export type MixerChannelId = 'click' | 'ostinato' | 'orchestration';
 
@@ -110,8 +110,8 @@ export class AudioMixer implements IAudioMixer {
   };
 
   private channelNodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
-  private masterGain: IGainNodeLike | null = null;
-  private masterLimiter: Tone.Limiter | null = null;
+  private masterGain: GainNode | null = null;
+  private masterLimiter: DynamicsCompressorNode | null = null;
   private listeners: Set<(state: AudioMixerState) => void> = new Set();
 
   constructor(options?: AudioMixerOptions) {
@@ -139,27 +139,39 @@ export class AudioMixer implements IAudioMixer {
   public initToneNodes(): boolean {
     if (this.isGraphInitialized()) return true;
 
-    let masterLimiter: Tone.Limiter | null = null;
-    let masterGain: IGainNodeLike | null = null;
+    let masterLimiter: DynamicsCompressorNode | null = null;
+    let masterGain: GainNode | null = null;
     const nodes: Partial<Record<MixerChannelId, ChannelNodes>> = {};
 
     try {
-      // Master bus with headroom (-8 dB) and a limiter (-3 dBFS) so summing simultaneous
-      // click, ostinato, and orchestration transients never clips digital output.
-      masterLimiter = labelNode(new Tone.Limiter(-3) as unknown as IGainNodeLike, 'mixer:master:limiter') as unknown as Tone.Limiter;
-      masterLimiter.toDestination();
+      const ctx = getAudioContext();
 
-      masterGain = labelNode(new Tone.Gain(0.4) as unknown as IGainNodeLike, 'mixer:master:gain');
-      masterGain.connect?.(masterLimiter);
+      // Master bus with headroom (-8 dB) and a brickwall DynamicsCompressorNode limiter (-3 dBFS)
+      // so summing simultaneous click, ostinato, and orchestration transients never clips output.
+      masterLimiter = ctx.createDynamicsCompressor();
+      (masterLimiter as unknown as { label?: string }).label = 'mixer:master:limiter';
+      masterLimiter.threshold.value = -3;
+      masterLimiter.knee.value = 0;
+      masterLimiter.ratio.value = 20;
+      masterLimiter.attack.value = 0.001;
+      masterLimiter.release.value = 0.1;
+      masterLimiter.connect(ctx.destination);
+
+      masterGain = ctx.createGain();
+      (masterGain as unknown as { label?: string }).label = 'mixer:master:gain';
+      masterGain.gain.value = 0.4;
+      masterGain.connect(masterLimiter);
 
       for (const channel of MIXING_CHANNELS) {
-        const mainGain = new Tone.Gain(this.getEffectiveVolume(channel));
-        mainGain.connect(masterGain as any);
+        const mainGain = ctx.createGain();
+        mainGain.gain.value = this.getEffectiveVolume(channel);
+        mainGain.connect(masterGain);
 
         // The Audition node is never silenced: it holds the channel volume so a tap on a
         // muted channel is still heard at that channel's volume.
-        const auditionGain = new Tone.Gain(this.channels[channel].volume);
-        auditionGain.connect(masterGain as any);
+        const auditionGain = ctx.createGain();
+        auditionGain.gain.value = this.channels[channel].volume;
+        auditionGain.connect(masterGain);
 
         nodes[channel] = {
           main: labelNode(mainGain as unknown as IGainNodeLike, `mixer:${channel}`),
@@ -270,12 +282,12 @@ export class AudioMixer implements IAudioMixer {
     for (const channel of MIXING_CHANNELS) {
       const nodes = this.channelNodes[channel];
       if (nodes) {
-        nodes.main.dispose?.();
-        nodes.audition.dispose?.();
+        nodes.main.disconnect?.();
+        nodes.audition.disconnect?.();
       }
     }
-    this.masterGain?.dispose?.();
-    this.masterLimiter?.dispose?.();
+    this.masterGain?.disconnect?.();
+    this.masterLimiter?.disconnect?.();
     this.masterGain = null;
     this.masterLimiter = null;
     this.channelNodes = {};

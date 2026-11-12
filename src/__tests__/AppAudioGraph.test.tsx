@@ -3,18 +3,23 @@ import { render } from '@testing-library/react';
 import { StrictMode } from 'react';
 import App from '../App';
 import { fakeToneRecorder } from '../test/fakeTone';
+import { getAudioContext } from '../audio/WebAudioContext';
+import { FakeAudioContext, FakeAudioNode } from '../test/fakeWebAudio';
 
 // The shell owns the audio scheduler, so it owns the graph it builds. Observed through the
-// recording fake Tone (ADR-0005): exactly one graph reaches the audio destination, it reaches
-// it only through the single Master, and nothing survives an unmount.
+// recording FakeAudioContext (ADR-0014): exactly one graph reaches the audio destination, it
+// reaches it only through the single Master limiter bus, and nothing survives an unmount.
 vi.mock('tone', async () => {
   const fake = await import('../test/fakeTone');
   return { ...fake.fakeToneModule, default: fake.fakeToneModule };
 });
 
-/** The nodes that are actually connected to the audio destination right now. */
-function liveOutputSources() {
-  return fakeToneRecorder.destination.incoming.map((node) => node.label ?? node.kind);
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
+}
+
+function liveOutputSources(): string[] {
+  return fakeCtx().destination.incoming.map((node: FakeAudioNode) => node.label ?? 'unknown');
 }
 
 describe('App audio graph lifecycle', () => {
@@ -32,7 +37,7 @@ describe('App audio graph lifecycle', () => {
     render(<App />);
 
     expect(liveOutputSources().sort()).toEqual(EXPECTED_OUTPUTS);
-    const masterGain = fakeToneRecorder.nodes.find((n) => n.label === 'mixer:master:gain');
+    const masterGain = fakeCtx().gains.find((n) => n.label === 'mixer:master:gain');
     expect(masterGain?.incoming.map((n) => n.label).sort()).toEqual([
       'audition:click',
       'audition:orchestration',
@@ -59,6 +64,6 @@ describe('App audio graph lifecycle', () => {
 
     unmount();
 
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(0);
+    expect(fakeCtx().destination.incoming).toHaveLength(0);
   });
 });

@@ -4,6 +4,31 @@ import { MetronomeEngine } from '../../domain/metronome/MetronomeEngine';
 import { createRhythmicEvent } from '../../domain/rhythm/types';
 import type { Measure } from '../../domain/rhythm/types';
 import { fakeToneRecorder } from '../../test/fakeTone';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioBuffer, FakeAudioContext } from '../../test/fakeWebAudio';
+import { DrumVoice } from '../../domain/dawson/types';
+
+const ALL_DRUM_VOICES: DrumVoice[] = [
+  'kick', 'snare', 'snare_ghost', 'tom_high', 'tom_mid', 'tom_floor',
+  'ride', 'ride_bell', 'hihat_closed', 'hihat_open', 'hihat_foot', 'crash',
+];
+
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
+}
+
+const dummyBuffer = new FakeAudioBuffer(1, 2048, 44100) as unknown as AudioBuffer;
+
+function loadAllDrumSamples(scheduler: ToneTransportScheduler) {
+  const player = scheduler.getDrumKitPlayer();
+  for (const voice of ALL_DRUM_VOICES) {
+    player.loadSampleBuffer?.(voice, dummyBuffer);
+  }
+}
+
+function sampleSourcesWithLabel(label: string) {
+  return fakeCtx().bufferSources.filter((s) => (s.connectedTo[0]?.label ?? '') === label);
+}
 
 // The Lookahead Scheduler must resolve a Measure Plan before the tick: the domain
 // engine is consulted once per measure, never once per beat, and composition
@@ -13,12 +38,6 @@ vi.mock('tone', async () => {
   const fake = await import('../../test/fakeTone');
   return { ...fake.fakeToneModule, default: fake.fakeToneModule };
 });
-
-function nodeByLabel(label: string) {
-  const node = fakeToneRecorder.nodes.find((created) => created.label === label);
-  if (!node) throw new Error(`no node labelled '${label}' in the recorded graph`);
-  return node;
-}
 
 describe('Measure Plan lookahead scheduling', () => {
   beforeEach(() => {
@@ -95,11 +114,9 @@ describe('Measure Plan lookahead scheduling', () => {
     });
 
     await scheduler.start();
+    loadAllDrumSamples(scheduler);
 
-    const ostinatoRideCount = () =>
-      fakeToneRecorder.nodes
-        .filter((n) => (n.label ?? '') === 'rig:ostinato:mix:ride')
-        .reduce((total, n) => total + fakeToneRecorder.triggers(n).length, 0);
+    const ostinatoRideCount = () => sampleSourcesWithLabel('sample:ostinato:mix').length;
 
     // Before the edit the jazz-swing ostinato ride keeps sounding.
     fakeToneRecorder.transport.fireRepeats(4);
@@ -141,20 +158,17 @@ describe('Measure Plan lookahead scheduling', () => {
     });
 
     await scheduler.start();
+    loadAllDrumSamples(scheduler);
     // Beat 0 at time 0: the long note puts the kick orchestration on the downbeat.
     fakeToneRecorder.transport.fireRepeats(1);
-    const kick = nodeByLabel('rig:orchestration:mix:kick');
-    const kickTriggers = fakeToneRecorder.triggers(kick);
-    expect(kickTriggers[0].method).toBe('triggerAttackRelease');
-    expect(kickTriggers[0].args[2]).toBeCloseTo(0, 5);
+    const orchSources = () => sampleSourcesWithLabel('sample:orchestration:mix');
+    expect(orchSources().length).toBeGreaterThan(0);
+    expect(orchSources()[0].startedAt).toBeCloseTo(0, 5);
 
     // Beat 1 at 0.5s: short notes put snares at 0.5 and 0.75 (subOffset 0 and 0.5 × 0.5s).
-    // The snare slot is a rig pair (MembraneSynth + NoiseSynth sharing the slot label);
-    // the membrane member takes a pitch first, so its audio time is args[2].
+    // Beat 2 at 1.0s: the half note puts a kick at 1.0s.
     fakeToneRecorder.transport.fireRepeats(3);
-    const snares = fakeToneRecorder.nodes.filter((n) => (n.label ?? '') === 'rig:orchestration:mix:snare' && n.kind === 'MembraneSynth');
-    const snareTimes = snares.flatMap((n) => fakeToneRecorder.triggers(n).map((t) => t.args[2]));
-    expect(snareTimes).toEqual([0.5, 0.75]);
+    expect(orchSources().map((s) => s.startedAt)).toEqual([0, 0.5, 0.75, 1]);
   });
 
   it('a reading line swapped mid-session retargets the next measures', async () => {
@@ -178,9 +192,10 @@ describe('Measure Plan lookahead scheduling', () => {
     });
 
     await scheduler.start();
+    // Only load kick so we can observe kick strokes stopping after the reading line swap.
+    scheduler.getDrumKitPlayer().loadSampleBuffer?.('kick', dummyBuffer);
     fakeToneRecorder.transport.fireRepeats(1);
-    const kick = nodeByLabel('rig:orchestration:mix:kick');
-    const kicksBeforeSwap = fakeToneRecorder.triggers(kick).length;
+    const kicksBeforeSwap = sampleSourcesWithLabel('sample:orchestration:mix').length;
     expect(kicksBeforeSwap).toBeGreaterThan(0);
 
     scheduler.setReadingLine({
@@ -209,7 +224,7 @@ describe('Measure Plan lookahead scheduling', () => {
 
     fakeToneRecorder.transport.fireRepeats(4);
     // No new kick strokes after the swap: line B is all short notes.
-    expect(fakeToneRecorder.triggers(kick).length).toBe(kicksBeforeSwap);
+    expect(sampleSourcesWithLabel('sample:orchestration:mix').length).toBe(kicksBeforeSwap);
   });
 
   it('tempo changes never rebuild the plan', async () => {

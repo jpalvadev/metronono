@@ -1,244 +1,175 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { DrumKitPlayer, DrumLane } from '../DrumKitPlayer';
 import { AudioMixer } from '../AudioMixer';
 import { DrumVoice, ScheduledDrumEvent } from '../../domain/dawson/types';
-import { fakeAudioBuffer, fakeToneRecorder } from '../../test/fakeTone';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioBuffer, FakeAudioContext, FakeGainNode } from '../../test/fakeWebAudio';
 
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
+const ALL_DRUM_VOICES: DrumVoice[] = [
+  'kick',
+  'snare',
+  'snare_ghost',
+  'tom_high',
+  'tom_mid',
+  'tom_floor',
+  'crash',
+  'ride',
+  'ride_bell',
+  'hihat_closed',
+  'hihat_foot',
+  'hihat_open',
+];
 
-function nodeByLabel(label: string) {
-  const node = fakeToneRecorder.nodes.find((created) => created.label === label);
-  if (!node) throw new Error(`no node labelled '${label}' in the recorded graph`);
-  return node;
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
 }
 
-function rigNodes(lane: DrumLane, mode: 'mix' | 'audition', voice: string) {
-  return fakeToneRecorder.nodes.filter((created) => created.label === `rig:${lane}:${mode}:${voice}`);
-}
-
-function rigNode(lane: DrumLane, mode: 'mix' | 'audition', voice: string) {
-  const [node] = rigNodes(lane, mode, voice);
-  if (!node) throw new Error(`no instrument built for ${voice} on ${lane}/${mode}`);
-  return node;
-}
-
-function triggerCount(lane: DrumLane, mode: 'mix' | 'audition', voice: string): number {
-  return rigNodes(lane, mode, voice).reduce(
-    (total, node) => total + fakeToneRecorder.triggers(node).length,
-    0
-  );
-}
+const dummyBuffer = new FakeAudioBuffer(1, 2048, 44100) as unknown as AudioBuffer;
 
 function drumEvent(voice: DrumVoice, source: DrumLane, velocity = 0.9): ScheduledDrumEvent {
   return { timeInMeasure: 0, voice, velocity, dynamic: 'normal', source };
 }
 
-describe('DrumKitPlayer', () => {
+describe('DrumKitPlayer (Pure Web Audio)', () => {
   let mixer: AudioMixer;
   let player: DrumKitPlayer;
 
   beforeEach(() => {
-    fakeToneRecorder.reset();
     mixer = new AudioMixer();
     mixer.initToneNodes();
     player = new DrumKitPlayer(mixer);
   });
 
   describe('Event Playback & Channel Routing', () => {
-    it('plays an orchestration drum event on the Orchestration channel instrument', () => {
-      const event = drumEvent('kick', 'orchestration', 0.9);
+    it('plays an orchestration drum event through the Orchestration Mixing Channel to destination', () => {
+      player.loadSampleBuffer('kick', dummyBuffer);
+      player.play(drumEvent('kick', 'orchestration', 0.9), 2.5);
 
-      player.play(event, 2.5);
-
-      const kick = rigNode('orchestration', 'mix', 'kick');
-      expect(fakeToneRecorder.triggers(kick)).toEqual([
-        { method: 'triggerAttackRelease', args: ['C1', '8n', 2.5, 0.9] },
-      ]);
+      const ctx = fakeCtx();
+      expect(ctx.bufferSources).toHaveLength(1);
+      const src = ctx.bufferSources[0];
+      expect(src.startedAt).toBe(2.5);
+      const hitGain = src.connectedTo[0] as FakeGainNode;
+      expect(hitGain.gain.value).toBe(0.9);
+      expect(hitGain.connectedTo).toContain(mixer.getChannelNode('orchestration'));
+      expect(ctx.routeTo(src, ctx.destination)).not.toBeNull();
     });
 
-    it('reaches the audio destination through the Orchestration Mixing Channel', () => {
-      player.play(drumEvent('kick', 'orchestration'), 2.5);
+    it('plays an ostinato drum event through the Ostinato Mixing Channel', () => {
+      player.loadSampleBuffer('ride', dummyBuffer);
+      player.play(
+        { timeInMeasure: 1.667, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'ostinato' },
+        3.125
+      );
 
-      const channel = nodeByLabel('mixer:orchestration');
-      const route = fakeToneRecorder.routeTo(rigNode('orchestration', 'mix', 'kick'), channel);
-      expect(route).not.toBeNull();
-      expect(fakeToneRecorder.routeTo(channel, fakeToneRecorder.destination)).not.toBeNull();
-    });
-
-    it('plays an ostinato drum event on the Ostinato channel instrument', () => {
-      const event: ScheduledDrumEvent = {
-        timeInMeasure: 1.667,
-        voice: 'ride',
-        velocity: 0.8,
-        dynamic: 'normal',
-        source: 'ostinato',
-      };
-
-      player.play(event, 3.125);
-
-      const ride = rigNode('ostinato', 'mix', 'ride');
-      expect(fakeToneRecorder.triggers(ride)).toEqual([
-        { method: 'triggerAttackRelease', args: ['16n', 3.125, 0.8] },
-      ]);
-      // The Orchestration line stayed silent: an event only plays on its own channel.
-      expect(triggerCount('orchestration', 'mix', 'ride')).toBe(0);
+      const ctx = fakeCtx();
+      expect(ctx.bufferSources).toHaveLength(1);
+      const hitGain = ctx.bufferSources[0].connectedTo[0] as FakeGainNode;
+      expect(hitGain.connectedTo).toContain(mixer.getChannelNode('ostinato'));
     });
 
     it('plays nothing at all on a muted Mixing Channel', () => {
+      player.loadSampleBuffer('kick', dummyBuffer);
       mixer.setChannelMute('orchestration', true);
+      player.play(drumEvent('kick', 'orchestration', 0.9), 2.5);
 
-      player.play(drumEvent('kick', 'orchestration'), 2.5);
-
-      expect(triggerCount('orchestration', 'mix', 'kick')).toBe(0);
-      expect(fakeToneRecorder.totalTriggers()).toBe(0);
+      expect(fakeCtx().bufferSources).toHaveLength(0);
     });
 
     it('still plays events on the channels that are not muted', () => {
-      mixer.setChannelMute('orchestration', true);
+      player.loadSampleBuffer('kick', dummyBuffer);
+      player.loadSampleBuffer('ride', dummyBuffer);
+      mixer.setChannelMute('ostinato', true);
 
-      player.play(drumEvent('ride', 'ostinato', 0.8), 4.0);
+      player.play(drumEvent('ride', 'ostinato'), 1.0);
+      player.play(drumEvent('kick', 'orchestration'), 1.5);
 
-      expect(triggerCount('ostinato', 'mix', 'ride')).toBe(1);
-      expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:ostinato'))).toBe(0.8);
-      expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:orchestration'))).toBe(0);
+      const ctx = fakeCtx();
+      expect(ctx.bufferSources).toHaveLength(1);
+      const hitGain = ctx.bufferSources[0].connectedTo[0] as FakeGainNode;
+      expect(hitGain.connectedTo).toContain(mixer.getChannelNode('orchestration'));
     });
   });
 
   describe('Audition Voice Trigger', () => {
-    it('triggers a drum voice directly for audition taps', () => {
-      player.triggerVoice('snare', 1.0, 0.85);
-
-      expect(triggerCount('orchestration', 'audition', 'snare')).toBe(2);
-      expect(triggerCount('orchestration', 'mix', 'snare')).toBe(0);
-    });
-
-    it('auditions through the Audition node the Mixing Channel shares, at the channel volume', () => {
-      mixer.setChannelVolume('orchestration', 0.45);
-      player.triggerVoice('kick', 1.0, 0.85);
-
-      const audition = nodeByLabel('audition:orchestration');
-      const route = fakeToneRecorder.routeTo(rigNode('orchestration', 'audition', 'kick'), audition);
-      expect(route).not.toBeNull();
-      expect(fakeToneRecorder.gainValue(audition)).toBe(0.45);
-    });
-
-    it('keeps auditioning a voice while its Mixing Channel is muted', () => {
-      mixer.setChannelVolume('orchestration', 0.45);
+    it('auditions through the Audition node the Mixing Channel shares, even while muted', () => {
+      player.loadSampleBuffer('snare', dummyBuffer);
       mixer.setChannelMute('orchestration', true);
 
-      player.triggerVoice('kick', 1.0, 0.85);
+      player.triggerVoice('snare', 1.0, 0.75, 'orchestration');
 
-      expect(triggerCount('orchestration', 'audition', 'kick')).toBe(1);
-      expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:orchestration'))).toBe(0);
-      expect(fakeToneRecorder.gainValue(nodeByLabel('audition:orchestration'))).toBe(0.45);
+      const ctx = fakeCtx();
+      expect(ctx.bufferSources).toHaveLength(1);
+      const hitGain = ctx.bufferSources[0].connectedTo[0] as FakeGainNode;
+      expect(hitGain.connectedTo).toContain(mixer.getAuditionNode('orchestration'));
+      expect(hitGain.connectedTo).not.toContain(mixer.getChannelNode('orchestration'));
     });
 
-    it('defaults ostinato voices to the Ostinato Mixing Channel', () => {
-      player.triggerVoice('ride', 1.0);
-      expect(triggerCount('ostinato', 'audition', 'ride')).toBe(1);
-      expect(triggerCount('orchestration', 'audition', 'ride')).toBe(0);
+    it('defaults ostinato voices to the Ostinato Mixing Channel and others to Orchestration', () => {
+      player.loadSampleBuffer('ride', dummyBuffer);
+      player.loadSampleBuffer('hihat_closed', dummyBuffer);
+      player.loadSampleBuffer('snare', dummyBuffer);
 
-      player.triggerVoice('hihat_foot', 1.0);
-      expect(triggerCount('ostinato', 'audition', 'hihat')).toBe(1);
-    });
+      player.triggerVoice('ride', 1.0, 0.8);
+      player.triggerVoice('hihat_closed', 1.5, 0.8);
+      player.triggerVoice('snare', 2.0, 0.8);
 
-    it('uses the channel the caller names', () => {
-      player.triggerVoice('kick', 1.0, 0.9, 'ostinato');
-      expect(triggerCount('ostinato', 'audition', 'kick')).toBe(1);
-      expect(triggerCount('orchestration', 'audition', 'kick')).toBe(0);
+      const ctx = fakeCtx();
+      expect(ctx.bufferSources).toHaveLength(3);
+      expect((ctx.bufferSources[0].connectedTo[0] as FakeGainNode).connectedTo).toContain(
+        mixer.getAuditionNode('ostinato')
+      );
+      expect((ctx.bufferSources[1].connectedTo[0] as FakeGainNode).connectedTo).toContain(
+        mixer.getAuditionNode('ostinato')
+      );
+      expect((ctx.bufferSources[2].connectedTo[0] as FakeGainNode).connectedTo).toContain(
+        mixer.getAuditionNode('orchestration')
+      );
     });
   });
 
-  describe('Built-in Kit Synthesis', () => {
-    const voices: { voice: DrumVoice; lane: DrumLane; rigVoice: string }[] = [
-      { voice: 'kick', lane: 'orchestration', rigVoice: 'kick' },
-      { voice: 'snare', lane: 'orchestration', rigVoice: 'snare' },
-      { voice: 'snare_ghost', lane: 'orchestration', rigVoice: 'snare' },
-      { voice: 'tom_high', lane: 'orchestration', rigVoice: 'tom_high' },
-      { voice: 'tom_mid', lane: 'orchestration', rigVoice: 'tom_mid' },
-      { voice: 'tom_floor', lane: 'orchestration', rigVoice: 'tom_floor' },
-      { voice: 'crash', lane: 'orchestration', rigVoice: 'crash' },
-      { voice: 'ride', lane: 'ostinato', rigVoice: 'ride' },
-      { voice: 'ride_bell', lane: 'ostinato', rigVoice: 'ride' },
-      { voice: 'hihat_closed', lane: 'ostinato', rigVoice: 'hihat' },
-      { voice: 'hihat_foot', lane: 'ostinato', rigVoice: 'hihat' },
-      { voice: 'hihat_open', lane: 'ostinato', rigVoice: 'hihat' },
-    ];
+  describe('WAV-Only Voice Playback (No Synth Fallback)', () => {
+    it('plays every canonical drum voice when a buffer is loaded and stays silent when missing', () => {
+      // Missing buffers: silent, zero synth fallback.
+      for (const voice of ALL_DRUM_VOICES) {
+        player.play(drumEvent(voice, 'orchestration', 0.8), 1.0);
+      }
+      expect(fakeCtx().bufferSources).toHaveLength(0);
 
-    it.each(voices)('synthesizes $voice on the $lane channel rig', ({ voice, lane, rigVoice }) => {
-      player.play(drumEvent(voice, lane, 0.8), 5.0);
-      expect(triggerCount(lane, 'mix', rigVoice)).toBeGreaterThan(0);
-      expect(
-        fakeToneRecorder.routeTo(rigNode(lane, 'mix', rigVoice), nodeByLabel(`mixer:${lane}`))
-      ).not.toBeNull();
+      // Loaded buffers: every voice plays cleanly.
+      for (const voice of ALL_DRUM_VOICES) {
+        player.loadDefaultSampleBuffer(voice, dummyBuffer);
+        player.play(drumEvent(voice, 'orchestration', 0.8), 1.0);
+      }
+      expect(fakeCtx().bufferSources).toHaveLength(ALL_DRUM_VOICES.length);
     });
 
-    it('gives each Mixing Channel line its own instruments', () => {
-      const orchestrationKick = rigNode('orchestration', 'mix', 'kick');
-      const ostinatoKick = rigNode('ostinato', 'mix', 'kick');
+    it('prioritizes custom Sample Bank overrides over default buffers and restores default on removal', () => {
+      const defaultBuf = new FakeAudioBuffer(1, 1000, 44100) as unknown as AudioBuffer;
+      const customBuf = new FakeAudioBuffer(1, 3000, 44100) as unknown as AudioBuffer;
 
-      expect(orchestrationKick.id).not.toBe(ostinatoKick.id);
-      expect(fakeToneRecorder.connectedTo(orchestrationKick)).toEqual([
-        nodeByLabel('mixer:orchestration'),
-      ]);
-      expect(fakeToneRecorder.connectedTo(ostinatoKick)).toEqual([nodeByLabel('mixer:ostinato')]);
+      player.loadDefaultSampleBuffer('kick', defaultBuf);
+      player.loadSampleBuffer('kick', customBuf);
+      expect(player.hasCustomSample('kick')).toBe(true);
+
+      player.play(drumEvent('kick', 'orchestration'), 1.0);
+      expect(fakeCtx().bufferSources[0].buffer).toBe(customBuf);
+
+      player.removeSampleBuffer('kick');
+      expect(player.hasCustomSample('kick')).toBe(false);
+
+      player.play(drumEvent('kick', 'orchestration'), 2.0);
+      expect(fakeCtx().bufferSources[1].buffer).toBe(defaultBuf);
     });
 
     it('builds nothing when the Mixer has no graph to build on', () => {
-      // Cleared of the graph the beforeEach built, so the destination is truly untouched.
-      fakeToneRecorder.reset();
-      const bareMixer = new AudioMixer();
-      const silentPlayer = new DrumKitPlayer(bareMixer);
+      const uninitializedMixer = new AudioMixer();
+      const orphanPlayer = new DrumKitPlayer(uninitializedMixer);
+      orphanPlayer.loadSampleBuffer('kick', dummyBuffer);
+      orphanPlayer.play(drumEvent('kick', 'orchestration'), 1.0);
 
-      expect(silentPlayer.initSynths()).toBe(false);
-      silentPlayer.play(drumEvent('kick', 'orchestration'), 1.0);
-      // No graph, no route to the destination: silence rather than a bypass.
-      expect(fakeToneRecorder.totalTriggers()).toBe(0);
-      expect(fakeToneRecorder.destination.incoming).toHaveLength(0);
-    });
-  });
-
-  describe('Custom Sample Playback', () => {
-    it('plays a stored sample through the channel node instead of the built-in instrument', () => {
-      player.loadSampleBuffer('kick', fakeAudioBuffer());
-
-      player.play(drumEvent('kick', 'orchestration', 0.6), 3.0);
-
-      expect(triggerCount('orchestration', 'mix', 'kick')).toBe(0);
-      const [sampleGain] = fakeToneRecorder.nodes.filter(
-        (created) => created.label === 'sample:orchestration:mix'
-      );
-      expect(sampleGain).toBeDefined();
-      expect(fakeToneRecorder.gainValue(sampleGain)).toBe(0.6);
-      expect(fakeToneRecorder.connectedTo(sampleGain)).toContain(nodeByLabel('mixer:orchestration'));
-      expect(fakeToneRecorder.bufferSources()).toHaveLength(1);
-    });
-
-    it('auditions a stored sample through the Audition node of its channel', () => {
-      player.loadSampleBuffer('ride', fakeAudioBuffer());
-      mixer.setChannelMute('ostinato', true);
-
-      player.triggerVoice('ride', 2.0, 0.7);
-
-      const audition = nodeByLabel('audition:ostinato');
-      const sampleGain = fakeToneRecorder.nodes.find(
-        (created) => created.label === 'sample:ostinato:audition'
-      );
-      expect(sampleGain).toBeDefined();
-      expect(fakeToneRecorder.connectedTo(sampleGain)).toContain(audition);
-      expect(fakeToneRecorder.bufferSources()[0].startedAt).toBe(2.0);
-    });
-
-    it('goes back to the built-in instrument when the sample is removed', () => {
-      player.loadSampleBuffer('kick', fakeAudioBuffer());
-      player.removeSampleBuffer('kick');
-
-      expect(player.hasCustomSample('kick')).toBe(false);
-      player.play(drumEvent('kick', 'orchestration'), 3.0);
-      expect(triggerCount('orchestration', 'mix', 'kick')).toBe(1);
+      expect(uninitializedMixer.isGraphInitialized()).toBe(false);
+      expect(fakeCtx().bufferSources).toHaveLength(0);
     });
   });
 });

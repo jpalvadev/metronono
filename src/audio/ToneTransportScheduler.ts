@@ -18,79 +18,34 @@ import {
   IAudioMixer,
   IDrumKitPlayer,
 } from './types';
-import { AudioMixer } from './AudioMixer';
+import { AudioMixer, IGainNodeLike } from './AudioMixer';
 import { DrumKitPlayer } from './DrumKitPlayer';
+import { SampleStrokePlayer } from './NativeSamplePlayback';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
 import { BackgroundAudioService } from './BackgroundAudioService';
 import { ScheduledDrumEvent } from '../domain/dawson/types';
 
-// Names every node of the audio graph carries, so a test can follow a sound from the voice
-// that made it to the audio destination through its Mixing Channel.
-function labelNode<T>(node: T, label: string): T {
-  (node as { label?: string }).label = label;
-  return node;
-}
-
 type ClickVoiceKey = 'downbeat' | 'regular' | 'subdivision';
 
 export class ToneClickPlayer implements IClickPlayer {
-  private mixVoices: Record<ClickVoiceKey, Tone.Synth>;
-  private auditionVoices: Record<ClickVoiceKey, Tone.Synth>;
   private clickConfig: MetronomeClickConfig;
   // The Click Mixing Channel node every scheduled click is heard through, and the Audition
   // node Click shares, which a preview tap is heard through instead.
-  private outputNode?: Tone.ToneAudioNode;
-  private auditionNode?: Tone.ToneAudioNode;
-  private customBuffers: Map<ClickVoiceKey, any> = new Map();
-  // One pooled Gain per sample voice and mode instead of a fresh Gain per stroke,
-  // and pending BufferSources retired once their playback window elapsed.
-  private sampleGains: Map<string, Tone.Gain> = new Map();
-  private pendingSampleSources: { source: Tone.ToneBufferSource; endsAt: number }[] = [];
+  private outputNode?: IGainNodeLike;
+  private auditionNode?: IGainNodeLike;
+  private customBuffers: Map<ClickVoiceKey, AudioBuffer> = new Map();
+  private defaultBuffers: Map<ClickVoiceKey, AudioBuffer> = new Map();
+  private strokePlayer = new SampleStrokePlayer();
 
   constructor(
-    outputNode: Tone.ToneAudioNode,
-    auditionNode: Tone.ToneAudioNode,
+    outputNode: IGainNodeLike,
+    auditionNode: IGainNodeLike,
     initialConfig?: MetronomeClickConfig
   ) {
     this.outputNode = outputNode;
     this.auditionNode = auditionNode;
     this.clickConfig = initialConfig ?? createDefaultClickConfig();
-
-    this.mixVoices = {
-      downbeat: this.buildVoice('downbeat', outputNode, 'click:downbeat'),
-      regular: this.buildVoice('regular', outputNode, 'click:regular'),
-      subdivision: this.buildVoice('subdivision', outputNode, 'click:subdivision'),
-    };
-
-    // A second, identical set wired onto the Audition node: previewing a voice on a muted
-    // Click Channel is still heard, at the volume the Click slider holds.
-    this.auditionVoices = {
-      downbeat: this.buildVoice('downbeat', auditionNode, 'click:audition:downbeat'),
-      regular: this.buildVoice('regular', auditionNode, 'click:audition:regular'),
-      subdivision: this.buildVoice('subdivision', auditionNode, 'click:audition:subdivision'),
-    };
-  }
-
-  private buildVoice(
-    key: ClickVoiceKey,
-    destination: Tone.ToneAudioNode,
-    label: string
-  ): Tone.Synth {
-    const voice = labelNode(
-      new Tone.Synth({
-        oscillator: { type: key === 'regular' ? 'sine' : 'triangle' },
-        envelope: {
-          attack: 0.001,
-          decay: key === 'downbeat' ? 0.04 : key === 'regular' ? 0.03 : 0.02,
-          sustain: 0,
-          release: key === 'downbeat' ? 0.02 : key === 'regular' ? 0.02 : 0.01,
-        },
-      }),
-      label
-    );
-    voice.connect(destination);
-    return voice as unknown as Tone.Synth;
   }
 
   public setClickConfig(config: Partial<MetronomeClickConfig>): void {
@@ -105,156 +60,54 @@ export class ToneClickPlayer implements IClickPlayer {
     }
   }
 
-  public loadSampleBuffer(voice: ClickVoiceKey, buffer: any): void {
-    this.disposeClickSampleGains(voice);
+  public loadSampleBuffer(voice: ClickVoiceKey, buffer: AudioBuffer): void {
     this.customBuffers.set(voice, buffer);
   }
 
   public removeSampleBuffer(voice: ClickVoiceKey): void {
     this.customBuffers.delete(voice);
-    this.disposeClickSampleGains(voice);
-  }
-
-  private disposeClickSampleGains(voice: ClickVoiceKey): void {
-    for (const mode of ['mix', 'audition'] as ('mix' | 'audition')[]) {
-      const gain = this.sampleGains.get(`${voice}:${mode}`);
-      if (!gain) continue;
-      try {
-        gain.dispose();
-      } catch {
-        // Safe disposal
-      }
-      this.sampleGains.delete(`${voice}:${mode}`);
-    }
   }
 
   public hasCustomSample(voice: ClickVoiceKey): boolean {
     return this.customBuffers.has(voice);
   }
 
-  private playCustomSample(
-    voice: ClickVoiceKey,
-    buffer: any,
-    time: number,
-    velocity: number,
-    mode: 'mix' | 'audition'
-  ): void {
-    try {
-      const audioTime = time > 0 ? time : Tone.now();
-      // Only retire sources whose playback window has actually elapsed on the hardware clock
-      // (context.currentTime), never at Tone.now() or the future lookahead audioTime (both
-      // include lookAhead), or dispose() will disconnect still-playing .wav samples.
-      const hardwareNow = Tone.getContext?.()?.currentTime ?? Tone.now();
-      this.retirePendingSamples(Math.min(audioTime, hardwareNow));
-
-      const poolKey = `${voice}:${mode}`;
-      let gain = this.sampleGains.get(poolKey);
-      if (!gain) {
-        gain = labelNode(
-          new Tone.Gain(),
-          mode === 'audition' ? 'click-sample-audition-gain' : 'click-sample-gain'
-        );
-        const destination = mode === 'audition' ? this.auditionNode : this.outputNode;
-        if (destination) {
-          gain.connect(destination);
-        }
-        this.sampleGains.set(poolKey, gain);
-      }
-      // Per-stroke dynamics live as a timed write on the pooled gain.
-      gain.gain.setValueAtTime(velocity, audioTime);
-
-      const bufferSource = new Tone.ToneBufferSource(buffer);
-      bufferSource.connect(gain as unknown as Tone.ToneAudioNode);
-      bufferSource.start(audioTime);
-      const duration = (buffer as { duration?: number }).duration ?? 1;
-      this.pendingSampleSources.push({ source: bufferSource, endsAt: audioTime + duration });
-    } catch {
-      // Safe isolation
-    }
-  }
-
-  private retirePendingSamples(now: number): void {
-    this.pendingSampleSources = this.pendingSampleSources.filter(
-      (pending) => {
-        if (pending.endsAt > now) return true;
-        try {
-          // Tone's accurate-timing contract: a source retired from inside a scheduled
-          // callback stops at the scheduling time it was heard at, never at Tone.now().
-          if (Number.isFinite(now)) pending.source.stop(now);
-          else pending.source.stop();
-          pending.source.dispose();
-        } catch {
-          // Safe disposal
-        }
-        return false;
-      }
-    );
+  public loadDefaultSampleBuffer(voice: ClickVoiceKey, buffer: AudioBuffer): void {
+    this.defaultBuffers.set(voice, buffer);
   }
 
   /** Stop leaves nothing waiting to sound behind the mixer. */
   public stopPendingSamples(): void {
-    this.retirePendingSamples(Number.POSITIVE_INFINITY);
+    this.strokePlayer.stopAll();
   }
 
-  private playVoice(key: ClickVoiceKey, time: number, velocity?: number, pitch?: string): void {
-    const custom = this.customBuffers.get(key);
-    if (custom) {
-      const v = velocity ?? this.clickConfig[key].volume;
-      this.playCustomSample(key, custom, time, v, 'mix');
-      return;
-    }
-
-    const voice = this.mixVoices[key];
-    voice.triggerAttackRelease(
-      pitch ?? this.clickConfig[key].pitch,
-      '32n',
-      time,
-      velocity ?? this.clickConfig[key].volume
-    );
+  private playVoice(key: ClickVoiceKey, time: number, velocity?: number): void {
+    const buffer = this.customBuffers.get(key) ?? this.defaultBuffers.get(key);
+    if (!buffer || !this.outputNode) return;
+    const v = velocity ?? this.clickConfig[key].volume;
+    this.strokePlayer.playBuffer(buffer, time, v, this.outputNode, `click:mix:${key}`);
   }
 
-  public play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void {
-    this.playVoice(isDownbeat ? 'downbeat' : 'regular', time, velocity, pitch);
+  public play(isDownbeat: boolean, time: number, velocity?: number): void {
+    this.playVoice(isDownbeat ? 'downbeat' : 'regular', time, velocity);
   }
 
-  public playSubdivision(time: number, velocity?: number, pitch?: string): void {
-    this.playVoice('subdivision', time, velocity, pitch);
+  public playSubdivision(time: number, velocity?: number): void {
+    this.playVoice('subdivision', time, velocity);
   }
 
   /** A preview tap: heard through the Audition node Click shares, never through its mute. */
   public audition(voice: ClickVoiceKey, time = 0, velocity = 1.0): void {
-    const custom = this.customBuffers.get(voice);
-    if (custom) {
-      this.playCustomSample(voice, custom, time, velocity, 'audition');
-      return;
-    }
-
-    const auditionVoice = this.auditionVoices[voice];
-    auditionVoice.triggerAttackRelease(
-      this.clickConfig[voice].pitch,
-      '32n',
-      time,
-      velocity * this.clickConfig[voice].volume
-    );
+    const buffer = this.customBuffers.get(voice) ?? this.defaultBuffers.get(voice);
+    if (!buffer || !this.auditionNode) return;
+    const v = velocity * this.clickConfig[voice].volume;
+    this.strokePlayer.playBuffer(buffer, time, v, this.auditionNode, `click:audition:${voice}`);
   }
 
   public dispose(): void {
     this.customBuffers.clear();
-    this.retirePendingSamples(Number.POSITIVE_INFINITY);
-    this.sampleGains.forEach((gain) => {
-      try {
-        gain.dispose();
-      } catch {
-        // Safe disposal
-      }
-    });
-    this.sampleGains.clear();
-    for (const voice of Object.values(this.mixVoices)) {
-      voice.dispose();
-    }
-    for (const voice of Object.values(this.auditionVoices)) {
-      voice.dispose();
-    }
+    this.defaultBuffers.clear();
+    this.strokePlayer.stopAll();
   }
 }
 
@@ -335,8 +188,8 @@ export class ToneTransportScheduler {
     if (!this.injectedClickPlayer && !this.clickPlayer) {
       try {
         this.clickPlayer = new ToneClickPlayer(
-          this.audioMixer.getChannelNode('click') as unknown as Tone.ToneAudioNode,
-          this.audioMixer.getAuditionNode('click') as unknown as Tone.ToneAudioNode,
+          this.audioMixer.getChannelNode('click'),
+          this.audioMixer.getAuditionNode('click'),
           this.engine.getClickConfig()
         );
       } catch {
@@ -549,6 +402,10 @@ export class ToneTransportScheduler {
   // Audio Mixer Access
   public getAudioMixer(): IAudioMixer {
     return this.audioMixer;
+  }
+
+  public getClickPlayer(): IClickPlayer | null {
+    return this.clickPlayer ?? null;
   }
 
   public setAudioMixer(mixer: IAudioMixer): void {

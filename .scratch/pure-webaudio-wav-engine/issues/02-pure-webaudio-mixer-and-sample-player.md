@@ -4,10 +4,10 @@
 
 **Blocked by:** 01-native-webaudio-context-and-fake-seam
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `AudioMixer` builds ~10 persistent native Web Audio nodes (3 Mixing Channels, 3 Audition nodes, master headroom gain, master `DynamicsCompressorNode` limiter) with zero Tone.js synth nodes.
-- [ ] Overlapping `.wav` hits on the same voice receive independent per-hit `GainNode` velocities without stepping on prior hits or cutting off tails prematurely.
-- [ ] `onended` disconnects finished `AudioBufferSourceNode` and per-hit `GainNode` instances, and `stop()` stops and disconnects all still-active sources immediately.
-- [ ] Sample Bank custom `.wav` uploads decode through native `AudioContext.decodeAudioData` and route through their voice's Mixing Channel (or Audition node when previewed).
-- [ ] `npm run check` passes cleanly.
+- [x] `AudioMixer` builds ~10 persistent native Web Audio nodes (3 Mixing Channels, 3 Audition nodes, master headroom gain, master `DynamicsCompressorNode` limiter) with zero Tone.js synth nodes.
+- [x] Overlapping `.wav` hits on the same voice receive independent per-hit `GainNode` velocities without stepping on prior hits or cutting off tails prematurely.
+- [x] `onended` disconnects finished `AudioBufferSourceNode` and per-hit `GainNode` instances, and `stop()` stops and disconnects all still-active sources immediately.
+- [x] Sample Bank custom `.wav` uploads decode through native `AudioContext.decodeAudioData` and route through their voice's Mixing Channel (or Audition node when previewed).
+- [x] `npm run check` passes cleanly.

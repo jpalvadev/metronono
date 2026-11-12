@@ -3,42 +3,42 @@ import { ToneTransportScheduler } from '../ToneTransportScheduler';
 import { DrumKitPlayer } from '../DrumKitPlayer';
 import { AudioMixer, MIXING_CHANNELS } from '../AudioMixer';
 import { DawsonEngine } from '../../domain/dawson/DawsonEngine';
-import { ScheduledDrumEvent } from '../../domain/dawson/types';
+import { DrumVoice, ScheduledDrumEvent } from '../../domain/dawson/types';
 import { createRhythmicEvent, ReadingLine } from '../../domain/rhythm/types';
-import { fakeAudioBuffer, fakeToneRecorder } from '../../test/fakeTone';
+import { fakeToneRecorder } from '../../test/fakeTone';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioBuffer, FakeAudioContext, FakeAudioNode, FakeGainNode } from '../../test/fakeWebAudio';
 
 // Which Mixing Channel a stroke is heard on comes from the source its scheduled event carries,
-// never from guessing at the voice name. Observed through the recording fake Tone harness.
+// never from guessing at the voice name. Observed through the recording FakeAudioContext.
 vi.mock('tone', async () => {
   const fake = await import('../../test/fakeTone');
   return { ...fake.fakeToneModule, default: fake.fakeToneModule };
 });
 
-function nodesByLabel(label: string) {
-  return fakeToneRecorder.nodes.filter((created) => created.label === label);
+const ALL_DRUM_VOICES: DrumVoice[] = [
+  'kick', 'snare', 'snare_ghost', 'tom_high', 'tom_mid', 'tom_floor',
+  'ride', 'ride_bell', 'hihat_closed', 'hihat_open', 'hihat_foot', 'crash',
+];
+
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
 }
 
-function nodeByLabel(label: string) {
-  const node = nodesByLabel(label)[0];
-  if (!node) throw new Error(`no node labelled '${label}' in the recorded graph`);
+function nodeByLabel(label: string): FakeAudioNode {
+  const ctx = fakeCtx();
+  const all: FakeAudioNode[] = [...ctx.gains, ...ctx.compressors];
+  const node = all.find((created) => created.label === label);
+  if (!node) throw new Error(`no node labelled '${label}' in the recorded native graph`);
   return node;
 }
 
-function triggerCountFor(label: string): number {
-  return nodesByLabel(label).reduce(
-    (total, node) => total + fakeToneRecorder.triggers(node).length,
-    0
-  );
+function sampleSourcesFor(label: string) {
+  return fakeCtx().bufferSources.filter((s) => (s.connectedTo[0]?.label ?? '') === label);
 }
 
-/** How many times the built-in voices of one Mixing Channel line were played. */
-function rigTriggers(lane: string, mode: 'mix' | 'audition' = 'mix'): number {
-  return fakeToneRecorder.nodes
-    .filter((node) => (node.label ?? '').startsWith(`rig:${lane}:${mode}:`))
-    .reduce((total, node) => total + fakeToneRecorder.triggers(node).length, 0);
-}
+const dummyBuffer = new FakeAudioBuffer(1, 2048, 44100) as unknown as AudioBuffer;
 
-/** A 4/4 line of quarter notes: every beat carries an Orchestrated Stroke. */
 const quarterNoteLine: ReadingLine = {
   id: 'membership-line',
   title: 'Membership Line',
@@ -66,7 +66,6 @@ function event(overrides: Partial<ScheduledDrumEvent> = {}): ScheduledDrumEvent 
   };
 }
 
-/** Scheduler wired to a real Dawson system: an Ostinato plus one Orchestrated Stroke per beat. */
 async function schedulerWithComposition(): Promise<ToneTransportScheduler> {
   const engine = new DawsonEngine();
   engine.setMode('straight_rock');
@@ -75,11 +74,15 @@ async function schedulerWithComposition(): Promise<ToneTransportScheduler> {
   const scheduler = new ToneTransportScheduler();
   scheduler.setDawsonEngine(engine);
   scheduler.setReadingLine(quarterNoteLine);
+  const player = scheduler.getDrumKitPlayer();
+  for (const voice of ALL_DRUM_VOICES) {
+    player.loadSampleBuffer?.(voice, dummyBuffer);
+  }
   await scheduler.start();
   return scheduler;
 }
 
-describe('Mixing Channel membership', () => {
+describe('Mixing Channel membership (Pure Web Audio)', () => {
   beforeEach(() => {
     fakeToneRecorder.reset();
   });
@@ -89,21 +92,22 @@ describe('Mixing Channel membership', () => {
 
     fakeToneRecorder.transport.fireRepeats(4);
 
-    expect(rigTriggers('ostinato')).toBeGreaterThan(0);
-    expect(rigTriggers('orchestration')).toBeGreaterThan(0);
+    expect(sampleSourcesFor('sample:ostinato:mix').length).toBeGreaterThan(0);
+    expect(sampleSourcesFor('sample:orchestration:mix').length).toBeGreaterThan(0);
 
     // A composed stroke never plays through the Audition node of its channel.
-    expect(rigTriggers('ostinato', 'audition')).toBe(0);
-    expect(rigTriggers('orchestration', 'audition')).toBe(0);
+    expect(sampleSourcesFor('sample:ostinato:audition')).toHaveLength(0);
+    expect(sampleSourcesFor('sample:orchestration:audition')).toHaveLength(0);
 
     // Every signal the scheduler produced reaches the output through the master limiter bus.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
+    expect(fakeCtx().destination.incoming).toHaveLength(1);
   });
 
   it('follows the source, not the voice name: an orchestrated ride is heard on Orchestration', async () => {
     const scheduler = new ToneTransportScheduler();
     const mixer = scheduler.getAudioMixer();
     const player = scheduler.getDrumKitPlayer();
+    player.loadSampleBuffer?.('ride', dummyBuffer);
     await scheduler.start();
 
     mixer.setChannelVolume('orchestration', 0.3);
@@ -111,13 +115,11 @@ describe('Mixing Channel membership', () => {
 
     player.play(event({ voice: 'ride', source: 'orchestration' }), 1.0);
 
-    expect(triggerCountFor('rig:orchestration:mix:ride')).toBe(1);
-    expect(triggerCountFor('rig:ostinato:mix:ride')).toBe(0);
-    // The stroke is loudness-shaped by the slider of the channel it was composed into.
-    expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:orchestration'))).toBe(0.3);
-    expect(fakeToneRecorder.connectedTo(nodeByLabel('rig:orchestration:mix:ride'))).toContain(
-      nodeByLabel('mixer:orchestration')
-    );
+    expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(1);
+    expect(sampleSourcesFor('sample:ostinato:mix')).toHaveLength(0);
+    expect((nodeByLabel('mixer:orchestration') as FakeGainNode).gain.value).toBe(0.3);
+    const hitGain = sampleSourcesFor('sample:orchestration:mix')[0].connectedTo[0];
+    expect(hitGain.connectedTo).toContain(nodeByLabel('mixer:orchestration'));
   });
 
   it('mutes Orchestration without touching the Ostinato, and the other way around', async () => {
@@ -125,74 +127,25 @@ describe('Mixing Channel membership', () => {
     const mixer = scheduler.getAudioMixer();
 
     fakeToneRecorder.transport.fireRepeats(2);
-    const ostinatoBefore = rigTriggers('ostinato');
-    const orchestrationBefore = rigTriggers('orchestration');
+    const ostinatoBefore = sampleSourcesFor('sample:ostinato:mix').length;
+    const orchestrationBefore = sampleSourcesFor('sample:orchestration:mix').length;
     expect(ostinatoBefore).toBeGreaterThan(0);
     expect(orchestrationBefore).toBeGreaterThan(0);
 
     mixer.setChannelMute('orchestration', true);
     fakeToneRecorder.transport.fireRepeats(2);
 
-    expect(rigTriggers('orchestration')).toBe(orchestrationBefore);
-    expect(rigTriggers('ostinato')).toBeGreaterThan(ostinatoBefore);
+    expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(orchestrationBefore);
+    expect(sampleSourcesFor('sample:ostinato:mix').length).toBeGreaterThan(ostinatoBefore);
 
     mixer.setChannelMute('orchestration', false);
     mixer.setChannelMute('ostinato', true);
-    const orchestrationUnmuted = rigTriggers('orchestration');
-    const ostinatoMuted = rigTriggers('ostinato');
+    const orchestrationUnmuted = sampleSourcesFor('sample:orchestration:mix').length;
+    const ostinatoMuted = sampleSourcesFor('sample:ostinato:mix').length;
     fakeToneRecorder.transport.fireRepeats(2);
 
-    expect(rigTriggers('ostinato')).toBe(ostinatoMuted);
-    expect(rigTriggers('orchestration')).toBeGreaterThan(orchestrationUnmuted);
-  });
-
-  it('plays uploaded samples on the Mixing Channel of the lane they were composed into', async () => {
-    const scheduler = await schedulerWithComposition();
-
-    // The user's own kit, loaded for every voice the composition plays.
-    for (const composed of scheduler.getDawsonEngine().resolveReadingLine(quarterNoteLine)) {
-      scheduler.applyCustomSampleBuffer(composed.voice, fakeAudioBuffer());
-    }
-
-    fakeToneRecorder.transport.fireRepeats(4);
-
-    const sampleLanes = new Set(
-      fakeToneRecorder.nodes
-        .filter((node) => (node.label ?? '').startsWith('sample:'))
-        .map((node) => node.label as string)
-    );
-    expect(sampleLanes.has('sample:ostinato:mix')).toBe(true);
-    expect(sampleLanes.has('sample:orchestration:mix')).toBe(true);
-
-    for (const lane of ['ostinato', 'orchestration'] as const) {
-      const sampleNodes = nodesByLabel(`sample:${lane}:mix`);
-      expect(sampleNodes.length).toBeGreaterThan(0);
-      for (const sampleNode of sampleNodes) {
-        // A sample is heard on its own channel, and then reaches destination.
-        expect(fakeToneRecorder.connectedTo(sampleNode)).toContain(nodeByLabel(`mixer:${lane}`));
-        const route = fakeToneRecorder.routeTo(sampleNode, fakeToneRecorder.destination);
-        expect(route?.map((node) => node.id)).toContain(nodeByLabel(`mixer:${lane}`).id);
-      }
-    }
-
-    // All channel nodes reach destination through the single master limiter bus.
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
-  });
-
-  it('keeps uploaded samples silent on a muted Mixing Channel', async () => {
-    const scheduler = await schedulerWithComposition();
-    const mixer = scheduler.getAudioMixer();
-
-    for (const composed of scheduler.getDawsonEngine().resolveReadingLine(quarterNoteLine)) {
-      scheduler.applyCustomSampleBuffer(composed.voice, fakeAudioBuffer());
-    }
-
-    mixer.setChannelMute('orchestration', true);
-    fakeToneRecorder.transport.fireRepeats(4);
-
-    expect(nodesByLabel('sample:orchestration:mix')).toHaveLength(0);
-    expect(nodesByLabel('sample:ostinato:mix').length).toBeGreaterThan(0);
-    expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:orchestration'))).toBe(0);
+    expect(sampleSourcesFor('sample:ostinato:mix')).toHaveLength(ostinatoMuted);
+    expect(sampleSourcesFor('sample:orchestration:mix').length).toBeGreaterThan(orchestrationUnmuted);
   });
 
   it('routes an uploaded click sample through the Click Mixing Channel and obeys its mute', async () => {
@@ -200,53 +153,55 @@ describe('Mixing Channel membership', () => {
     const mixer = scheduler.getAudioMixer();
     await scheduler.start();
 
-    scheduler.applyCustomSampleBuffer('click_regular', fakeAudioBuffer());
+    scheduler.applyCustomSampleBuffer('click_regular', dummyBuffer);
     fakeToneRecorder.transport.fireRepeats(2);
 
-    const clickSamples = nodesByLabel('click-sample-gain');
-    expect(clickSamples.length).toBeGreaterThan(0);
-    for (const sampleNode of clickSamples) {
-      expect(fakeToneRecorder.connectedTo(sampleNode)).toContain(nodeByLabel('mixer:click'));
-      const route = fakeToneRecorder.routeTo(sampleNode, fakeToneRecorder.destination);
-      expect(route?.map((node) => node.id)).toEqual([
-        sampleNode.id,
-        nodeByLabel('mixer:click').id,
-        nodeByLabel('mixer:master:gain').id,
-        nodeByLabel('mixer:master:limiter').id,
-        fakeToneRecorder.destination.id,
+    const clickSources = sampleSourcesFor('click:mix:regular');
+    expect(clickSources.length).toBeGreaterThan(0);
+    const ctx = fakeCtx();
+    for (const src of clickSources) {
+      const hitGain = src.connectedTo[0];
+      expect(hitGain.connectedTo).toContain(nodeByLabel('mixer:click'));
+      const route = ctx.routeTo(hitGain, ctx.destination);
+      expect(route?.map((node) => node.label)).toEqual([
+        'click:mix:regular',
+        'mixer:click',
+        'mixer:master:gain',
+        'mixer:master:limiter',
+        'destination',
       ]);
     }
 
-    // The sample obeys the channel it is heard on: muting Click silences it.
     mixer.setChannelMute('click', true);
-    expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:click'))).toBe(0);
+    expect((nodeByLabel('mixer:click') as FakeGainNode).gain.value).toBe(0);
     fakeToneRecorder.transport.fireRepeats(2);
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
+    expect(ctx.destination.incoming).toHaveLength(1);
 
     mixer.setChannelMute('click', false);
     mixer.setChannelVolume('click', 0.25);
-    expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:click'))).toBe(0.25);
+    expect((nodeByLabel('mixer:click') as FakeGainNode).gain.value).toBe(0.25);
   });
 
   it('keeps voice-name inference only for a bare Audition call with no composed context', () => {
     const mixer = new AudioMixer();
     mixer.initToneNodes();
     const player = new DrumKitPlayer(mixer);
+    player.loadSampleBuffer('ride', dummyBuffer);
+    player.loadSampleBuffer('kick', dummyBuffer);
 
-    // No channel named: the voice decides the line it is auditioned on.
     player.triggerVoice('ride', 0, 0.9);
     player.triggerVoice('kick', 0, 0.9);
-    expect(triggerCountFor('rig:ostinato:audition:ride')).toBe(1);
-    expect(triggerCountFor('rig:orchestration:audition:kick')).toBe(1);
+    expect(sampleSourcesFor('sample:ostinato:audition')).toHaveLength(1);
+    expect(sampleSourcesFor('sample:orchestration:audition')).toHaveLength(1);
 
     // A named channel wins over the voice name, and the inference never moves a composed stroke.
     player.triggerVoice('ride', 0, 0.9, 'orchestration');
-    expect(triggerCountFor('rig:orchestration:audition:ride')).toBe(1);
-    expect(triggerCountFor('rig:ostinato:audition:ride')).toBe(1);
+    expect(sampleSourcesFor('sample:orchestration:audition')).toHaveLength(2);
+    expect(sampleSourcesFor('sample:ostinato:audition')).toHaveLength(1);
 
     player.play(event({ voice: 'ride', source: 'orchestration' }), 1.0);
-    expect(triggerCountFor('rig:orchestration:mix:ride')).toBe(1);
-    expect(triggerCountFor('rig:ostinato:mix:ride')).toBe(0);
+    expect(sampleSourcesFor('sample:orchestration:mix')).toHaveLength(1);
+    expect(sampleSourcesFor('sample:ostinato:mix')).toHaveLength(0);
   });
 
   it('names a Mixing Channel for every composed stroke it schedules', async () => {
@@ -257,8 +212,8 @@ describe('Mixing Channel membership', () => {
     const sources: Array<ScheduledDrumEvent['source']> = [];
     const capturingPlayer = {
       initSynths: vi.fn(() => true),
-      play: vi.fn((event: ScheduledDrumEvent) => {
-        sources.push(event.source);
+      play: vi.fn((ev: ScheduledDrumEvent) => {
+        sources.push(ev.source);
       }),
       triggerVoice: vi.fn(),
       dispose: vi.fn(),

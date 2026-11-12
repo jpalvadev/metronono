@@ -1,5 +1,5 @@
-import * as Tone from 'tone';
 import { Capacitor } from '@capacitor/core';
+import { decodeAudioDataWithNativeContext } from '../audio/WebAudioContext';
 import { ReadingLine } from '../domain/rhythm/types';
 import { DawsonSystem } from '../domain/dawson/types';
 import {
@@ -189,11 +189,7 @@ export class StorageManager {
 
   public async decodeAudioData(data: ArrayBuffer): Promise<AudioBuffer | null> {
     try {
-      if (typeof Tone !== 'undefined' && Tone.getContext?.()?.decodeAudioData) {
-        // Must pass a slice because decodeAudioData detaches the buffer in standard browsers
-        return await Tone.getContext().decodeAudioData(data.slice(0));
-      }
-      return null;
+      return await decodeAudioDataWithNativeContext(data);
     } catch {
       return null;
     }

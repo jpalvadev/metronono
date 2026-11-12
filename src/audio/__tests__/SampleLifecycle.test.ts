@@ -1,211 +1,113 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ToneTransportScheduler } from '../ToneTransportScheduler';
-import { fakeToneRecorder, fakeAudioBuffer } from '../../test/fakeTone';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { AudioMixer } from '../AudioMixer';
+import { DrumKitPlayer } from '../DrumKitPlayer';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioContext, FakeAudioBuffer, FakeGainNode } from '../../test/fakeWebAudio';
 
-// Audio Voice Pool for custom samples (docs/adr/0011): one pooled Gain per sample
-// voice slot instead of a fresh Gain per stroke, and the fresh-per-stroke
-// ToneBufferSource retired (stopped + disposed) once its playback window elapsed.
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
-
-const rideSample = fakeAudioBuffer(1, 4410, 44100); // 0.1s of playback window
-
-function sampleGains(label: string) {
-  return fakeToneRecorder.nodes.filter((n) => (n.label ?? '') === label);
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
 }
 
-describe('Sample stroke lifecycle', () => {
+const rideSample = new FakeAudioBuffer(1, 4410, 44100) as unknown as AudioBuffer;
+const crashSample = new FakeAudioBuffer(1, 8820, 44100) as unknown as AudioBuffer;
+
+describe('Sample stroke lifecycle (Pure Web Audio)', () => {
+  let mixer: AudioMixer;
+  let player: DrumKitPlayer;
+
   beforeEach(() => {
-    fakeToneRecorder.reset();
+    mixer = new AudioMixer();
+    mixer.initToneNodes();
+    player = new DrumKitPlayer(mixer);
   });
 
-  it('pools one Gain node per sample voice slot across strokes', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
+  it('creates an independent AudioBufferSourceNode and per-hit GainNode for overlapping hits on the same voice', () => {
+    player.loadSampleBuffer('ride', rideSample);
 
-    player.loadSampleBuffer?.('ride', rideSample);
-    for (const time of [1.0, 2.0, 3.0, 4.0]) {
-      player.play(
-        { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-        time
-      );
-    }
-
-    const gains = sampleGains('sample:orchestration:mix');
-    expect(gains.length).toBe(1);
-    // A single gain holds every stroke's velocity as its own timed write.
-    const writes = fakeToneRecorder.gainWrites(gains[0]);
-    expect(writes.filter((w) => w.method === 'setValueAtTime')).toHaveLength(4);
-    expect(fakeToneRecorder.bufferSources().length).toBe(4);
-  });
-
-  it('retires a stroke BufferSource once its playback window elapsed', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    player.loadSampleBuffer?.('ride', rideSample);
-    fakeToneRecorder.setTime(1.0);
     player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
+      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.9, dynamic: 'accent', source: 'orchestration' },
       1.0
     );
-    // A stroke one second later passes the 0.1s window of the first source on the hardware clock.
-    fakeToneRecorder.setTime(2.0);
     player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.6, dynamic: 'normal', source: 'orchestration' },
-      2.0
-    );
-
-    const sources = fakeToneRecorder.bufferSources();
-    const retired = sources.filter((s) => s.startedAt === 1.0);
-    expect(retired).toHaveLength(1);
-    // Tone's accurate-timing contract: retired from inside a scheduled callback, the
-    // source stops at the scheduling time of the stroke that retired it, never at now().
-    expect(retired[0].stoppedAt).toBe(2.0);
-    expect(retired[0].stoppedWithoutScheduleTime).toBe(false);
-    expect(retired[0].disposed).toBe(true);
-    // The live one is not retired before its window elapsed.
-    const live = sources.find((s) => s.startedAt === 2.0);
-    expect(live).not.toBeUndefined();
-    expect((live as { stoppedAt: null | number }).stoppedAt).toBeNull();
-  });
-
-  it('does not retire a playing sample early when lookahead audioTime is ahead of hardware currentTime', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    const oneSecondSample = fakeAudioBuffer(1, 44100, 44100);
-    player.loadSampleBuffer?.('ride', oneSecondSample);
-
-    fakeToneRecorder.setTime(1.0);
-    player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
+      { timeInMeasure: 1.25, voice: 'ride', velocity: 0.35, dynamic: 'ghost', source: 'orchestration' },
       1.05
     );
 
-    // At hardware time 2.00s, the sample (endsAt = 2.05s) is still playing, even though
-    // the next stroke's lookahead audioTime (2.10s) is already past 2.05s.
-    fakeToneRecorder.setTime(2.0);
-    player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-      2.1
-    );
+    const ctx = fakeCtx();
+    expect(ctx.bufferSources).toHaveLength(2);
+    const [firstSource, secondSource] = ctx.bufferSources;
 
-    const first = fakeToneRecorder.bufferSources().find((s) => s.startedAt === 1.05);
-    expect(first).toBeDefined();
-    expect(first?.disposed).toBe(false);
-    expect(first?.stoppedAt).toBeNull();
+    expect(firstSource.startedAt).toBe(1.0);
+    expect(secondSource.startedAt).toBe(1.05);
+    // Neither overlapping hit stops or disconnects the other early.
+    expect(firstSource.stoppedAt).toBeNull();
+    expect(firstSource.disconnected).toBe(false);
 
-    // Once hardware currentTime passes 2.05s, the next stroke retires it cleanly.
-    fakeToneRecorder.setTime(2.06);
-    player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-      2.16
-    );
-    expect(first?.disposed).toBe(true);
+    const firstGain = firstSource.connectedTo[0] as FakeGainNode;
+    const secondGain = secondSource.connectedTo[0] as FakeGainNode;
+    expect(firstGain).not.toBe(secondGain);
+    expect(firstGain.gain.value).toBe(0.9);
+    expect(secondGain.gain.value).toBe(0.35);
+
+    // Both route through the Orchestration Mixing Channel to destination.
+    expect(ctx.routeTo(firstSource, ctx.destination)).not.toBeNull();
+    expect(ctx.routeTo(secondSource, ctx.destination)).not.toBeNull();
+    expect(firstGain.connectedTo).toContain(mixer.getChannelNode('orchestration'));
   });
 
-  it('strokes keep per-stroke velocity through the pooled gain', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    player.loadSampleBuffer?.('crash', rideSample);
+  it('self-disconnects source and per-hit GainNode when onended fires', () => {
+    player.loadSampleBuffer('crash', crashSample);
     player.play(
-      { timeInMeasure: 1.0, voice: 'crash', velocity: 0.9, dynamic: 'normal', source: 'orchestration' },
-      1.0
-    );
-    player.play(
-      { timeInMeasure: 1.5, voice: 'crash', velocity: 0.4, dynamic: 'ghost', source: 'orchestration' },
+      { timeInMeasure: 1.0, voice: 'crash', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
       2.0
     );
 
-    const gains = sampleGains('sample:orchestration:mix');
-    expect(gains.length).toBe(1);
-    const writes = fakeToneRecorder.gainWrites(gains[0]);
-    const timed = writes.filter((w) => w.method === 'setValueAtTime');
-    expect(timed.map((w) => w.value)).toEqual([0.9, 0.4]);
+    const ctx = fakeCtx();
+    const source = ctx.bufferSources[0];
+    const hitGain = source.connectedTo[0] as FakeGainNode;
+
+    expect(source.disconnected).toBe(false);
+    expect(hitGain.disconnected).toBe(false);
+
+    source.triggerEnded();
+
+    expect(source.disconnected).toBe(true);
+    expect(hitGain.disconnected).toBe(true);
   });
 
-  it('stop drains every pending sample source', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    player.loadSampleBuffer?.('ride', fakeAudioBuffer(1, 88200, 44100)); // 2s window
+  it('stops and disconnects all still-active sources immediately on stopPendingSamples()', () => {
+    player.loadSampleBuffer('ride', rideSample);
     player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-      1.0
+      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'ostinato' },
+      3.0
     );
-    scheduler.stop();
-
-    const sources = fakeToneRecorder.bufferSources();
-    expect(sources).toHaveLength(1);
-    expect(sources[0].stoppedAt).not.toBeNull();
-    expect(sources[0].disposed).toBe(true);
-  });
-
-  it('dispose drains every pending sample source', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    player.loadSampleBuffer?.('ride', fakeAudioBuffer(1, 88200, 44100)); // 2s window
     player.play(
-      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-      1.0
+      { timeInMeasure: 2.0, voice: 'ride', velocity: 0.6, dynamic: 'normal', source: 'ostinato' },
+      3.5
     );
-    // Never another stroke: dispose must drain the still-pending source.
-    scheduler.dispose();
 
-    const sources = fakeToneRecorder.bufferSources();
-    expect(sources).toHaveLength(1);
-    expect(sources[0].stoppedAt).not.toBeNull();
-    expect(sources[0].disposed).toBe(true);
+    const ctx = fakeCtx();
+    expect(ctx.bufferSources).toHaveLength(2);
+
+    player.stopPendingSamples();
+
+    for (const source of ctx.bufferSources) {
+      expect(source.stoppedAt).not.toBeNull();
+      expect(source.disconnected).toBe(true);
+    }
   });
 
-  it('click sample voices pool per voice and retire across beats', async () => {
-    const scheduler = new ToneTransportScheduler();
-    await scheduler.start();
+  it('routes triggerVoice audition taps through the channel Audition node even when muted', () => {
+    mixer.setChannelMute('orchestration', true);
+    player.loadSampleBuffer('snare', rideSample);
 
-    scheduler.applyCustomSampleBuffer('click_regular', rideSample);
-    fakeToneRecorder.transport.fireRepeats(10);
+    player.triggerVoice('snare', 0, 0.75, 'orchestration');
 
-    const gains = sampleGains('click-sample-gain');
-    expect(gains.length).toBe(1);
-    const sources = fakeToneRecorder.bufferSources();
-    // Three of the ten beats are downbeats, whose custom sample lives on another
-    // voice slot: the regular voice hears the other seven.
-    expect(sources).toHaveLength(7);
-    // Every retirement names the beat's scheduling time (Tone's accurate-timing contract).
-    expect(sources.every((s) => !s.stoppedWithoutScheduleTime)).toBe(true);
-
-    scheduler.dispose();
-    const stillLive = sources.filter((s) => !s.disposed);
-    expect(stillLive).toHaveLength(0);
-  });
-
-  it('a sample Audition preview stays on its own pooled gain, never the mix one', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    player.loadSampleBuffer?.('ride', rideSample);
-    player.triggerVoice?.('ride', 1.0, 1.0, 'orchestration');
-
-    const auditionGains = sampleGains('sample:orchestration:audition');
-    const mixGains = sampleGains('sample:orchestration:mix');
-    expect(auditionGains.length).toBe(1);
-    expect(mixGains).toHaveLength(0);
-
-    // And the Audition gain still routes to the Audition node, not the muted Channel.
-    scheduler.getAudioMixer().setChannelMute('orchestration', true);
-    const auditionNode = sampleGains('audition:orchestration');
-    expect(fakeToneRecorder.routeTo(auditionGains[0], auditionNode[0])).not.toBeNull();
+    const ctx = fakeCtx();
+    expect(ctx.bufferSources).toHaveLength(1);
+    const source = ctx.bufferSources[0];
+    const hitGain = source.connectedTo[0] as FakeGainNode;
+    expect(hitGain.connectedTo).toContain(mixer.getAuditionNode('orchestration'));
+    expect(hitGain.connectedTo).not.toContain(mixer.getChannelNode('orchestration'));
   });
 });

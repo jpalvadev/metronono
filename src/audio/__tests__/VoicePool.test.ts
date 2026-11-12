@@ -1,153 +1,61 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ToneTransportScheduler } from '../ToneTransportScheduler';
-import { DrumKitPlayer, VOICE_POOL_SIZE, AUDITION_POOL_SIZE } from '../DrumKitPlayer';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { AudioMixer } from '../AudioMixer';
-import { fakeToneRecorder } from '../../test/fakeTone';
+import { DrumKitPlayer } from '../DrumKitPlayer';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioContext, FakeAudioBuffer, FakeGainNode } from '../../test/fakeWebAudio';
 
-// The Audio Voice Pool (docs/adr/0011): a drum rig voice slot is a small ring of
-// interchangeable synth instances cycled per stroke, so a rapid stroke never
-// cancels the live attack of the previous one on the same monophonic voice.
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
-
-function labelledNodes(label: string, kind: string) {
-  return fakeToneRecorder.nodes.filter((n) => (n.label ?? '') === label && n.kind === kind);
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
 }
 
-function triggerTimes(node: { kind: string }, timeArgIndex: number): number[] {
-  return fakeToneRecorder.triggers(node).map((t) => t.args[timeArgIndex] as number);
-}
+const hihatSample = new FakeAudioBuffer(1, 8820, 44100) as unknown as AudioBuffer;
 
-describe('Audio Voice Pool: drum rig synth rings', () => {
+describe('Natural Polyphony: per-stroke native AudioBufferSourceNode + per-hit GainNode', () => {
+  let mixer: AudioMixer;
+  let player: DrumKitPlayer;
+
   beforeEach(() => {
-    fakeToneRecorder.reset();
+    mixer = new AudioMixer();
+    mixer.initToneNodes();
+    player = new DrumKitPlayer(mixer);
+    player.loadSampleBuffer('hihat_closed', hihatSample);
   });
 
-  it('cycles distinct synth instances for consecutive strokes on one voice', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
+  it('gives consecutive rapid strokes on one voice independent sources and per-hit gains without cutting tails', () => {
+    const strokes = [
+      { time: 1.0, velocity: 0.9 },
+      { time: 1.05, velocity: 0.4 },
+      { time: 1.1, velocity: 0.8 },
+      { time: 1.15, velocity: 0.3 },
+    ];
 
-    const hihat = labelledNodes('rig:orchestration:mix:hihat', 'MetalSynth');
-    expect(hihat).toHaveLength(VOICE_POOL_SIZE);
-
-    // Four 32nd-note hi-hat strokes in rapid succession, one stroke step apart.
-    const strokeStep = 0.05;
-    const strokes = [1.0, 1.05, 1.1, 1.15];
-    for (const time of strokes) {
+    for (const stroke of strokes) {
       player.play(
-        { timeInMeasure: 1.0, voice: 'hihat_closed', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-        time
+        {
+          timeInMeasure: 1.0,
+          voice: 'hihat_closed',
+          velocity: stroke.velocity,
+          dynamic: 'normal',
+          source: 'orchestration',
+        },
+        stroke.time
       );
     }
 
-    const times = hihat.flatMap((n) => triggerTimes(n, 1));
-    expect(times.length).toBe(strokes.length);
-    // The ring spreads the strokes evenly: every member holds the same share...
-    const perNode = hihat.map((n) => triggerTimes(n, 1));
-    expect(perNode.map((member) => member.length)).toEqual(
-      Array(VOICE_POOL_SIZE).fill(strokes.length / VOICE_POOL_SIZE)
-    );
-    // ...and no member ever takes two consecutive strokes, so a stroke never cancels
-    // the live attack of the stroke before it.
-    for (const member of perNode) {
-      const gaps = member.slice(1).map((time, index) => time - member[index]);
-      if (gaps.length === 0) continue;
-      // A member is never handed two consecutive strokes: its strokes are more than one
-      // stroke step apart, so a stroke never cancels the attack before it.
-      expect(Math.min(...gaps)).toBeGreaterThan(strokeStep);
-    }
-  });
+    const ctx = fakeCtx();
+    expect(ctx.bufferSources).toHaveLength(4);
 
-  it('every audible voice slot holds a ring, and the eager graph holds only the audible rigs', async () => {
-    const scheduler = new ToneTransportScheduler();
-    await scheduler.start();
+    // Every stroke keeps its own start time and independent gain node, with none stopped early.
+    ctx.bufferSources.forEach((source, index) => {
+      expect(source.startedAt).toBe(strokes[index].time);
+      expect(source.stoppedAt).toBeNull();
+      const hitGain = source.connectedTo[0] as FakeGainNode;
+      expect(hitGain.gain.value).toBe(strokes[index].velocity);
+    });
 
-    for (const label of ['crash', 'ride', 'hihat']) {
-      const members = labelledNodes(`rig:orchestration:mix:${label}`, 'MetalSynth');
-      expect(members).toHaveLength(VOICE_POOL_SIZE);
-    }
-
-    // An Audition rig costs the same subgraphs as an audible one and is heard only at a
-    // tap gesture, so it is not part of the graph a session pays for at page load.
-    const auditionMembers = fakeToneRecorder.nodes.filter((node) =>
-      (node.label ?? '').startsWith('rig:') && (node.label ?? '').includes(':audition:')
-    );
-    expect(auditionMembers).toHaveLength(0);
-  });
-
-  it('no audio node is allocated per stroke', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    const gainBefore = fakeToneRecorder.nodesOfKind('Gain').length;
-    const metalBefore = fakeToneRecorder.nodesOfKind('MetalSynth').length;
-
-    for (let beat = 0; beat < 8; beat++) {
-      player.play(
-        { timeInMeasure: 1.0, voice: 'hihat_closed', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
-        beat * 0.5
-      );
-      player.play(
-        { timeInMeasure: 1.0, voice: 'crash', velocity: 0.9, dynamic: 'normal', source: 'orchestration' },
-        beat * 0.5
-      );
-    }
-
-    expect(fakeToneRecorder.nodesOfKind('Gain').length).toBe(gainBefore);
-    expect(fakeToneRecorder.nodesOfKind('MetalSynth').length).toBe(metalBefore);
-  });
-
-  it('a stroke on a silent Mixing Channel still allocates nothing', async () => {
-    const scheduler = new ToneTransportScheduler();
-    const mixer = scheduler.getAudioMixer();
-    const player = scheduler.getDrumKitPlayer();
-    await scheduler.start();
-
-    mixer.setChannelMute('orchestration', true);
-    const metalBefore = fakeToneRecorder.nodesOfKind('MetalSynth').length;
-    for (let beat = 0; beat < 4; beat++) {
-      player.play(
-        { timeInMeasure: 1.0, voice: 'crash', velocity: 0.9, dynamic: 'normal', source: 'orchestration' },
-        beat * 0.5
-      );
-    }
-    expect(fakeToneRecorder.nodesOfKind('MetalSynth').length).toBe(metalBefore);
-  });
-
-  it('dispose() disposes every ring member', async () => {
-    const scheduler = new ToneTransportScheduler();
-    await scheduler.start();
-    scheduler.dispose();
-
-    expect(fakeToneRecorder.nodes.every((n) => n.disposed)).toBe(true);
-  });
-
-  it('an audition tap builds the audition rig it needs, mix ring untouched', async () => {
-    const mixer = new AudioMixer();
-    const player = new DrumKitPlayer(mixer);
-    const scheduler = new ToneTransportScheduler({ audioMixer: mixer, drumKitPlayer: player });
-    await scheduler.start();
-
-    expect(
-      fakeToneRecorder.nodes.some((node) => (node.label ?? '').includes('rig:orchestration:audition:'))
-    ).toBe(false);
-
-    player.triggerVoice('hihat_closed', 1.0, 0.8, 'orchestration');
-
-    const auditionHiHat = labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth');
-    // The rig is earned at the tap gesture, and one member carries the single tap.
-    expect(auditionHiHat).toHaveLength(AUDITION_POOL_SIZE);
-    expect(fakeToneRecorder.triggers(auditionHiHat[0] as { kind: string }).length).toBe(1);
-
-    player.triggerVoice('hihat_closed', 1.1, 0.8, 'orchestration');
-
-    // The rig earned at the first tap is reused rather than regrown per tap.
-    expect(labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth')).toHaveLength(AUDITION_POOL_SIZE);
-    const mixHiHat = labelledNodes('rig:orchestration:mix:hihat', 'MetalSynth');
-    expect(mixHiHat.reduce((total, n) => total + fakeToneRecorder.triggers(n).length, 0)).toBe(0);
+    // Ending one stroke disconnects only that stroke's source and hitGain.
+    ctx.bufferSources[0].triggerEnded();
+    expect(ctx.bufferSources[0].disconnected).toBe(true);
+    expect(ctx.bufferSources[1].disconnected).toBe(false);
   });
 });

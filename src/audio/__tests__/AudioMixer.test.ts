@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AudioMixer, MIXING_CHANNELS } from '../AudioMixer';
-import { fakeToneRecorder } from '../../test/fakeTone';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioContext, FakeAudioNode, FakeGainNode } from '../../test/fakeWebAudio';
 
-vi.mock('tone', async () => {
-  const fake = await import('../../test/fakeTone');
-  return { ...fake.fakeToneModule, default: fake.fakeToneModule };
-});
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
+}
 
-function nodeByLabel(label: string) {
-  const node = fakeToneRecorder.nodes.find((created) => created.label === label);
-  if (!node) throw new Error(`no node labelled '${label}' in the recorded graph`);
+function nodeByLabel(label: string): FakeAudioNode {
+  const ctx = fakeCtx();
+  const all: FakeAudioNode[] = [...ctx.gains, ...ctx.compressors];
+  const node = all.find((created) => created.label === label);
+  if (!node) throw new Error(`no node labelled '${label}' in the recorded native graph`);
   return node;
 }
 
@@ -17,7 +19,6 @@ describe('AudioMixer', () => {
   let mixer: AudioMixer;
 
   beforeEach(() => {
-    fakeToneRecorder.reset();
     mixer = new AudioMixer();
   });
 
@@ -89,13 +90,13 @@ describe('AudioMixer', () => {
       mixer.setChannelVolume('click', 0.9);
       expect(listener).toHaveBeenCalledTimes(1);
       expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-        click: expect.objectContaining({ volume: 0.9, muted: false })
+        click: expect.objectContaining({ volume: 0.9, muted: false }),
       }));
 
       mixer.toggleChannelMute('click');
       expect(listener).toHaveBeenCalledTimes(2);
       expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-        click: expect.objectContaining({ volume: 0.9, muted: true })
+        click: expect.objectContaining({ volume: 0.9, muted: true }),
       }));
 
       unsubscribe();
@@ -104,35 +105,40 @@ describe('AudioMixer', () => {
     });
   });
 
-  describe('Mixing Channel Graph', () => {
+  describe('Mixing Channel Graph (Pure Web Audio)', () => {
     it('has no nodes and refuses to hand one out before the graph is built', () => {
       expect(mixer.isGraphInitialized()).toBe(false);
       expect(() => mixer.getChannelNode('click')).toThrow();
       expect(() => mixer.getAuditionNode('click')).toThrow();
-      expect(fakeToneRecorder.destination.incoming).toHaveLength(0);
+      expect(fakeCtx().destination.incoming).toHaveLength(0);
     });
 
-    it('builds the three Mixing Channel nodes and the Audition nodes through the master limiter bus to destination', () => {
+    it('builds 8 persistent native nodes (channels + auditions -> master headroom -> brickwall limiter -> destination)', () => {
       expect(mixer.initToneNodes()).toBe(true);
       expect(mixer.isGraphInitialized()).toBe(true);
 
-      const masterGain = nodeByLabel('mixer:master:gain');
+      const ctx = fakeCtx();
+      expect(ctx.gains).toHaveLength(7); // 3 channels + 3 auditions + 1 master headroom
+      expect(ctx.compressors).toHaveLength(1); // 1 brickwall limiter
+
+      const masterGain = nodeByLabel('mixer:master:gain') as FakeGainNode;
       const masterLimiter = nodeByLabel('mixer:master:limiter');
-      expect(fakeToneRecorder.connectedTo(masterGain)).toContain(masterLimiter);
-      expect(fakeToneRecorder.connectedTo(masterLimiter)).toContain(fakeToneRecorder.destination);
+      expect(masterGain.gain.value).toBe(0.4);
+      expect(masterGain.connectedTo).toContain(masterLimiter);
+      expect(masterLimiter.connectedTo).toContain(ctx.destination);
 
       for (const channel of MIXING_CHANNELS) {
-        const main = nodeByLabel(`mixer:${channel}`);
-        const audition = nodeByLabel(`audition:${channel}`);
-        expect(fakeToneRecorder.connectedTo(main)).toContain(masterGain);
-        expect(fakeToneRecorder.connectedTo(audition)).toContain(masterGain);
-        expect(fakeToneRecorder.routeTo(main, fakeToneRecorder.destination)).not.toBeNull();
-        expect(fakeToneRecorder.routeTo(audition, fakeToneRecorder.destination)).not.toBeNull();
-        expect(fakeToneRecorder.gainValue(main)).toBe(0.8);
-        expect(fakeToneRecorder.gainValue(audition)).toBe(0.8);
+        const main = nodeByLabel(`mixer:${channel}`) as FakeGainNode;
+        const audition = nodeByLabel(`audition:${channel}`) as FakeGainNode;
+        expect(main.connectedTo).toContain(masterGain);
+        expect(audition.connectedTo).toContain(masterGain);
+        expect(ctx.routeTo(main, ctx.destination)).not.toBeNull();
+        expect(ctx.routeTo(audition, ctx.destination)).not.toBeNull();
+        expect(main.gain.value).toBe(0.8);
+        expect(audition.gain.value).toBe(0.8);
       }
 
-      expect(fakeToneRecorder.destination.incoming).toHaveLength(1);
+      expect(ctx.destination.incoming).toHaveLength(1);
     });
 
     it('keeps the nodes it already built when initToneNodes is called again', () => {
@@ -147,9 +153,8 @@ describe('AudioMixer', () => {
       mixer.initToneNodes();
       mixer.setChannelVolume('ostinato', 0.3);
 
-      expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:ostinato'))).toBe(0.3);
-      expect(fakeToneRecorder.lastGainWrite(nodeByLabel('mixer:ostinato'))?.value).toBe(0.3);
-      expect(fakeToneRecorder.gainValue(nodeByLabel('audition:ostinato'))).toBe(0.3);
+      expect((nodeByLabel('mixer:ostinato') as FakeGainNode).gain.value).toBe(0.3);
+      expect((nodeByLabel('audition:ostinato') as FakeGainNode).gain.value).toBe(0.3);
     });
 
     it('silences only the Mixing Channel node when the channel is muted', () => {
@@ -157,10 +162,9 @@ describe('AudioMixer', () => {
       mixer.setChannelVolume('orchestration', 0.45);
       mixer.setChannelMute('orchestration', true);
 
-      expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:orchestration'))).toBe(0.0);
-      expect(fakeToneRecorder.lastGainWrite(nodeByLabel('mixer:orchestration'))?.value).toBe(0);
+      expect((nodeByLabel('mixer:orchestration') as FakeGainNode).gain.value).toBe(0.0);
       // The Audition node keeps the channel volume so a tap is still heard.
-      expect(fakeToneRecorder.gainValue(nodeByLabel('audition:orchestration'))).toBe(0.45);
+      expect((nodeByLabel('audition:orchestration') as FakeGainNode).gain.value).toBe(0.45);
       expect(mixer.isChannelAudible('orchestration')).toBe(false);
       expect(mixer.getChannelVolume('orchestration')).toBe(0.45);
     });
@@ -169,15 +173,15 @@ describe('AudioMixer', () => {
       mixer.setChannelMute('click', true);
       mixer.initToneNodes();
 
-      expect(fakeToneRecorder.gainValue(nodeByLabel('mixer:click'))).toBe(0);
-      expect(fakeToneRecorder.gainValue(nodeByLabel('audition:click'))).toBe(0.8);
+      expect((nodeByLabel('mixer:click') as FakeGainNode).gain.value).toBe(0);
+      expect((nodeByLabel('audition:click') as FakeGainNode).gain.value).toBe(0.8);
     });
 
     it('disconnects every node it owns on dispose', () => {
       mixer.initToneNodes();
       mixer.dispose();
 
-      expect(fakeToneRecorder.destination.incoming).toHaveLength(0);
+      expect(fakeCtx().destination.incoming).toHaveLength(0);
       expect(mixer.isGraphInitialized()).toBe(false);
       expect(() => mixer.getChannelNode('click')).toThrow();
     });

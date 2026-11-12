@@ -1,42 +1,12 @@
-import * as Tone from 'tone';
 import { DrumVoice, ScheduledDrumEvent } from '../domain/dawson/types';
-import { IAudioMixer, IGainNodeLike, MixerChannelId } from './AudioMixer';
+import { IAudioMixer, MixerChannelId } from './AudioMixer';
+import { SampleStrokePlayer } from './NativeSamplePlayback';
 
 // The lane a drum sound belongs to. A Mixing Channel is only ever 'click' for metronome
 // clicks; drum voices play on the Ostinato or Orchestration channel.
 export type DrumLane = Extract<MixerChannelId, 'ostinato' | 'orchestration'>;
 
-// Every Mixing Channel line owns a rig of the drum voices: one rig for the channel's
-// audible line and one for the Audition node it shares. An instrument belongs to exactly
-// one line, so a voice can never be played on two lines at once.
 export type RigMode = 'mix' | 'audition';
-type RigKey = `${DrumLane}:${RigMode}`;
-
-// Voice slot keys inside a rig, addressed by the ring cursors.
-type RigSlot = 'kick' | 'snareNoise' | 'snareMembrane' | 'tomHigh' | 'tomMid' | 'tomFloor' | 'crash' | 'ride' | 'hihat';
-
-// The Audio Voice Pool (docs/adr/0011): every voice slot holds a small ring of
-// interchangeable synth instances cycled per stroke, so a rapid stroke never
-// cancels the live attack of the previous one on the same monophonic voice.
-interface DrumRig {
-  kick: Tone.MembraneSynth[];
-  snareNoise: Tone.NoiseSynth[];
-  snareMembrane: Tone.MembraneSynth[];
-  tomHigh: Tone.MembraneSynth[];
-  tomMid: Tone.MembraneSynth[];
-  tomFloor: Tone.MembraneSynth[];
-  crash: Tone.MetalSynth[];
-  ride: Tone.MetalSynth[];
-  hihat: Tone.MetalSynth[];
-}
-
-// A drum synth is not one node but a whole subgraph (a MetalSynth alone costs over a
-// hundred Gain and ConstantSourceNode instances), so the ring is kept at the narrowest
-// width that still gives a stroke its own live attack, and the Audition rigs, heard only
-// at a tap gesture, hold a single member per slot: the eager graph of a session stays
-// inside the audio context's node budget and the audio clock keeps its beat cadence.
-export const VOICE_POOL_SIZE = 2;
-export const AUDITION_POOL_SIZE = 1;
 
 export interface IDrumKitPlayer {
   initSynths?(): boolean;
@@ -64,207 +34,25 @@ export interface IDrumKitPlayer {
   dispose?(): void;
 }
 
-function labelNode<T>(node: T, label: string): T {
-  (node as { label?: string }).label = label;
-  return node;
-}
-
-function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumRig {
-  const named = (voice: string) => `rig:${lane}:${mode}:${voice}`;
-  const pool = mode === 'audition' ? AUDITION_POOL_SIZE : VOICE_POOL_SIZE;
-
-  const buildMembers = <T extends Tone.ToneAudioNode>(
-    create: () => T,
-    count: number,
-    label: string
-  ): T[] => {
-    const members: T[] = [];
-    for (let index = 0; index < count; index++) {
-      const member = create();
-      labelNode(member, label);
-      member.connect(lineNode as any);
-      members.push(member);
-    }
-    return members;
-  };
-
-  const kick = buildMembers(
-    () => new Tone.MembraneSynth({
-      pitchDecay: 0.05,
-      octaves: 5,
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
-    }),
-    pool,
-    named('kick')
-  );
-
-  const snareNoise = buildMembers(
-    () => new Tone.NoiseSynth({
-      noise: { type: 'white' },
-      envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
-    }),
-    pool,
-    named('snare')
-  );
-
-  const snareMembrane = buildMembers(
-    () => new Tone.MembraneSynth({
-      pitchDecay: 0.01,
-      octaves: 2,
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
-    }),
-    pool,
-    named('snare')
-  );
-
-  const tomHigh = buildMembers(
-    () => new Tone.MembraneSynth({
-      pitchDecay: 0.04,
-      octaves: 4,
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.3 },
-    }),
-    pool,
-    named('tom_high')
-  );
-
-  const tomMid = buildMembers(
-    () => new Tone.MembraneSynth({
-      pitchDecay: 0.04,
-      octaves: 4,
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
-    }),
-    pool,
-    named('tom_mid')
-  );
-
-  const tomFloor = buildMembers(
-    () => new Tone.MembraneSynth({
-      pitchDecay: 0.05,
-      octaves: 4,
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.001, decay: 0.45, sustain: 0.01, release: 0.4 },
-    }),
-    pool,
-    named('tom_floor')
-  );
-
-  const crash = buildMembers(
-    () => new Tone.MetalSynth({
-      envelope: { attack: 0.001, decay: 1.2, release: 0.2 },
-      harmonicity: 5.1,
-      modulationIndex: 32,
-      resonance: 4000,
-      octaves: 1.5,
-    }),
-    pool,
-    named('crash')
-  );
-
-  const ride = buildMembers(
-    () => new Tone.MetalSynth({
-      envelope: { attack: 0.001, decay: 0.6, release: 0.15 },
-      harmonicity: 4.8,
-      modulationIndex: 28,
-      resonance: 5000,
-      octaves: 1.2,
-    }),
-    pool,
-    named('ride')
-  );
-
-  const hihat = buildMembers(
-    () => new Tone.MetalSynth({
-      envelope: { attack: 0.001, decay: 0.05, release: 0.02 },
-      harmonicity: 5.2,
-      modulationIndex: 36,
-      resonance: 6000,
-      octaves: 1.5,
-    }),
-    pool,
-    named('hihat')
-  );
-
-  return { kick, snareNoise, snareMembrane, tomHigh, tomMid, tomFloor, crash, ride, hihat };
-}
-
 /**
- * DrumKitPlayer — the Drum Kit and Sample Manager.
+ * DrumKitPlayer — Pure Web Audio `.wav` sample player for the Drum Kit.
  *
- * Owns a rig per Mixing Channel line (one audible, one Audition) plus the stored custom
- * sample buffers. Scheduled composed events play through the audible line of the channel
- * their source names; a tap on a voice plays through that channel's Audition node, which
- * is never silenced. A silent Mixing Channel, muted or turned all the way down, plays nothing
- * at all: its rig is not even triggered.
+ * Every stroke plays through a fresh `AudioBufferSourceNode -> per-hit GainNode`
+ * into the target Mixing Channel (or Audition node) with natural polyphony and
+ * automatic `onended` disconnection. Zero live synths (ADR-0014).
  */
 export class DrumKitPlayer implements IDrumKitPlayer {
   private mixer: IAudioMixer;
-  private rigs: Map<RigKey, DrumRig> = new Map();
-  private customSampleBuffers: Map<DrumVoice, any> = new Map();
-  // Which ring member each voice slot uses next, per rig (docs/adr/0011 voice pool).
-  private rigCursors: Map<RigKey, Record<string, number>> = new Map();
-  // One pooled Gain per sample voice slot (per lane and mode), keyed by the sample
-  // buffer identity, instead of a fresh Gain per stroke (docs/adr/0011 voice pool).
-  private sampleGains: Map<string, Map<unknown, Tone.Gain>> = new Map();
-  // The unavoidable fresh BufferSource per stroke, retired once its playback window
-  // has elapsed so the live graph stays bounded (docs/adr/0011 lifecycle).
-  private pendingSampleSources: { source: Tone.ToneBufferSource; endsAt: number }[] = [];
+  private customSampleBuffers: Map<DrumVoice, AudioBuffer> = new Map();
+  private defaultSampleBuffers: Map<DrumVoice, AudioBuffer> = new Map();
+  private strokePlayer = new SampleStrokePlayer();
 
   constructor(mixer: IAudioMixer) {
     this.mixer = mixer;
-    // Components read the player right after construction, so the rigs are built eagerly
-    // whenever the Mixer Channel graph is ready.
-    this.initSynths();
   }
 
-  /**
-   * Builds the audible rigs from the Mixing Channel nodes the AudioMixer owns. Idempotent
-   * and retry-safe: call again after the audio context is unlocked.
-   *
-   * Only the audible mix rigs are earned eagerly. An Audition rig costs the same ring of
-   * synths, is heard only at a tap gesture, and would halve the node budget of every
-   * session that never auditions a drum voice, so it earns its nodes at that gesture
-   * (ensureRig) instead of at page load.
-   */
   public initSynths(): boolean {
-    if (this.rigs.size > 0) return true;
-    if (!this.mixer.isGraphInitialized()) return false;
-
-    try {
-      const rigs = new Map<RigKey, DrumRig>();
-      for (const lane of ['ostinato', 'orchestration'] as DrumLane[]) {
-        rigs.set(`${lane}:mix`, buildRig(lane, 'mix', this.mixer.getChannelNode(lane)));
-      }
-      this.rigs = rigs;
-      return true;
-    } catch {
-      // Fail closed: a half built kit is disposed so no sound can reach the destination.
-      this.disposeRigs();
-      return false;
-    }
-  }
-
-  /**
-   * The rig a stroke needs. The audible mix rigs are already built; an Audition rig is
-   * built here, at the audition gesture that first hears it, and stays for later taps.
-   */
-  private ensureRig(lane: DrumLane, mode: RigMode): DrumRig | null {
-    const key = `${lane}:${mode}` as RigKey;
-    const existing = this.rigs.get(key);
-    if (existing) return existing;
-    if (mode !== 'audition' || !this.mixer.isGraphInitialized()) return null;
-
-    try {
-      const rig = buildRig(lane, mode, this.mixer.getAuditionNode(lane));
-      this.rigs.set(key, rig);
-      return rig;
-    } catch {
-      // Fail closed: an audition stroke with no rig is simply silent.
-      return null;
-    }
+    return this.mixer.isGraphInitialized();
   }
 
   public play(event: ScheduledDrumEvent, time: number): void {
@@ -290,34 +78,12 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     this.executeVoiceSound(voice, time, velocity, lane, 'audition');
   }
 
-  public loadSampleBuffer(voice: DrumVoice, buffer: any): void {
-    const previous = this.customSampleBuffers.get(voice);
-    if (previous !== undefined && previous !== buffer) {
-      this.disposeSampleGainsFor(previous);
-    }
+  public loadSampleBuffer(voice: DrumVoice, buffer: AudioBuffer): void {
     this.customSampleBuffers.set(voice, buffer);
   }
 
   public removeSampleBuffer(voice: DrumVoice): void {
-    const previous = this.customSampleBuffers.get(voice);
     this.customSampleBuffers.delete(voice);
-    if (previous !== undefined) {
-      this.disposeSampleGainsFor(previous);
-    }
-  }
-
-  /** Recycles the pooled Gains a replaced or removed sample buffer was using. */
-  private disposeSampleGainsFor(buffer: unknown): void {
-    this.sampleGains.forEach((byBuffer) => {
-      const gain = byBuffer.get(buffer);
-      if (!gain) return;
-      try {
-        gain.dispose();
-      } catch {
-        // Safe disposal
-      }
-      byBuffer.delete(buffer);
-    });
   }
 
   public hasCustomSample(voice: DrumVoice): boolean {
@@ -326,132 +92,38 @@ export class DrumKitPlayer implements IDrumKitPlayer {
 
   public clearAllCustomSamples(): void {
     this.customSampleBuffers.clear();
-    this.sampleGains.forEach((byBuffer) => {
-      byBuffer.forEach((gain) => {
-        try {
-          gain.dispose();
-        } catch {
-          // Safe disposal
-        }
-      });
-    });
-    this.sampleGains.clear();
+  }
+
+  public loadDefaultSampleBuffer(voice: DrumVoice, buffer: AudioBuffer): void {
+    this.defaultSampleBuffers.set(voice, buffer);
   }
 
   public playCustomSample(
-    buffer: any,
+    buffer: AudioBuffer,
     time: number,
     velocity: number,
     lane: DrumLane,
     mode: RigMode = 'mix'
   ): void {
+    if (!this.mixer.isGraphInitialized()) return;
     try {
-      const audioTime = time > 0 ? time : Tone.now();
-      // Only retire sources whose playback window has actually elapsed on the hardware clock
-      // (context.currentTime), never at Tone.now() or the future lookahead audioTime (both
-      // include lookAhead), or dispose() will disconnect still-playing .wav samples.
-      const hardwareNow = Tone.getContext?.()?.currentTime ?? Tone.now();
-      this.retirePendingSamples(Math.min(audioTime, hardwareNow));
-
-      const poolKey = `${lane}:${mode}`;
-      let byBuffer = this.sampleGains.get(poolKey);
-      if (!byBuffer) {
-        byBuffer = new Map<unknown, Tone.Gain>();
-        this.sampleGains.set(poolKey, byBuffer);
-      }
-      let gain = byBuffer.get(buffer);
-      if (!gain) {
-        gain = labelNode(new Tone.Gain(), `sample:${poolKey}`);
-        const targetNode =
-          mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
-        gain.connect(targetNode as any);
-        byBuffer.set(buffer, gain);
-      }
-      // Per-stroke dynamics live as a timed write on the pooled gain.
-      gain.gain.setValueAtTime(velocity, audioTime);
-
-      const source = new Tone.ToneBufferSource(buffer);
-      source.connect(gain as any);
-      source.start(audioTime);
-      const duration = (buffer as { duration?: number }).duration ?? 1;
-      this.pendingSampleSources.push({ source, endsAt: audioTime + duration });
+      const targetNode =
+        mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
+      this.strokePlayer.playBuffer(buffer, time, velocity, targetNode, `sample:${lane}:${mode}`);
     } catch {
       // Safe isolation
     }
   }
 
-  /**
-   * Stops and disposes every sample BufferSource whose playback window has
-   * already elapsed, keeping the live audio graph bounded (docs/adr/0011).
-   */
-  private retirePendingSamples(now: number): void {
-    this.pendingSampleSources = this.pendingSampleSources.filter(
-      (pending) => {
-        if (pending.endsAt > now) return true;
-        try {
-          // Tone's accurate-timing contract: a source retired from inside a scheduled
-          // callback stops at the scheduling time it was heard at, never at Tone.now().
-          if (Number.isFinite(now)) pending.source.stop(now);
-          else pending.source.stop();
-          pending.source.dispose();
-        } catch {
-          // Safe disposal
-        }
-        return false;
-      }
-    );
-  }
-
   /** Stop leaves nothing waiting to sound behind the mixer. */
   public stopPendingSamples(): void {
-    this.retirePendingSamples(Number.POSITIVE_INFINITY);
+    this.strokePlayer.stopAll();
   }
 
   public dispose(): void {
     this.customSampleBuffers.clear();
-    this.retirePendingSamples(Number.POSITIVE_INFINITY);
-    this.sampleGains.forEach((byBuffer) => {
-      byBuffer.forEach((gain) => {
-        try {
-          gain.dispose();
-        } catch {
-          // Safe disposal
-        }
-      });
-    });
-    this.sampleGains.clear();
-    this.disposeRigs();
-  }
-
-  /**
-   * Cycles the voice slot's ring: consecutive strokes on one voice use distinct
-   * synth instances, so a rapid stroke never cancels the previous live attack.
-   */
-  private nextMember<T>(rigKey: RigKey, slot: RigSlot, ring: T[]): T {
-    const cursors = this.rigCursors.get(rigKey) ?? {};
-    const index = cursors[slot] ?? 0;
-    cursors[slot] = index + 1;
-    this.rigCursors.set(rigKey, cursors);
-    return ring[index % ring.length];
-  }
-
-  private disposeRigs(): void {
-    const synths: Tone.ToneAudioNode[] = [];
-    this.rigs.forEach((rig) => {
-      for (const ring of Object.values(rig)) {
-        synths.push(...(ring as Tone.ToneAudioNode[]));
-      }
-    });
-    this.rigs.clear();
-    this.rigCursors.clear();
-
-    synths.forEach((synth) => {
-      try {
-        synth.dispose();
-      } catch {
-        // Safe disposal
-      }
-    });
+    this.defaultSampleBuffers.clear();
+    this.strokePlayer.stopAll();
   }
 
   private executeVoiceSound(
@@ -461,83 +133,8 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     lane: DrumLane,
     mode: RigMode
   ): void {
-    const customBuffer = this.customSampleBuffers.get(voice);
-    if (customBuffer) {
-      this.playCustomSample(customBuffer, time, velocity, lane, mode);
-      return;
-    }
-
-    const rigKey = `${lane}:${mode}` as RigKey;
-    const rig = mode === 'audition' ? this.ensureRig(lane, mode) : this.rigs.get(rigKey);
-    if (!rig) return;
-
-    try {
-      const audioTime = time > 0 ? time : Tone.now();
-
-      switch (voice) {
-        case 'kick':
-          this.nextMember(rigKey, 'kick', rig.kick)
-            .triggerAttackRelease('C1', '8n', audioTime, velocity);
-          break;
-
-        case 'snare':
-          this.nextMember(rigKey, 'snareMembrane', rig.snareMembrane)
-            .triggerAttackRelease('D2', '16n', audioTime, velocity * 0.7);
-          this.nextMember(rigKey, 'snareNoise', rig.snareNoise)
-            .triggerAttackRelease('16n', audioTime, velocity);
-          break;
-
-        case 'snare_ghost':
-          this.nextMember(rigKey, 'snareNoise', rig.snareNoise)
-            .triggerAttackRelease('32n', audioTime, velocity * 0.4);
-          break;
-
-        case 'tom_high':
-          this.nextMember(rigKey, 'tomHigh', rig.tomHigh)
-            .triggerAttackRelease('G2', '8n', audioTime, velocity);
-          break;
-
-        case 'tom_mid':
-          this.nextMember(rigKey, 'tomMid', rig.tomMid)
-            .triggerAttackRelease('D2', '8n', audioTime, velocity);
-          break;
-
-        case 'tom_floor':
-          this.nextMember(rigKey, 'tomFloor', rig.tomFloor)
-            .triggerAttackRelease('A1', '8n', audioTime, velocity);
-          break;
-
-        case 'ride':
-          this.nextMember(rigKey, 'ride', rig.ride)
-            .triggerAttackRelease('16n', audioTime, velocity);
-          break;
-
-        case 'ride_bell':
-          this.nextMember(rigKey, 'ride', rig.ride)
-            .triggerAttackRelease('32n', audioTime, velocity * 1.1);
-          break;
-
-        case 'hihat_closed':
-        case 'hihat_foot':
-          this.nextMember(rigKey, 'hihat', rig.hihat)
-            .triggerAttackRelease('32n', audioTime, velocity);
-          break;
-
-        case 'hihat_open':
-          this.nextMember(rigKey, 'hihat', rig.hihat)
-            .triggerAttackRelease('8n', audioTime, velocity);
-          break;
-
-        case 'crash':
-          this.nextMember(rigKey, 'crash', rig.crash)
-            .triggerAttackRelease('4n', audioTime, velocity);
-          break;
-
-        default:
-          break;
-      }
-    } catch {
-      // Graceful error isolation for headless audio
-    }
+    const buffer = this.customSampleBuffers.get(voice) ?? this.defaultSampleBuffers.get(voice);
+    if (!buffer) return;
+    this.playCustomSample(buffer, time, velocity, lane, mode);
   }
 }

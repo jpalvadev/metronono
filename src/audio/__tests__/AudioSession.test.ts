@@ -2,18 +2,24 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToneTransportScheduler } from '../ToneTransportScheduler';
 import { MetronomeEngine } from '../../domain/metronome/MetronomeEngine';
 import { createRhythmicEvent } from '../../domain/rhythm/types';
-import { fakeToneRecorder, fakeAudioBuffer } from '../../test/fakeTone';
+import { fakeToneRecorder } from '../../test/fakeTone';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioBuffer, FakeAudioContext } from '../../test/fakeWebAudio';
 
-// A full practice session through the transport interface alone (docs/adr/0011):
+// A full practice session through the transport interface alone (ADR-0014):
 // 16+ fired beats with an ostinato active and a custom sample voice loaded must
-// keep node creation bounded, resolve the domain once per cycled measure, retire
-// every sample source, and leave nothing on the destination after dispose.
+// resolve the domain once per cycled measure, keep zero live synths, disconnect
+// finished sample sources on `ended`, and leave nothing on destination after dispose.
 vi.mock('tone', async () => {
   const fake = await import('../../test/fakeTone');
   return { ...fake.fakeToneModule, default: fake.fakeToneModule };
 });
 
-describe('Zero-allocation audio session', () => {
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
+}
+
+describe('Zero-allocation audio session (Pure Web Audio)', () => {
   beforeEach(() => {
     fakeToneRecorder.reset();
   });
@@ -35,7 +41,6 @@ describe('Zero-allocation audio session', () => {
       dawsonEngine: dawson,
     });
 
-    // A two-measure line mixing straight figures and a triplet beat.
     const straight = [
       createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
       createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
@@ -59,46 +64,36 @@ describe('Zero-allocation audio session', () => {
       ],
     });
 
-    // A custom sample on a drum voice: strokes spawn sources but no fresh gains.
-    scheduler.applyCustomSampleBuffer('ride', fakeAudioBuffer(1, 44100, 44100)); // 1s window
+    const rideSample = new FakeAudioBuffer(1, 44100, 44100) as unknown as AudioBuffer;
+    scheduler.applyCustomSampleBuffer('ride', rideSample);
 
     await scheduler.start();
-    const resolvesAfterStart = dawson.resolveCalls;
-    expect(resolvesAfterStart).toBe(2);
-
-    const gainsAtStart = fakeToneRecorder.nodesOfKind('Gain').length;
-    const synthAtStart =
-      fakeToneRecorder.nodesOfKind('MembraneSynth').length +
-      fakeToneRecorder.nodesOfKind('MetalSynth').length +
-      fakeToneRecorder.nodesOfKind('NoiseSynth').length +
-      fakeToneRecorder.nodesOfKind('Synth').length;
+    expect(dawson.resolveCalls).toBe(2);
 
     fakeToneRecorder.transport.fireRepeats(16);
 
     // One resolve per cycled measure: sixteen beats = four measures over a two-measure plan.
     expect(dawson.resolveCalls).toBe(2);
 
-    // Bounded graph: the sample voice's gain is pooled on first stroke (one
-    // creation), then reused for every later stroke; synths never regrow.
-    const gains = fakeToneRecorder.nodesOfKind('Gain');
-    expect(gains.length).toBe(gainsAtStart + 1);
-    expect(gains.filter((n) => (n.label ?? '') === 'sample:ostinato:mix')).toHaveLength(1);
+    // Zero Tone.js synth nodes exist.
     expect(
       fakeToneRecorder.nodesOfKind('MembraneSynth').length +
       fakeToneRecorder.nodesOfKind('MetalSynth').length +
       fakeToneRecorder.nodesOfKind('NoiseSynth').length +
       fakeToneRecorder.nodesOfKind('Synth').length
-    ).toBe(synthAtStart);
+    ).toBe(0);
 
-    // Sources retired as their windows elapsed: at 200 bpm beats are 0.3s apart,
-    // so every 1s-window source started before the last few beats is gone.
-    const sources = fakeToneRecorder.bufferSources();
-    expect(sources.length).toBeGreaterThan(0);
-    const stillLive = sources.filter((s) => !s.disposed);
-    expect(stillLive.length).toBeLessThan(sources.length);
+    const ctx = fakeCtx();
+    expect(ctx.bufferSources.length).toBeGreaterThan(0);
+
+    // When sources finish playing (onended), both source and per-hit GainNode disconnect.
+    for (const src of ctx.bufferSources) {
+      src.triggerEnded();
+      expect(src.disconnected).toBe(true);
+    }
 
     // Dispose disconnects everything feeding the destination.
     scheduler.dispose();
-    expect(fakeToneRecorder.destination.incoming).toHaveLength(0);
+    expect(ctx.destination.incoming).toHaveLength(0);
   });
 });

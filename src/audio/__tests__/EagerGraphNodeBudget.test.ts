@@ -1,63 +1,53 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToneTransportScheduler } from '../ToneTransportScheduler';
-import { VOICE_POOL_SIZE, AUDITION_POOL_SIZE } from '../DrumKitPlayer';
 import { fakeToneRecorder } from '../../test/fakeTone';
+import { getAudioContext } from '../WebAudioContext';
+import { FakeAudioContext } from '../../test/fakeWebAudio';
 
-// The eager graph a session pays for before any gesture, bounded absolutely (docs/adr/0011
-// node-budget amendment). The other audio suites only assert STABILITY across ticks (a
-// doubled graph satisfies that trivially), so the doubling that made Chrome's WebAudio
-// renderer refuse to play stayed green until it reached a real browser. This bound is the
-// deterministic half of that rule: it goes red on the doubling itself, headless and fast.
+// Pure Web Audio WAV engine (ADR-0014): the persistent graph at page load is ~8 native
+// nodes (3 Mixing Channels + 3 Audition nodes + master headroom GainNode + master
+// DynamicsCompressorNode limiter), with zero live Tone.js synth nodes.
 vi.mock('tone', async () => {
   const fake = await import('../../test/fakeTone');
   return { ...fake.fakeToneModule, default: fake.fakeToneModule };
 });
 
-const RIG_SLOTS = 9;
-const AUDIBLE_LANES = 2;
-
-function instrumentKinds() {
-  return fakeToneRecorder.nodes.filter((n) =>
-    ['MembraneSynth', 'MetalSynth', 'NoiseSynth'].includes(n.kind)
-  );
+function fakeCtx(): FakeAudioContext {
+  return getAudioContext() as unknown as FakeAudioContext;
 }
 
-describe('Eager audio graph node budget', () => {
+describe('Eager audio graph node budget (Pure Web Audio)', () => {
   beforeEach(() => {
     fakeToneRecorder.reset();
   });
 
-  it('a session pays for exactly the audible rigs at page load', async () => {
+  it('keeps the persistent audio graph under 10 native nodes with zero Tone.js synth nodes', async () => {
     const scheduler = new ToneTransportScheduler();
     await scheduler.start();
 
-    expect(instrumentKinds()).toHaveLength(RIG_SLOTS * AUDIBLE_LANES * VOICE_POOL_SIZE);
+    const synthNodes = fakeToneRecorder.nodes.filter((n) =>
+      ['MembraneSynth', 'MetalSynth', 'NoiseSynth', 'Synth'].includes(n.kind)
+    );
+    expect(synthNodes).toHaveLength(0);
 
-    const audibleMembers = fakeToneRecorder.nodes.filter((n) => (n.label ?? '').startsWith('rig:'));
-    expect(audibleMembers).toHaveLength(RIG_SLOTS * AUDIBLE_LANES * VOICE_POOL_SIZE);
+    const ctx = fakeCtx();
+    const persistentCount = ctx.gains.length + ctx.compressors.length;
+    expect(persistentCount).toBeLessThanOrEqual(10);
+    expect(persistentCount).toBe(8);
   });
 
-  it('no audition rig is paid before the gesture that hears it', async () => {
+  it('does not allocate extra persistent nodes on repeated audition taps', async () => {
     const scheduler = new ToneTransportScheduler();
     await scheduler.start();
 
-    expect(
-      fakeToneRecorder.nodes.filter((n) =>
-        (n.label ?? '').startsWith('rig:') && (n.label ?? '').includes(':audition:')
-      )
-    ).toHaveLength(0);
-  });
-
-  it('one gesture earns exactly one audition rig, once', async () => {
-    const scheduler = new ToneTransportScheduler();
-    await scheduler.start();
-    const before = instrumentKinds().length;
+    const ctx = fakeCtx();
+    const persistentBefore = ctx.gains.length + ctx.compressors.length;
 
     const player = scheduler.getDrumKitPlayer();
     player.triggerVoice('hihat_closed', 1.0, 0.8, 'orchestration');
     player.triggerVoice('hihat_closed', 1.1, 0.8, 'orchestration');
 
-    // A single audition lane earns its ring once; a per-tap regrow would double it.
-    expect(instrumentKinds()).toHaveLength(before + RIG_SLOTS * AUDITION_POOL_SIZE);
+    // No sample loaded -> silent, 0 new nodes; even with samples loaded, per-hit nodes self-clean on ended.
+    expect(ctx.gains.length + ctx.compressors.length).toBe(persistentBefore);
   });
 });

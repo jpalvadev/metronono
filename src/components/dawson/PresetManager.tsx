@@ -2,31 +2,35 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   DawsonSystem,
   SubdivisionFormula,
-  OstinatoType,
+  OstinatoPattern,
 } from '../../domain/dawson/types';
 import {
   DawsonPresetManager,
+  resolveStrokeOffsets,
 } from '../../domain/dawson/SubdivisionFormula';
 import { IDrumKitPlayer } from '../../audio/types';
-import { FormulaEditorDialog } from './FormulaEditorDialog';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
+  Play,
   Sliders,
   Plus,
   Trash2,
   Edit3,
   X,
   Check,
+  Disc,
   Sparkles,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { dynamicToVelocity } from './PartitureFormulaCanvas';
+import { FormulaEditorDialog } from './FormulaEditorDialog';
 
 export interface PresetManagerProps {
   open: boolean;
   onClose: () => void;
   presetManager: DawsonPresetManager;
-  activeSystemId?: string;
+  activeSystemId: string;
   onSelectSystem: (system: DawsonSystem) => void;
   player?: IDrumKitPlayer;
 }
@@ -42,22 +46,27 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
   const [systems, setSystems] = useState<DawsonSystem[]>(() =>
     presetManager.getAllSystems()
   );
-  const [activeTab, setActiveTab] = useState<'systems' | 'formulas'>('systems');
+  const [ostinatos, setOstinatos] = useState<OstinatoPattern[]>(() =>
+    presetManager.getAllOstinatos()
+  );
+  const [activeTab, setActiveTab] = useState<'systems' | 'formulas' | 'ostinatos'>('systems');
 
   // New System Form State
   const [isCreatingSystem, setIsCreatingSystem] = useState(false);
   const [newSystemName, setNewSystemName] = useState('');
   const [selectedShortId, setSelectedShortId] = useState<string>('single_snare');
   const [selectedLongId, setSelectedLongId] = useState<string>('single_kick');
-  const [selectedOstinato, setSelectedOstinato] = useState<OstinatoType>('jazz_swing');
 
-  // Formula Editor Modal State
+  // Formula & Ostinato Editor Modal State
   const [isFormulaDialogOpen, setIsFormulaDialogOpen] = useState(false);
   const [editingFormula, setEditingFormula] = useState<SubdivisionFormula | null>(null);
+  const [editingOstinato, setEditingOstinato] = useState<OstinatoPattern | null>(null);
   const [formulaDefaultTrigger, setFormulaDefaultTrigger] = useState<'short' | 'long'>('short');
+  const [formulaTargetBeats, setFormulaTargetBeats] = useState<number | undefined>(undefined);
 
   const refreshData = useCallback(() => {
     setSystems(presetManager.getAllSystems());
+    setOstinatos(presetManager.getAllOstinatos());
   }, [presetManager]);
 
   const shortFormulas = useMemo(
@@ -108,25 +117,135 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
   };
 
   const handleOpenNewFormula = (trigger: 'short' | 'long') => {
+    setEditingOstinato(null);
     setEditingFormula(null);
     setFormulaDefaultTrigger(trigger);
+    setFormulaTargetBeats(trigger === 'short' ? 0.5 : 1.0);
     setIsFormulaDialogOpen(true);
   };
 
   const handleEditFormula = (formula: SubdivisionFormula) => {
+    setEditingOstinato(null);
     setEditingFormula(formula);
     setFormulaDefaultTrigger(formula.trigger);
+    setFormulaTargetBeats(formula.trigger === 'short' ? 0.5 : 1.0);
     setIsFormulaDialogOpen(true);
   };
 
-  const handleSaveFormula = (formula: SubdivisionFormula) => {
-    presetManager.saveFormula(formula);
-    refreshData();
+  const handleSaveFormulaOrOstinato = (savedFormula: SubdivisionFormula) => {
+    if (formulaTargetBeats === 4) {
+      let saveName = savedFormula.name;
+      let saveId = savedFormula.id;
+      if (editingOstinato && !editingOstinato.isCustom) {
+        if (!saveName.includes('(Copia)')) {
+          saveName = `${saveName} (Copia)`;
+        }
+        saveId = `custom_ost_${editingOstinato.id}_${Date.now()}`;
+      }
+      presetManager.saveOstinato({
+        id: saveId,
+        name: saveName,
+        timeSignature: [4, 4],
+        strokes: savedFormula.strokes,
+        description: savedFormula.description,
+        isCustom: true,
+      });
+      refreshData();
+    } else {
+      presetManager.saveFormula(savedFormula);
+      refreshData();
+    }
+    setIsFormulaDialogOpen(false);
+    setEditingOstinato(null);
   };
 
   const handleDeleteFormula = (formulaId: string) => {
     presetManager.deleteFormula(formulaId);
     refreshData();
+  };
+
+  // Ostinato actions
+  const handleOpenNewOstinato = () => {
+    setEditingOstinato(null);
+    setEditingFormula({
+      id: `custom_ost_${Date.now()}`,
+      name: 'Nuevo Ostinato',
+      trigger: 'long',
+      strokes: [
+        { durationRatio: 1.0, isRest: true, hits: [] },
+        { durationRatio: 1.0, isRest: true, hits: [] },
+        { durationRatio: 1.0, isRest: true, hits: [] },
+        { durationRatio: 1.0, isRest: true, hits: [] },
+      ],
+      isCustom: true,
+    });
+    setFormulaDefaultTrigger('long');
+    setFormulaTargetBeats(4);
+    setIsFormulaDialogOpen(true);
+  };
+
+  const handleEditOstinato = (ost: OstinatoPattern) => {
+    setEditingOstinato(ost);
+    setEditingFormula({
+      id: ost.id,
+      name: ost.name,
+      trigger: 'long',
+      strokes: ost.strokes,
+      description: ost.description,
+      isCustom: ost.isCustom,
+    });
+    setFormulaDefaultTrigger('long');
+    setFormulaTargetBeats(4);
+    setIsFormulaDialogOpen(true);
+  };
+
+  const handleDeleteOstinato = (ostId: string) => {
+    presetManager.deleteOstinato(ostId);
+    refreshData();
+  };
+
+  const handleAuditionOstinato = (ost: OstinatoPattern) => {
+    if (!player || ost.strokes.length === 0) return;
+    const tempoBpm = 100;
+    const beatDurationMs = (60 / tempoBpm) * 1000;
+    const resolved = resolveStrokeOffsets(ost.strokes, 0);
+
+    resolved.forEach(({ stroke, offset }) => {
+      if (stroke.isRest || !stroke.hits) return;
+      const delayMs = offset * beatDurationMs;
+      stroke.hits.forEach((hit) => {
+        const vel = dynamicToVelocity(hit.dynamic);
+        if (delayMs <= 0) {
+          player.triggerVoice(hit.voice, 0, vel, 'ostinato');
+        } else {
+          setTimeout(() => {
+            player.triggerVoice(hit.voice, 0, vel, 'ostinato');
+          }, delayMs);
+        }
+      });
+    });
+  };
+
+  const handleAuditionFormula = (formula: SubdivisionFormula) => {
+    if (!player || formula.strokes.length === 0) return;
+    const tempoBpm = 100;
+    const beatDurationMs = (60 / tempoBpm) * 1000;
+    const resolved = resolveStrokeOffsets(formula.strokes, 0);
+
+    resolved.forEach(({ stroke, offset }) => {
+      if (stroke.isRest || !stroke.hits) return;
+      const delayMs = offset * beatDurationMs;
+      stroke.hits.forEach((hit) => {
+        const vel = dynamicToVelocity(hit.dynamic);
+        if (delayMs <= 0) {
+          player.triggerVoice(hit.voice, 0, vel, 'orchestration');
+        } else {
+          setTimeout(() => {
+            player.triggerVoice(hit.voice, 0, vel, 'orchestration');
+          }, delayMs);
+        }
+      });
+    });
   };
 
   return (
@@ -169,7 +288,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
-              Interpretation Systems ({systems.length})
+              Sistemas / Interpretation Systems ({systems.length})
             </button>
             <button
               type="button"
@@ -181,13 +300,25 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
-              Subdivision Formulas ({shortFormulas.length + longFormulas.length})
+              Fórmulas / Subdivision Formulas ({shortFormulas.length + longFormulas.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ostinatos')}
+              className={cn(
+                'px-4 py-2 text-xs font-semibold border-b-2 transition-all',
+                activeTab === 'ostinatos'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Ostinatos ({ostinatos.length})
             </button>
           </div>
 
           {/* Body Content */}
           <div className="p-4 md:p-6 overflow-y-auto flex-1 flex flex-col gap-4">
-            {activeTab === 'systems' ? (
+            {activeTab === 'systems' && (
               /* --- SYSTEMS TAB --- */
               <div className="flex flex-col gap-4">
                 {/* Actions Row */}
@@ -200,7 +331,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => setIsCreatingSystem(true)}
-                      className="h-8 gap-1.5 text-xs bg-primary hover:bg-primary/80 text-primary-foreground"
+                      className="h-8 gap-1.5 text-xs bg-primary hover:bg-primary/80 text-primary-foreground rounded-none"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       New System
@@ -221,63 +352,39 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => setIsCreatingSystem(false)}
-                        className="h-6 w-6 p-0 text-muted-foreground"
+                        className="h-6 w-6 p-0 text-muted-foreground rounded-none"
                       >
                         <X className="w-3.5 h-3.5" />
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                      {/* System Name */}
-                      <div className="flex flex-col gap-1 sm:col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="flex flex-col gap-1">
                         <label
-                          htmlFor="new-system-name"
-                          className="text-[11px] font-semibold text-muted-foreground"
+                          htmlFor="system-name-input"
+                          className="text-[11px] font-semibold text-muted-foreground uppercase"
                         >
                           System Name
                         </label>
                         <input
-                          id="new-system-name"
+                          id="system-name-input"
                           type="text"
                           value={newSystemName}
                           onChange={(e) => setNewSystemName(e.target.value)}
-                          placeholder="e.g. Tony Williams Fusion"
+                          placeholder="e.g. Bop Songo Fusion"
                           className="bg-card border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
 
-                      {/* Ostinato Selector */}
                       <div className="flex flex-col gap-1">
                         <label
-                          htmlFor="new-system-ostinato"
-                          className="text-[11px] font-semibold text-muted-foreground"
+                          htmlFor="short-formula-select"
+                          className="text-[11px] font-semibold text-primary uppercase"
                         >
-                          Ostinato Pattern
+                          Short Formula
                         </label>
                         <select
-                          id="new-system-ostinato"
-                          value={selectedOstinato}
-                          onChange={(e) =>
-                            setSelectedOstinato(e.target.value as OstinatoType)
-                          }
-                          className="bg-card border border-border rounded-none px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          <option value="jazz_swing">Jazz Swing Ride</option>
-                          <option value="straight_rock">Straight 8ths Hi-Hat</option>
-                          <option value="none">Silenced (No Ostinato)</option>
-                        </select>
-                      </div>
-
-                      {/* Short Formula */}
-                      <div className="flex flex-col gap-1">
-                        <label
-                          htmlFor="new-system-short-formula"
-                          className="text-[11px] font-semibold text-muted-foreground"
-                        >
-                          Short Notes (≤ 8th)
-                        </label>
-                        <select
-                          id="new-system-short-formula"
+                          id="short-formula-select"
                           value={selectedShortId}
                           onChange={(e) => setSelectedShortId(e.target.value)}
                           className="bg-card border border-border rounded-none px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -290,16 +397,15 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                         </select>
                       </div>
 
-                      {/* Long Formula */}
-                      <div className="flex flex-col gap-1 sm:col-span-2">
+                      <div className="flex flex-col gap-1">
                         <label
-                          htmlFor="new-system-long-formula"
-                          className="text-[11px] font-semibold text-muted-foreground"
+                          htmlFor="long-formula-select"
+                          className="text-[11px] font-semibold text-destructive uppercase"
                         >
-                          Long Notes (≥ Qtr / Ties)
+                          Long Formula
                         </label>
                         <select
-                          id="new-system-long-formula"
+                          id="long-formula-select"
                           value={selectedLongId}
                           onChange={(e) => setSelectedLongId(e.target.value)}
                           className="bg-card border border-border rounded-none px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -313,13 +419,13 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-1">
+                    <div className="flex justify-end gap-2 pt-2 border-t border-border/30">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => setIsCreatingSystem(false)}
-                        className="h-8 text-xs"
+                        className="h-7 text-xs rounded-none"
                       >
                         Cancel
                       </Button>
@@ -328,8 +434,9 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                         size="sm"
                         onClick={handleSaveNewSystem}
                         disabled={!newSystemName.trim()}
-                        className="h-8 text-xs bg-primary hover:bg-primary/80 text-primary-foreground"
+                        className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1.5 rounded-none"
                       >
+                        <Check className="w-3.5 h-3.5" />
                         Save System
                       </Button>
                     </div>
@@ -339,57 +446,63 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                 {/* Systems Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {systems.map((sys) => {
-                    const isActive = sys.id === activeSystemId;
+                    const isActive = activeSystemId === sys.id;
                     return (
                       <div
                         key={sys.id}
                         className={cn(
                           'p-4 rounded-none border flex flex-col justify-between gap-3 transition-all',
                           isActive
-                            ? 'bg-primary/10 border-primary/60 ring-1 ring-primary/30'
-                            : 'bg-card/70 border-border/70 hover:border-border hover:bg-muted/30'
+                            ? 'bg-primary/10 border-primary/60 ring-1 ring-primary'
+                            : 'bg-card border-border hover:border-border/80'
                         )}
                       >
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-foreground">
-                                {sys.name}
-                              </span>
-                              {sys.isCustom && (
-                                <Badge variant="outline" className="text-[10px]">
+                            <span className="font-bold text-sm text-foreground">
+                              {sys.name}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {sys.isCustom ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-mono border-border text-muted-foreground rounded-none"
+                                >
                                   Custom
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-mono border-primary/40 text-primary bg-primary/5 rounded-none"
+                                >
+                                  Built-in
                                 </Badge>
                               )}
                             </div>
-                            {isActive && (
-                              <Badge className="bg-primary text-primary-foreground text-[10px] gap-1">
-                                <Check className="w-3 h-3" /> Active
-                              </Badge>
-                            )}
                           </div>
 
                           {sys.description && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground line-clamp-2">
                               {sys.description}
                             </p>
                           )}
 
+                          {/* Formulas Breakdown */}
                           <div className="grid grid-cols-2 gap-2 text-[11px] bg-muted/30 p-2.5 rounded-none border border-border/50">
                             <div>
-                              <span className="text-muted-foreground block font-medium">
-                                Short Notes:
+                              <span className="text-primary font-semibold block uppercase text-[10px]">
+                                Short
                               </span>
-                              <span className="text-foreground font-semibold">
-                                {sys.shortFormula.name}
+                              <span className="text-foreground truncate block font-medium">
+                                {sys.shortFormula?.name || 'Snare'}
                               </span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground block font-medium">
-                                Long Notes:
+                              <span className="text-destructive font-semibold block uppercase text-[10px]">
+                                Long
                               </span>
-                              <span className="text-foreground font-semibold">
-                                {sys.longFormula.name}
+                              <span className="text-foreground truncate block font-medium">
+                                {sys.longFormula?.name || 'Kick'}
                               </span>
                             </div>
                           </div>
@@ -405,9 +518,9 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 size="sm"
                                 data-testid={`delete-system-${sys.id}`}
                                 onClick={() => handleDeleteSystem(sys.id)}
-                                className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+                                className="h-7 px-2 text-destructive hover:bg-destructive/10 gap-1 text-xs rounded-none"
                               >
-                                <Trash2 className="w-3 h-3" /> Delete
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
                               </Button>
                             )}
                           </div>
@@ -419,7 +532,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             variant={isActive ? 'secondary' : 'default'}
                             onClick={() => handleApplySystem(sys)}
                             className={cn(
-                              'h-7 px-3 text-xs',
+                              'h-7 px-3 text-xs rounded-none',
                               !isActive && 'bg-primary hover:bg-primary/80 text-primary-foreground'
                             )}
                           >
@@ -431,7 +544,9 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                   })}
                 </div>
               </div>
-            ) : (
+            )}
+
+            {activeTab === 'formulas' && (
               /* --- FORMULAS TAB --- */
               <div className="flex flex-col gap-6">
                 {/* Short Formulas Section */}
@@ -449,7 +564,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => handleOpenNewFormula('short')}
-                      className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1"
+                      className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1 rounded-none"
                     >
                       <Plus className="w-3 h-3" /> New Short Formula
                     </Button>
@@ -461,17 +576,21 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                         key={formula.id}
                         className="bg-card/70 border border-border/70 rounded-none p-3 flex flex-col justify-between gap-2.5"
                       >
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-foreground">
+                            <span className="font-semibold text-xs text-foreground">
                               {formula.name}
                             </span>
                             <Badge
                               variant="outline"
-                              className="text-[10px] font-mono border-primary/30 text-primary"
+                              className={cn(
+                                'text-[10px] font-mono rounded-none',
+                                formula.isCustom
+                                  ? 'border-border text-muted-foreground'
+                                  : 'border-primary/40 text-primary bg-primary/5'
+                              )}
                             >
-                              {formula.strokes.length} stroke
-                              {formula.strokes.length === 1 ? '' : 's'}
+                              {formula.isCustom ? 'Custom' : 'Built-in'}
                             </Badge>
                           </div>
                           {formula.description && (
@@ -479,7 +598,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                               {formula.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <div className="flex items-center gap-1 flex-wrap">
                             {formula.strokes.map((s, idx) => (
                               <span
                                 key={idx}
@@ -491,16 +610,39 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-border/30">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditFormula(formula)}
-                            className="h-7 px-2 text-xs gap-1"
-                          >
-                            <Edit3 className="w-3 h-3" /> Edit
-                          </Button>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAuditionFormula(formula)}
+                              className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
+                            >
+                              <Play className="w-3 h-3 fill-current" /> Audition
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditFormula(formula)}
+                              className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit
+                            </Button>
+                          </div>
+
+                          {formula.isCustom && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteFormula(formula.id)}
+                              className="h-6 px-1.5 text-destructive hover:bg-destructive/10 rounded-none"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -511,18 +653,18 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between border-b border-border/40 pb-2">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
-                        Long Note Formulas (≥ Quarter Note / Tied Notes)
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-destructive">
+                        Long Note Formulas (≥ Quarter Note)
                       </h3>
                       <p className="text-[11px] text-muted-foreground">
-                        Triggered on sustained quarter notes, dotted figures, and tied anchors
+                        Triggered on anchored quarter notes, tied syncopations, and half notes
                       </p>
                     </div>
                     <Button
                       type="button"
                       size="sm"
                       onClick={() => handleOpenNewFormula('long')}
-                      className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1"
+                      className="h-7 text-xs bg-primary hover:bg-primary/80 text-primary-foreground gap-1 rounded-none"
                     >
                       <Plus className="w-3 h-3" /> New Long Formula
                     </Button>
@@ -534,17 +676,21 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                         key={formula.id}
                         className="bg-card/70 border border-border/70 rounded-none p-3 flex flex-col justify-between gap-2.5"
                       >
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-foreground">
+                            <span className="font-semibold text-xs text-foreground">
                               {formula.name}
                             </span>
                             <Badge
                               variant="outline"
-                              className="text-[10px] font-mono border-primary/30 text-primary"
+                              className={cn(
+                                'text-[10px] font-mono rounded-none',
+                                formula.isCustom
+                                  ? 'border-border text-muted-foreground'
+                                  : 'border-destructive/40 text-destructive bg-destructive/5'
+                              )}
                             >
-                              {formula.strokes.length} stroke
-                              {formula.strokes.length === 1 ? '' : 's'}
+                              {formula.isCustom ? 'Custom' : 'Built-in'}
                             </Badge>
                           </div>
                           {formula.description && (
@@ -552,7 +698,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                               {formula.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <div className="flex items-center gap-1 flex-wrap">
                             {formula.strokes.map((s, idx) => (
                               <span
                                 key={idx}
@@ -564,20 +710,148 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-border/30">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditFormula(formula)}
-                            className="h-7 px-2 text-xs gap-1"
-                          >
-                            <Edit3 className="w-3 h-3" /> Edit
-                          </Button>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAuditionFormula(formula)}
+                              className="h-6 px-2 text-[11px] text-destructive gap-1 rounded-none"
+                            >
+                              <Play className="w-3 h-3 fill-current" /> Audition
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditFormula(formula)}
+                              className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit
+                            </Button>
+                          </div>
+
+                          {formula.isCustom && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteFormula(formula.id)}
+                              className="h-6 px-1.5 text-destructive hover:bg-destructive/10 rounded-none"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'ostinatos' && (
+              /* --- OSTINATOS TAB --- */
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    Manage 4/4 background ostinatos and cymbal/foot independence loops:
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleOpenNewOstinato}
+                    className="h-8 gap-1.5 text-xs bg-primary hover:bg-primary/80 text-primary-foreground rounded-none"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Nuevo Ostinato
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {ostinatos.map((ost) => (
+                    <div
+                      key={ost.id}
+                      className="p-3.5 rounded-none border border-border bg-card/70 flex flex-col justify-between gap-3"
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <Disc className="w-3.5 h-3.5 text-primary" />
+                            {ost.name}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'text-[10px] font-mono rounded-none',
+                              ost.isCustom
+                                ? 'border-border text-muted-foreground'
+                                : 'border-primary/40 text-primary bg-primary/5'
+                            )}
+                          >
+                            {ost.isCustom ? 'Custom' : 'Fábrica / Built-in'}
+                          </Badge>
+                        </div>
+                        {ost.description && (
+                          <p className="text-[11px] text-muted-foreground line-clamp-2">
+                            {ost.description}
+                          </p>
+                        )}
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Compass: {ost.timeSignature ? `${ost.timeSignature[0]}/${ost.timeSignature[1]}` : '4/4'} ({ost.strokes.length} strokes)
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAuditionOstinato(ost)}
+                            className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
+                          >
+                            <Play className="w-3 h-3 fill-current" /> Audition
+                          </Button>
+                          <Button
+                            type="button"
+                            data-testid={`edit-ostinato-${ost.id}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditOstinato(ost)}
+                            className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
+                          >
+                            <Edit3 className="w-3 h-3" /> Editar
+                          </Button>
+                        </div>
+
+                        {ost.isCustom ? (
+                          <Button
+                            type="button"
+                            data-testid={`delete-ostinato-${ost.id}`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteOstinato(ost.id)}
+                            className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10 gap-1 rounded-none"
+                          >
+                            <Trash2 className="w-3 h-3" /> Eliminar
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            data-testid={`delete-ostinato-${ost.id}`}
+                            variant="ghost"
+                            size="sm"
+                            disabled
+                            className="h-6 px-2 text-[11px] text-muted-foreground opacity-40 rounded-none cursor-not-allowed"
+                          >
+                            <Trash2 className="w-3 h-3" /> Eliminar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -590,7 +864,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="h-9 px-4 text-xs"
+              className="h-9 px-4 text-xs rounded-none"
             >
               Close
             </Button>
@@ -598,15 +872,16 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
         </div>
       </div>
 
-      {/* Formula Editor Modal */}
+      {/* Formula & Ostinato Editor Modal */}
       {isFormulaDialogOpen && (
         <FormulaEditorDialog
           open={isFormulaDialogOpen}
           onClose={() => setIsFormulaDialogOpen(false)}
           formula={editingFormula}
           defaultTrigger={formulaDefaultTrigger}
-          onSave={handleSaveFormula}
-          onDelete={handleDeleteFormula}
+          targetBeats={formulaTargetBeats}
+          onSave={handleSaveFormulaOrOstinato}
+          onDelete={editingOstinato ? handleDeleteOstinato : handleDeleteFormula}
           player={player}
         />
       )}

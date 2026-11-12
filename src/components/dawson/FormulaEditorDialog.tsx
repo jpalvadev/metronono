@@ -164,12 +164,22 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
 
   const handleSave = () => {
     if (strokes.length === 0) return;
-    const formulaId =
+    let saveName = name.trim() || 'Custom Formula';
+    let saveId =
       formula?.id ||
       `formula_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    // Factory protection: If formula was built-in (not custom), save as a new custom copy with (Copia)
+    if (formula && !formula.isCustom) {
+      if (!saveName.includes('(Copia)')) {
+        saveName = `${saveName} (Copia)`;
+      }
+      saveId = `custom_${formula.id}_${Date.now()}`;
+    }
+
     const updatedFormula: SubdivisionFormula = {
-      id: formulaId,
-      name: name.trim() || 'Custom Formula',
+      id: saveId,
+      name: saveName,
       trigger,
       description: description.trim() || undefined,
       strokes,

@@ -167,4 +167,130 @@ describe('PresetManager Component', () => {
 
     expect(presetManager.getSystem('custom_to_delete')).toBeUndefined();
   });
+
+  describe('Ostinatos Tab & Factory Protection', () => {
+    it('displays 3 tabs (Sistemas, Fórmulas, Ostinatos) and navigates to Ostinatos tab', () => {
+      render(
+        <PresetManager
+          open={true}
+          onClose={mockOnClose}
+          presetManager={presetManager}
+          activeSystemId="classic_bop"
+          onSelectSystem={mockOnSelectSystem}
+          player={mockPlayer}
+        />
+      );
+
+      const sistemasTab = screen.getByRole('button', { name: /Sistemas/i });
+      const formulasTab = screen.getByRole('button', { name: /Fórmulas/i });
+      const ostinatosTab = screen.getByRole('button', { name: /Ostinatos/i });
+
+      expect(sistemasTab).toBeInTheDocument();
+      expect(formulasTab).toBeInTheDocument();
+      expect(ostinatosTab).toBeInTheDocument();
+
+      // Navigate to Ostinatos tab
+      fireEvent.click(ostinatosTab);
+
+      // Verify factory ostinatos are listed with factory badges
+      expect(screen.getByText('Jazz Swing')).toBeInTheDocument();
+      expect(screen.getByText('Corcheas en Hi-Hat')).toBeInTheDocument();
+      expect(screen.getAllByText(/Built-in|Fábrica/i).length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('disables deletion for factory ostinatos and allows deletion for custom ostinatos', () => {
+      presetManager.saveOstinato({
+        id: 'user_songo',
+        name: 'User Songo',
+        timeSignature: [4, 4],
+        strokes: [{ durationRatio: 1.0, hits: [{ voice: 'kick', dynamic: 'normal' }] }],
+        isCustom: true,
+      });
+
+      render(
+        <PresetManager
+          open={true}
+          onClose={mockOnClose}
+          presetManager={presetManager}
+          activeSystemId="classic_bop"
+          onSelectSystem={mockOnSelectSystem}
+          player={mockPlayer}
+        />
+      );
+
+      const ostinatosTab = screen.getByRole('button', { name: /Ostinatos/i });
+      fireEvent.click(ostinatosTab);
+
+      // Factory ostinato delete button should not be present or should be disabled
+      const deleteJazzBtn = screen.queryByTestId('delete-ostinato-jazz_swing');
+      if (deleteJazzBtn) {
+        expect(deleteJazzBtn).toBeDisabled();
+      } else {
+        expect(deleteJazzBtn).toBeNull();
+      }
+
+      // Custom ostinato can be deleted
+      const deleteCustomBtn = screen.getByTestId('delete-ostinato-user_songo');
+      expect(deleteCustomBtn).toBeEnabled();
+      fireEvent.click(deleteCustomBtn);
+
+      expect(presetManager.getOstinato('user_songo')).toBeUndefined();
+    });
+
+    it('opens 4/4 editor when clicking Nuevo Ostinato', () => {
+      render(
+        <PresetManager
+          open={true}
+          onClose={mockOnClose}
+          presetManager={presetManager}
+          activeSystemId="classic_bop"
+          onSelectSystem={mockOnSelectSystem}
+          player={mockPlayer}
+        />
+      );
+
+      const ostinatosTab = screen.getByRole('button', { name: /Ostinatos/i });
+      fireEvent.click(ostinatosTab);
+
+      const newOstinatoBtn = screen.getByRole('button', { name: /Nuevo Ostinato|New Ostinato/i });
+      fireEvent.click(newOstinatoBtn);
+
+      // Dialog opens
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('protects factory presets by cloning as (Copia) when editing a built-in preset', () => {
+      render(
+        <PresetManager
+          open={true}
+          onClose={mockOnClose}
+          presetManager={presetManager}
+          activeSystemId="classic_bop"
+          onSelectSystem={mockOnSelectSystem}
+          player={mockPlayer}
+        />
+      );
+
+      const ostinatosTab = screen.getByRole('button', { name: /Ostinatos/i });
+      fireEvent.click(ostinatosTab);
+
+      // Click Editar on factory Jazz Swing
+      const editJazzBtn = screen.getByTestId('edit-ostinato-jazz_swing');
+      fireEvent.click(editJazzBtn);
+
+      // Click Save in editor dialog
+      const saveBtn = screen.getByRole('button', { name: /Save Formula|Guardar/i });
+      fireEvent.click(saveBtn);
+
+      // Original factory preset remains untouched
+      expect(presetManager.getOstinato('jazz_swing')).toBeDefined();
+      expect(presetManager.getOstinato('jazz_swing')?.isCustom).not.toBe(true);
+
+      // A new copy with (Copia) was saved
+      const allOstinatos = presetManager.getAllOstinatos();
+      const copied = allOstinatos.find((o) => o.name.includes('(Copia)'));
+      expect(copied).toBeDefined();
+      expect(copied?.isCustom).toBe(true);
+    });
+  });
 });

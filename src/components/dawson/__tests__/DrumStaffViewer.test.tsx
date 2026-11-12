@@ -12,8 +12,10 @@ describe('DrumStaffViewer Component', () => {
       />
     );
 
-    // Stave SVG should be rendered
-    expect(container.querySelector('svg')).toBeInTheDocument();
+    // Stave SVG should be rendered with graphical elements (clefs, stave lines, notes)
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg?.querySelectorAll('rect, path').length).toBeGreaterThan(5);
     // Silence badge should not be present
     expect(screen.queryByText(/Silencio/i)).not.toBeInTheDocument();
   });
@@ -27,7 +29,9 @@ describe('DrumStaffViewer Component', () => {
     );
 
     // Stave SVG should still be rendered (clean rest measure)
-    expect(container.querySelector('svg')).toBeInTheDocument();
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg?.querySelectorAll('rect, path').length).toBeGreaterThan(0);
     // Silence badge is visible
     expect(screen.getByText('Silencio')).toBeInTheDocument();
   });

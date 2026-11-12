@@ -10,6 +10,10 @@ Pin geometry, not counts: DOM assertions must compare coordinates or relationshi
 
 Keep engraving geometry (spacing, stem reach, beam thickness, clearances) as module-level named consts in the renderer, not inline literals — tests import them to assert real coordinates, and a test that re-types a literal drifts silently from the code it checks.
 
+**Drum notation voice unification (hard rule)**: All simultaneous drum kit strokes (cymbals, snare, toms, kick, and hi-hat foot) in the formula and ostinato editors must be rendered as unified chord notes on a single voice (`voice1Notes`) with `Stem.UP`. Never introduce Voice 2 or downward stems for feet: VexFlow multi-voice padding introduces horizontal rest displacement, crosses stems, and deforms noteheads on percussion staves.
+
+**Canvas stage geometry enclosure (hard rule)**: Any interactive overlay (guidelines, drop zones, playheads) layered on top of a VexFlow SVG must reside inside a dedicated stage container whose inline style dimensions (`width`, `height`) strictly match the VexFlow renderer's canvas dimensions (`style={{ width, height }}`). Never wrap the SVG in flexible or centered flex parents without pinning the stage bounding box.
+
 ## One style (judgement call)
 
 Reach for this section whenever a diff adds or repaints color. Every surface draws from a token role: `bg-primary`/`text-primary` for the Accent (interactive elements, active states, the Playhead), Success/Warning/Destructive for state, `bg-card`/`text-foreground`/`border-border` for surfaces, `secondary`/`muted` for neutral chrome. The names and their fixed meanings live in `GLOSSARY.md` § Interface — read it before reviewing a restyle.

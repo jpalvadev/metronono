@@ -134,7 +134,8 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
   };
 
   const handleSaveFormulaOrOstinato = (savedFormula: SubdivisionFormula) => {
-    if (formulaTargetBeats === 4) {
+    const isSavingOstinato = formulaTargetBeats === 4 || editingOstinato !== null;
+    if (isSavingOstinato) {
       let saveName = savedFormula.name;
       let saveId = savedFormula.id;
       if (editingOstinato && !editingOstinato.isCustom) {

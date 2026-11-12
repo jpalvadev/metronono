@@ -765,7 +765,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                     className="h-8 gap-1.5 text-xs bg-primary hover:bg-primary/80 text-primary-foreground rounded-none"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Nuevo Ostinato
+                    New Ostinato
                   </Button>
                 </div>
 
@@ -822,7 +822,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                             onClick={() => handleEditOstinato(ost)}
                             className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
                           >
-                            <Edit3 className="w-3 h-3" /> Editar
+                            <Edit3 className="w-3 h-3" /> Edit
                           </Button>
                         </div>
 

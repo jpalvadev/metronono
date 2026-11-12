@@ -286,7 +286,7 @@ export const FACTORY_OSTINATOS: Record<string, OstinatoPattern> = {
       {
         durationRatio: 2 / 3,
         hits: [
-          { voice: 'ride', dynamic: 'accent' },
+          { voice: 'ride', dynamic: 'normal' },
           { voice: 'hihat_foot', dynamic: 'accent' },
         ],
       },
@@ -304,7 +304,7 @@ export const FACTORY_OSTINATOS: Record<string, OstinatoPattern> = {
       {
         durationRatio: 2 / 3,
         hits: [
-          { voice: 'ride', dynamic: 'accent' },
+          { voice: 'ride', dynamic: 'normal' },
           { voice: 'hihat_foot', dynamic: 'accent' },
         ],
       },

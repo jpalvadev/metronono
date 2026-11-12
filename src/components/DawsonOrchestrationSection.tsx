@@ -333,7 +333,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 onClick={handleEditOstinato}
                 className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
               >
-                <Edit3 className="w-3 h-3" /> Editar
+                <Edit3 className="w-3 h-3" /> Edit
               </Button>
             </div>
           </div>
@@ -395,7 +395,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 strokes={activeSystemId === 'none' ? [] : shortFormula.strokes}
                 isSilenced={activeSystemId === 'none'}
                 targetBeats={0.5}
-                height={100}
+                height={120}
               />
 
               <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
@@ -417,7 +417,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
                   className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
                 >
-                  <Edit3 className="w-3 h-3" /> Editar
+                  <Edit3 className="w-3 h-3" /> Edit
                 </Button>
               </div>
             </div>
@@ -437,7 +437,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 strokes={activeSystemId === 'none' ? [] : longFormula.strokes}
                 isSilenced={activeSystemId === 'none'}
                 targetBeats={1.0}
-                height={100}
+                height={120}
               />
 
               <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
@@ -459,7 +459,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
                   className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
                 >
-                  <Edit3 className="w-3 h-3" /> Editar
+                  <Edit3 className="w-3 h-3" /> Edit
                 </Button>
               </div>
             </div>

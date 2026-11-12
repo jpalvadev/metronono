@@ -158,7 +158,7 @@ describe('DawsonOrchestrationSection', () => {
       expect(mockTriggerVoice).toHaveBeenCalled();
     });
 
-    it('opens editor when clicking Editar under Ostinato or Formula staves', () => {
+    it('opens editor when clicking Edit under Ostinato or Formula staves', () => {
       render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
       const editOstinatoBtn = screen.getByTestId('ostinato-edit-btn');
@@ -215,7 +215,7 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.queryByText(/Dawson Systems & Formula Manager/i)).not.toBeInTheDocument();
   });
 
-  it('opens FormulaEditorDialog from formula Editar button and auditions formula', () => {
+  it('opens FormulaEditorDialog from formula Edit button and auditions formula', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
     // Formula audition
@@ -224,7 +224,7 @@ describe('DawsonOrchestrationSection', () => {
     expect(mockTriggerVoice).toHaveBeenCalled();
 
     // Edit formula
-    const editBtns = screen.getAllByRole('button', { name: /Editar/i });
+    const editBtns = screen.getAllByRole('button', { name: /Edit/i });
     fireEvent.click(editBtns[1]); // Short formula edit button
 
     expect(screen.getByText(/Subdivision Formula Editor/i)).toBeInTheDocument();

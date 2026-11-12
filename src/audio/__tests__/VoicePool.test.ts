@@ -33,33 +33,47 @@ describe('Audio Voice Pool: drum rig synth rings', () => {
     const hihat = labelledNodes('rig:orchestration:mix:hihat', 'MetalSynth');
     expect(hihat.length).toBeGreaterThanOrEqual(2);
 
-    // Three 32nd-note hi-hat strokes in rapid succession, 0.05s apart.
-    for (const time of [1.0, 1.05, 1.1]) {
+    // Four 32nd-note hi-hat strokes in rapid succession, one stroke step apart.
+    const strokeStep = 0.05;
+    const strokes = [1.0, 1.05, 1.1, 1.15];
+    for (const time of strokes) {
       player.play(
         { timeInMeasure: 1.0, voice: 'hihat_closed', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
         time
       );
     }
 
-    const times = hihat.flatMap((n) => triggerTimes(n, 2));
-    expect(times.length).toBe(3);
-    // Each ring member got a stroke: no single synth carries two of the three.
-    const perNode = hihat.map((n) => triggerTimes(n, 2).length);
-    expect(perNode).toEqual([1, 1, 1]);
-    // Distinct members means distinct trigger times per member: no member repeats.
-    for (const n of hihat) {
-      expect(triggerTimes(n, 2).length).toBeLessThanOrEqual(1);
+    const times = hihat.flatMap((n) => triggerTimes(n, 1));
+    expect(times.length).toBe(strokes.length);
+    // The ring spreads the strokes: every member holds two of them...
+    const perNode = hihat.map((n) => triggerTimes(n, 1));
+    expect(perNode.map((member) => member.length)).toEqual([2, 2]);
+    // ...and no member ever takes two consecutive strokes, so a stroke never cancels
+    // the live attack of the stroke before it.
+    for (const member of perNode) {
+      const gaps = member.slice(1).map((time, index) => time - member[index]);
+      if (gaps.length === 0) continue;
+      // A member is never handed two consecutive strokes: its strokes are more than one
+      // stroke step apart, so a stroke never cancels the attack before it.
+      expect(Math.min(...gaps)).toBeGreaterThan(strokeStep);
     }
   });
 
-  it('long-decay cymbal voices hold three ring members', async () => {
+  it('every audible voice slot holds a ring, and the eager graph holds only the audible rigs', async () => {
     const scheduler = new ToneTransportScheduler();
     await scheduler.start();
 
-    const crashes = labelledNodes('rig:orchestration:mix:crash', 'MetalSynth');
-    expect(crashes.length).toBe(3);
-    const rides = labelledNodes('rig:ostinato:mix:ride', 'MetalSynth');
-    expect(rides.length).toBe(3);
+    for (const label of ['crash', 'ride', 'hihat']) {
+      const members = labelledNodes(`rig:orchestration:mix:${label}`, 'MetalSynth');
+      expect(members.length).toBeGreaterThanOrEqual(2);
+    }
+
+    // An Audition rig costs the same subgraphs as an audible one and is heard only at a
+    // tap gesture, so it is not part of the graph a session pays for at page load.
+    const auditionMembers = fakeToneRecorder.nodes.filter((node) =>
+      (node.label ?? '').startsWith('rig:') && (node.label ?? '').includes(':audition:')
+    );
+    expect(auditionMembers).toHaveLength(0);
   });
 
   it('no audio node is allocated per stroke', async () => {
@@ -110,21 +124,27 @@ describe('Audio Voice Pool: drum rig synth rings', () => {
     expect(fakeToneRecorder.nodes.every((n) => n.disposed)).toBe(true);
   });
 
-  it('audition taps cycle the audition ring, mix ring untouched', async () => {
+  it('an audition tap builds the audition rig it needs, mix ring untouched', async () => {
     const mixer = new AudioMixer();
     const player = new DrumKitPlayer(mixer);
     const scheduler = new ToneTransportScheduler({ audioMixer: mixer, drumKitPlayer: player });
     await scheduler.start();
 
-    const auditionHiHat = labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth');
-    expect(auditionHiHat.length).toBeGreaterThanOrEqual(2);
+    expect(
+      fakeToneRecorder.nodes.some((node) => (node.label ?? '').includes('rig:orchestration:audition:'))
+    ).toBe(false);
 
     player.triggerVoice('hihat_closed', 1.0, 0.8, 'orchestration');
+
+    const auditionHiHat = labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth');
+    // The rig is earned at the tap gesture, and one member carries the single tap.
+    expect(auditionHiHat.length).toBeGreaterThanOrEqual(1);
+    expect(fakeToneRecorder.triggers(auditionHiHat[0] as { kind: string }).length).toBe(1);
+
     player.triggerVoice('hihat_closed', 1.1, 0.8, 'orchestration');
 
-    for (const n of auditionHiHat) {
-      expect(fakeToneRecorder.triggers(n).length).toBeLessThanOrEqual(1);
-    }
+    // The rig earned at the first tap is reused rather than regrown per tap.
+    expect(labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth')).toHaveLength(1);
     const mixHiHat = labelledNodes('rig:orchestration:mix:hihat', 'MetalSynth');
     expect(mixHiHat.reduce((total, n) => total + fakeToneRecorder.triggers(n).length, 0)).toBe(0);
   });

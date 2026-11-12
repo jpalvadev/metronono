@@ -30,6 +30,14 @@ interface DrumRig {
   hihat: Tone.MetalSynth[];
 }
 
+// A drum synth is not one node but a whole subgraph (a MetalSynth alone costs over a
+// hundred Gain and ConstantSourceNode instances), so the ring is kept at the narrowest
+// width that still gives a stroke its own live attack, and the Audition rigs, heard only
+// at a tap gesture, hold a single member per slot: the eager graph of a session stays
+// inside the audio context's node budget and the audio clock keeps its beat cadence.
+const VOICE_POOL_SIZE = 2;
+const AUDITION_POOL_SIZE = 1;
+
 export interface IDrumKitPlayer {
   initSynths?(): boolean;
   play(event: ScheduledDrumEvent, time: number): void;
@@ -63,6 +71,7 @@ function labelNode<T>(node: T, label: string): T {
 
 function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumRig {
   const named = (voice: string) => `rig:${lane}:${mode}:${voice}`;
+  const pool = mode === 'audition' ? AUDITION_POOL_SIZE : VOICE_POOL_SIZE;
 
   const buildMembers = <T extends Tone.ToneAudioNode>(
     create: () => T,
@@ -86,7 +95,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       oscillator: { type: 'sine' },
       envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
     }),
-    2,
+    pool,
     named('kick')
   );
 
@@ -95,7 +104,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       noise: { type: 'white' },
       envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
     }),
-    2,
+    pool,
     named('snare')
   );
 
@@ -106,7 +115,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       oscillator: { type: 'triangle' },
       envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
     }),
-    2,
+    pool,
     named('snare')
   );
 
@@ -117,7 +126,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       oscillator: { type: 'sine' },
       envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.3 },
     }),
-    2,
+    pool,
     named('tom_high')
   );
 
@@ -128,7 +137,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       oscillator: { type: 'sine' },
       envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
     }),
-    2,
+    pool,
     named('tom_mid')
   );
 
@@ -139,7 +148,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       oscillator: { type: 'sine' },
       envelope: { attack: 0.001, decay: 0.45, sustain: 0.01, release: 0.4 },
     }),
-    2,
+    pool,
     named('tom_floor')
   );
 
@@ -151,7 +160,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       resonance: 4000,
       octaves: 1.5,
     }),
-    3,
+    pool,
     named('crash')
   );
 
@@ -163,7 +172,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       resonance: 5000,
       octaves: 1.2,
     }),
-    3,
+    pool,
     named('ride')
   );
 
@@ -175,7 +184,7 @@ function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumR
       resonance: 6000,
       octaves: 1.5,
     }),
-    3,
+    pool,
     named('hihat')
   );
 
@@ -212,8 +221,13 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   }
 
   /**
-   * Builds the channel rigs from the Mixing Channel nodes the AudioMixer owns. Idempotent
+   * Builds the audible rigs from the Mixing Channel nodes the AudioMixer owns. Idempotent
    * and retry-safe: call again after the audio context is unlocked.
+   *
+   * Only the audible mix rigs are earned eagerly. An Audition rig costs the same ring of
+   * synths, is heard only at a tap gesture, and would halve the node budget of every
+   * session that never auditions a drum voice, so it earns its nodes at that gesture
+   * (ensureRig) instead of at page load.
    */
   public initSynths(): boolean {
     if (this.rigs.size > 0) return true;
@@ -222,11 +236,7 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     try {
       const rigs = new Map<RigKey, DrumRig>();
       for (const lane of ['ostinato', 'orchestration'] as DrumLane[]) {
-        for (const mode of ['mix', 'audition'] as RigMode[]) {
-          const lineNode =
-            mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
-          rigs.set(`${lane}:${mode}`, buildRig(lane, mode, lineNode));
-        }
+        rigs.set(`${lane}:mix`, buildRig(lane, 'mix', this.mixer.getChannelNode(lane)));
       }
       this.rigs = rigs;
       return true;
@@ -234,6 +244,26 @@ export class DrumKitPlayer implements IDrumKitPlayer {
       // Fail closed: a half built kit is disposed so no sound can reach the destination.
       this.disposeRigs();
       return false;
+    }
+  }
+
+  /**
+   * The rig a stroke needs. The audible mix rigs are already built; an Audition rig is
+   * built here, at the audition gesture that first hears it, and stays for later taps.
+   */
+  private ensureRig(lane: DrumLane, mode: RigMode): DrumRig | null {
+    const key = `${lane}:${mode}` as RigKey;
+    const existing = this.rigs.get(key);
+    if (existing) return existing;
+    if (mode !== 'audition' || !this.mixer.isGraphInitialized()) return null;
+
+    try {
+      const rig = buildRig(lane, mode, this.mixer.getAuditionNode(lane));
+      this.rigs.set(key, rig);
+      return rig;
+    } catch {
+      // Fail closed: an audition stroke with no rig is simply silent.
+      return null;
     }
   }
 
@@ -355,7 +385,10 @@ export class DrumKitPlayer implements IDrumKitPlayer {
       (pending) => {
         if (pending.endsAt > now) return true;
         try {
-          pending.source.stop();
+          // Tone's accurate-timing contract: a source retired from inside a scheduled
+          // callback stops at the scheduling time it was heard at, never at Tone.now().
+          if (Number.isFinite(now)) pending.source.stop(now);
+          else pending.source.stop();
           pending.source.dispose();
         } catch {
           // Safe disposal
@@ -431,7 +464,7 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     }
 
     const rigKey = `${lane}:${mode}` as RigKey;
-    const rig = this.rigs.get(rigKey);
+    const rig = mode === 'audition' ? this.ensureRig(lane, mode) : this.rigs.get(rigKey);
     if (!rig) return;
 
     try {

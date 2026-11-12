@@ -174,7 +174,10 @@ export class ToneClickPlayer implements IClickPlayer {
       (pending) => {
         if (pending.endsAt > now) return true;
         try {
-          pending.source.stop();
+          // Tone's accurate-timing contract: a source retired from inside a scheduled
+          // callback stops at the scheduling time it was heard at, never at Tone.now().
+          if (Number.isFinite(now)) pending.source.stop(now);
+          else pending.source.stop();
           pending.source.dispose();
         } catch {
           // Safe disposal

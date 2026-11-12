@@ -213,6 +213,10 @@ export class FakeToneBufferSource extends FakeToneNode {
   readonly playbackRate: FakeGainParam
   startedAt: number | null = null
   stoppedAt: number | null = null
+  // Tone v15 warns ("Events scheduled inside of scheduled callbacks should use the
+  // passed in scheduling time") when a source is stopped without naming its time, so the
+  // recorder keeps that misuse observable to suites.
+  stoppedWithoutScheduleTime = false
 
   constructor(id: string, buffer?: unknown) {
     super(id, 'ToneBufferSource')
@@ -227,6 +231,7 @@ export class FakeToneBufferSource extends FakeToneNode {
   }
 
   public stop(time?: number): this {
+    this.stoppedWithoutScheduleTime = time === undefined
     this.stoppedAt = time ?? fakeClock.time
     return this
   }

@@ -61,7 +61,10 @@ describe('Sample stroke lifecycle', () => {
     const sources = fakeToneRecorder.bufferSources();
     const retired = sources.filter((s) => s.startedAt === 1.0);
     expect(retired).toHaveLength(1);
-    expect(retired[0].stoppedAt).not.toBeNull();
+    // Tone's accurate-timing contract: retired from inside a scheduled callback, the
+    // source stops at the scheduling time of the stroke that retired it, never at now().
+    expect(retired[0].stoppedAt).toBe(2.0);
+    expect(retired[0].stoppedWithoutScheduleTime).toBe(false);
     expect(retired[0].disposed).toBe(true);
     // The live one is not retired before its window elapsed.
     const live = sources.find((s) => s.startedAt === 2.0);
@@ -141,6 +144,8 @@ describe('Sample stroke lifecycle', () => {
     // Three of the ten beats are downbeats, whose custom sample lives on another
     // voice slot: the regular voice hears the other seven.
     expect(sources).toHaveLength(7);
+    // Every retirement names the beat's scheduling time (Tone's accurate-timing contract).
+    expect(sources.every((s) => !s.stoppedWithoutScheduleTime)).toBe(true);
 
     scheduler.dispose();
     const stillLive = sources.filter((s) => !s.disposed);

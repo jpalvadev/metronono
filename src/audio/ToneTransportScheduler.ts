@@ -43,6 +43,10 @@ export class ToneClickPlayer implements IClickPlayer {
   private outputNode?: Tone.ToneAudioNode;
   private auditionNode?: Tone.ToneAudioNode;
   private customBuffers: Map<ClickVoiceKey, any> = new Map();
+  // One pooled Gain per sample voice and mode instead of a fresh Gain per stroke,
+  // and pending BufferSources retired once their playback window elapsed.
+  private sampleGains: Map<string, Tone.Gain> = new Map();
+  private pendingSampleSources: { source: Tone.ToneBufferSource; endsAt: number }[] = [];
 
   constructor(
     outputNode: Tone.ToneAudioNode,
@@ -102,11 +106,26 @@ export class ToneClickPlayer implements IClickPlayer {
   }
 
   public loadSampleBuffer(voice: ClickVoiceKey, buffer: any): void {
+    this.disposeClickSampleGains(voice);
     this.customBuffers.set(voice, buffer);
   }
 
   public removeSampleBuffer(voice: ClickVoiceKey): void {
     this.customBuffers.delete(voice);
+    this.disposeClickSampleGains(voice);
+  }
+
+  private disposeClickSampleGains(voice: ClickVoiceKey): void {
+    for (const mode of ['mix', 'audition'] as ('mix' | 'audition')[]) {
+      const gain = this.sampleGains.get(`${voice}:${mode}`);
+      if (!gain) continue;
+      try {
+        gain.dispose();
+      } catch {
+        // Safe disposal
+      }
+      this.sampleGains.delete(`${voice}:${mode}`);
+    }
   }
 
   public hasCustomSample(voice: ClickVoiceKey): boolean {
@@ -114,6 +133,7 @@ export class ToneClickPlayer implements IClickPlayer {
   }
 
   private playCustomSample(
+    voice: ClickVoiceKey,
     buffer: any,
     time: number,
     velocity: number,
@@ -121,27 +141,54 @@ export class ToneClickPlayer implements IClickPlayer {
   ): void {
     try {
       const audioTime = time > 0 ? time : Tone.now();
-      const destination = mode === 'audition' ? this.auditionNode : this.outputNode;
-      const bufferSource = new Tone.ToneBufferSource(buffer);
-      const gainNode = labelNode(
-        new Tone.Gain(velocity),
-        mode === 'audition' ? 'click-sample-audition-gain' : 'click-sample-gain'
-      );
-      bufferSource.connect(gainNode);
-      if (destination) {
-        gainNode.connect(destination);
+      this.retirePendingSamples(audioTime);
+
+      const poolKey = `${voice}:${mode}`;
+      let gain = this.sampleGains.get(poolKey);
+      if (!gain) {
+        gain = labelNode(
+          new Tone.Gain(),
+          mode === 'audition' ? 'click-sample-audition-gain' : 'click-sample-gain'
+        );
+        const destination = mode === 'audition' ? this.auditionNode : this.outputNode;
+        if (destination) {
+          gain.connect(destination);
+        }
+        this.sampleGains.set(poolKey, gain);
       }
+      // Per-stroke dynamics live as a timed write on the pooled gain.
+      gain.gain.setValueAtTime(velocity, audioTime);
+
+      const bufferSource = new Tone.ToneBufferSource(buffer);
+      bufferSource.connect(gain as unknown as Tone.ToneAudioNode);
       bufferSource.start(audioTime);
+      const duration = (buffer as { duration?: number }).duration ?? 1;
+      this.pendingSampleSources.push({ source: bufferSource, endsAt: audioTime + duration });
     } catch {
       // Safe isolation
     }
+  }
+
+  private retirePendingSamples(now: number): void {
+    this.pendingSampleSources = this.pendingSampleSources.filter(
+      (pending) => {
+        if (pending.endsAt > now) return true;
+        try {
+          pending.source.stop();
+          pending.source.dispose();
+        } catch {
+          // Safe disposal
+        }
+        return false;
+      }
+    );
   }
 
   private playVoice(key: ClickVoiceKey, time: number, velocity?: number, pitch?: string): void {
     const custom = this.customBuffers.get(key);
     if (custom) {
       const v = velocity ?? this.clickConfig[key].volume;
-      this.playCustomSample(custom, time, v, 'mix');
+      this.playCustomSample(key, custom, time, v, 'mix');
       return;
     }
 
@@ -166,7 +213,7 @@ export class ToneClickPlayer implements IClickPlayer {
   public audition(voice: ClickVoiceKey, time = 0, velocity = 1.0): void {
     const custom = this.customBuffers.get(voice);
     if (custom) {
-      this.playCustomSample(custom, time, velocity, 'audition');
+      this.playCustomSample(voice, custom, time, velocity, 'audition');
       return;
     }
 
@@ -181,6 +228,15 @@ export class ToneClickPlayer implements IClickPlayer {
 
   public dispose(): void {
     this.customBuffers.clear();
+    this.retirePendingSamples(Number.POSITIVE_INFINITY);
+    this.sampleGains.forEach((gain) => {
+      try {
+        gain.dispose();
+      } catch {
+        // Safe disposal
+      }
+    });
+    this.sampleGains.clear();
     for (const voice of Object.values(this.mixVoices)) {
       voice.dispose();
     }

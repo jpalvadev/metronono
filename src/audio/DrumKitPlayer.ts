@@ -191,6 +191,12 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   private customSampleBuffers: Map<DrumVoice, any> = new Map();
   // Which ring member each voice slot uses next, per rig (docs/adr/0011 voice pool).
   private rigCursors: Map<RigKey, Record<string, number>> = new Map();
+  // One pooled Gain per sample voice slot (per lane and mode), keyed by the sample
+  // buffer identity, instead of a fresh Gain per stroke (docs/adr/0011 voice pool).
+  private sampleGains: Map<string, Map<unknown, Tone.Gain>> = new Map();
+  // The unavoidable fresh BufferSource per stroke, retired once its playback window
+  // has elapsed so the live graph stays bounded (docs/adr/0011 lifecycle).
+  private pendingSampleSources: { source: Tone.ToneBufferSource; endsAt: number }[] = [];
 
   constructor(mixer: IAudioMixer) {
     this.mixer = mixer;
@@ -249,11 +255,33 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   }
 
   public loadSampleBuffer(voice: DrumVoice, buffer: any): void {
+    const previous = this.customSampleBuffers.get(voice);
+    if (previous !== undefined && previous !== buffer) {
+      this.disposeSampleGainsFor(previous);
+    }
     this.customSampleBuffers.set(voice, buffer);
   }
 
   public removeSampleBuffer(voice: DrumVoice): void {
+    const previous = this.customSampleBuffers.get(voice);
     this.customSampleBuffers.delete(voice);
+    if (previous !== undefined) {
+      this.disposeSampleGainsFor(previous);
+    }
+  }
+
+  /** Recycles the pooled Gains a replaced or removed sample buffer was using. */
+  private disposeSampleGainsFor(buffer: unknown): void {
+    this.sampleGains.forEach((byBuffer) => {
+      const gain = byBuffer.get(buffer);
+      if (!gain) return;
+      try {
+        gain.dispose();
+      } catch {
+        // Safe disposal
+      }
+      byBuffer.delete(buffer);
+    });
   }
 
   public hasCustomSample(voice: DrumVoice): boolean {
@@ -262,6 +290,16 @@ export class DrumKitPlayer implements IDrumKitPlayer {
 
   public clearAllCustomSamples(): void {
     this.customSampleBuffers.clear();
+    this.sampleGains.forEach((byBuffer) => {
+      byBuffer.forEach((gain) => {
+        try {
+          gain.dispose();
+        } catch {
+          // Safe disposal
+        }
+      });
+    });
+    this.sampleGains.clear();
   }
 
   public playCustomSample(
@@ -273,21 +311,67 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   ): void {
     try {
       const audioTime = time > 0 ? time : Tone.now();
-      const targetNode =
-        mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
-      const bufferSource = new Tone.ToneBufferSource(buffer);
-      const gainNode = new Tone.Gain(velocity);
-      labelNode(gainNode, `sample:${lane}:${mode}`);
-      bufferSource.connect(gainNode as any);
-      gainNode.connect(targetNode as any);
-      bufferSource.start(audioTime);
+      this.retirePendingSamples(audioTime);
+
+      const poolKey = `${lane}:${mode}`;
+      let byBuffer = this.sampleGains.get(poolKey);
+      if (!byBuffer) {
+        byBuffer = new Map<unknown, Tone.Gain>();
+        this.sampleGains.set(poolKey, byBuffer);
+      }
+      let gain = byBuffer.get(buffer);
+      if (!gain) {
+        gain = labelNode(new Tone.Gain(), `sample:${poolKey}`);
+        const targetNode =
+          mode === 'audition' ? this.mixer.getAuditionNode(lane) : this.mixer.getChannelNode(lane);
+        gain.connect(targetNode as any);
+        byBuffer.set(buffer, gain);
+      }
+      // Per-stroke dynamics live as a timed write on the pooled gain.
+      gain.gain.setValueAtTime(velocity, audioTime);
+
+      const source = new Tone.ToneBufferSource(buffer);
+      source.connect(gain as any);
+      source.start(audioTime);
+      const duration = (buffer as { duration?: number }).duration ?? 1;
+      this.pendingSampleSources.push({ source, endsAt: audioTime + duration });
     } catch {
       // Safe isolation
     }
   }
 
+  /**
+   * Stops and disposes every sample BufferSource whose playback window has
+   * already elapsed, keeping the live audio graph bounded (docs/adr/0011).
+   */
+  private retirePendingSamples(now: number): void {
+    this.pendingSampleSources = this.pendingSampleSources.filter(
+      (pending) => {
+        if (pending.endsAt > now) return true;
+        try {
+          pending.source.stop();
+          pending.source.dispose();
+        } catch {
+          // Safe disposal
+        }
+        return false;
+      }
+    );
+  }
+
   public dispose(): void {
     this.customSampleBuffers.clear();
+    this.retirePendingSamples(Number.POSITIVE_INFINITY);
+    this.sampleGains.forEach((byBuffer) => {
+      byBuffer.forEach((gain) => {
+        try {
+          gain.dispose();
+        } catch {
+          // Safe disposal
+        }
+      });
+    });
+    this.sampleGains.clear();
     this.disposeRigs();
   }
 

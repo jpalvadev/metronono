@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToneTransportScheduler } from '../ToneTransportScheduler';
-import { DrumKitPlayer } from '../DrumKitPlayer';
+import { DrumKitPlayer, VOICE_POOL_SIZE, AUDITION_POOL_SIZE } from '../DrumKitPlayer';
 import { AudioMixer } from '../AudioMixer';
 import { fakeToneRecorder } from '../../test/fakeTone';
 
@@ -31,7 +31,7 @@ describe('Audio Voice Pool: drum rig synth rings', () => {
     await scheduler.start();
 
     const hihat = labelledNodes('rig:orchestration:mix:hihat', 'MetalSynth');
-    expect(hihat.length).toBeGreaterThanOrEqual(2);
+    expect(hihat).toHaveLength(VOICE_POOL_SIZE);
 
     // Four 32nd-note hi-hat strokes in rapid succession, one stroke step apart.
     const strokeStep = 0.05;
@@ -45,9 +45,11 @@ describe('Audio Voice Pool: drum rig synth rings', () => {
 
     const times = hihat.flatMap((n) => triggerTimes(n, 1));
     expect(times.length).toBe(strokes.length);
-    // The ring spreads the strokes: every member holds two of them...
+    // The ring spreads the strokes evenly: every member holds the same share...
     const perNode = hihat.map((n) => triggerTimes(n, 1));
-    expect(perNode.map((member) => member.length)).toEqual([2, 2]);
+    expect(perNode.map((member) => member.length)).toEqual(
+      Array(VOICE_POOL_SIZE).fill(strokes.length / VOICE_POOL_SIZE)
+    );
     // ...and no member ever takes two consecutive strokes, so a stroke never cancels
     // the live attack of the stroke before it.
     for (const member of perNode) {
@@ -65,7 +67,7 @@ describe('Audio Voice Pool: drum rig synth rings', () => {
 
     for (const label of ['crash', 'ride', 'hihat']) {
       const members = labelledNodes(`rig:orchestration:mix:${label}`, 'MetalSynth');
-      expect(members.length).toBeGreaterThanOrEqual(2);
+      expect(members).toHaveLength(VOICE_POOL_SIZE);
     }
 
     // An Audition rig costs the same subgraphs as an audible one and is heard only at a
@@ -138,13 +140,13 @@ describe('Audio Voice Pool: drum rig synth rings', () => {
 
     const auditionHiHat = labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth');
     // The rig is earned at the tap gesture, and one member carries the single tap.
-    expect(auditionHiHat.length).toBeGreaterThanOrEqual(1);
+    expect(auditionHiHat).toHaveLength(AUDITION_POOL_SIZE);
     expect(fakeToneRecorder.triggers(auditionHiHat[0] as { kind: string }).length).toBe(1);
 
     player.triggerVoice('hihat_closed', 1.1, 0.8, 'orchestration');
 
     // The rig earned at the first tap is reused rather than regrown per tap.
-    expect(labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth')).toHaveLength(1);
+    expect(labelledNodes('rig:orchestration:audition:hihat', 'MetalSynth')).toHaveLength(AUDITION_POOL_SIZE);
     const mixHiHat = labelledNodes('rig:orchestration:mix:hihat', 'MetalSynth');
     expect(mixHiHat.reduce((total, n) => total + fakeToneRecorder.triggers(n).length, 0)).toBe(0);
   });

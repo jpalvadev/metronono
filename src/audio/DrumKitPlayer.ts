@@ -35,8 +35,8 @@ interface DrumRig {
 // width that still gives a stroke its own live attack, and the Audition rigs, heard only
 // at a tap gesture, hold a single member per slot: the eager graph of a session stays
 // inside the audio context's node budget and the audio clock keeps its beat cadence.
-const VOICE_POOL_SIZE = 2;
-const AUDITION_POOL_SIZE = 1;
+export const VOICE_POOL_SIZE = 2;
+export const AUDITION_POOL_SIZE = 1;
 
 export interface IDrumKitPlayer {
   initSynths?(): boolean;

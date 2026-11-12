@@ -18,10 +18,10 @@ import { spawn } from 'child_process';
 
 const PORT = 5399;
 const RUN_MS = Number(process.argv[2] || 6000);
-const BPM = 120;
-// The eager graph of a session: two audible rigs at the voice-pool width. Chrome's WebAudio
-// renderer starts refusing to play past a few thousand nodes, so the budget is pinned here.
-const NODE_BUDGET = 7000;
+// The eager graph of a session measured at this seam: two audible rigs at the voice-pool
+// width cost 4,673 Gain nodes at page load (the pre-candidate baseline, docs/adr/0011). The
+// budget leaves ~7% slack above that; the doubled graph that made Chrome refuse cost 13,049.
+const NODE_BUDGET = 5000;
 const BENIGN_CONSOLE = /vite|Download the React DevTools|Tone\.js v\d+|was not allowed to start/i;
 
 function bootVite() {
@@ -32,15 +32,28 @@ function bootVite() {
       { cwd: process.cwd() },
     );
     let output = '';
+    let served = false;
+    // The watchdog must not keep the process alive once vite has served.
+    const watchdog = setTimeout(
+      () => { if (!served) reject(new Error('vite did not serve in time')); },
+      30000,
+    );
+    const exited = new Promise((done) => child.once('exit', () => done()));
     child.stdout.on('data', (chunk) => {
+      if (served) return;
       // vite paints the URL with ANSI codes between the host and the port.
       output += chunk;
       const clean = output.replace(/\x1b\[[0-9;]*m/g, '');
-      if (clean.search(new RegExp('http://(?:localhost|127\\.0\\.0\\.1):' + PORT)) >= 0) resolve(child);
+      if (clean.search(new RegExp('http://(?:localhost|127\\.0\\.0\\.1):' + PORT)) >= 0) {
+        served = true;
+        clearTimeout(watchdog);
+        resolve({ child, exited });
+      }
     });
     child.on('error', reject);
-    child.on('exit', (code) => reject(new Error('vite exited ' + code)));
-    setTimeout(() => reject(new Error('vite did not serve in time')), 30000);
+    child.on('exit', (code) => {
+      if (!served) reject(new Error('vite exited ' + code));
+    });
   });
 }
 
@@ -106,6 +119,14 @@ function bootVite() {
 
   const gainsAtLoad = await page.evaluate(() => window.__census.createGain || 0);
 
+  // The app's own tempo readout: the big number in the Metronome card, beside the BPM label.
+  const configuredBpm = await page.evaluate(() => {
+    const unit = Array.from(document.querySelectorAll('span')).find((s) => (s.textContent || '').trim() === 'BPM');
+    if (!unit || !unit.previousElementSibling) return null;
+    const value = Number((unit.previousElementSibling.textContent || '').trim());
+    return Number.isFinite(value) && value > 0 ? value : null;
+  });
+
   const startBtn = (await page.locator('button').filter({ hasText: /start clock/i })).first();
   await startBtn.click();
 
@@ -132,18 +153,27 @@ function bootVite() {
   const after = await page.evaluate(() => ({ census: window.__census, errors: window.__errors }));
   const started = after.census.sourceStart || 0;
   await browser.close();
-  vite.kill();
+  vite.child.kill();
+  await vite.exited;
 
-  const expectedBeats = (elapsedSeconds * BPM) / 60;
   const failures = [];
+  const expectedBeats = configuredBpm === null ? 0 : (elapsedSeconds * configuredBpm) / 60;
   console.log('gains at load: ' + gainsAtLoad + ' (budget ' + NODE_BUDGET + ')');
+  console.log('configured tempo read from the page: ' + configuredBpm + ' bpm');
   console.log('beats heard: ' + beatChanges + ' (expected ~' + expectedBeats.toFixed(1) + ')');
   console.log('source starts: ' + started);
   if (gainsAtLoad > NODE_BUDGET) {
     failures.push('the eager audio graph cost ' + gainsAtLoad + ' Gain nodes at page load, over the ' + NODE_BUDGET + ' budget');
   }
-  if (beatChanges < expectedBeats * 0.75) {
-    failures.push('the audio clock delivered ' + beatChanges + ' beats in ' + elapsedSeconds.toFixed(1) + 's while ' + BPM + ' bpm asks for ~' + expectedBeats.toFixed(1));
+  if (configuredBpm === null) {
+    failures.push('the configured tempo could not be read from the page, so the cadence cannot be checked');
+  } else if (beatChanges < expectedBeats * 0.75) {
+    failures.push('the audio clock delivered ' + beatChanges + ' beats in ' + elapsedSeconds.toFixed(1) + 's while ' + configuredBpm + ' bpm asks for ~' + expectedBeats.toFixed(1));
+  }
+  if (configuredBpm === null) {
+    failures.push('the configured tempo could not be read from the page, so the cadence cannot be checked');
+  } else if (beatChanges < expectedBeats * 0.75) {
+    failures.push('the audio clock delivered ' + beatChanges + ' beats in ' + elapsedSeconds.toFixed(1) + 's while ' + configuredBpm + ' bpm asks for ~' + expectedBeats.toFixed(1));
   }
   if (beatChanges === 0) failures.push('the beat indicator never advanced: the clock is stalled');
   if (started < beatChanges) failures.push('only ' + started + ' sources started for ' + beatChanges + ' beats: the clock beats go unheard');

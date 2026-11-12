@@ -148,4 +148,40 @@ describe('PartitureFormulaEditor', () => {
     const updated = onChangeStrokes.mock.calls[0][0];
     expect(updated[0].hits[0].voice).toBe('kick');
   });
+
+  // Continuous Metric Timeline (docs/adr/0013): a mixed 1/3 + 1/4 figure
+  // survives step-button editing without the measure re-quantizing to the
+  // subdivision grid — the bar is display, the events keep fractional offsets.
+  it('keeps mixed fractional figures when toggling a subdivision step', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 0.25, hits: [{ voice: 'tom_floor', dynamic: 'normal' }] },
+    ];
+    const onChangeStrokes = vi.fn();
+    const mockPlayer: IDrumKitPlayer = {
+      play: vi.fn(),
+      triggerVoice: vi.fn(),
+    };
+
+    render(
+      <PartitureFormulaEditor
+        strokes={strokes}
+        onChangeStrokes={onChangeStrokes}
+        targetBeats={1.0}
+        player={mockPlayer}
+      />
+    );
+
+    // Select Kick as the active voice, then toggle step 2.
+    fireEvent.click(screen.getByRole('button', { name: /Kick/i }));
+    fireEvent.click(screen.getByTestId('slot-step-2'));
+
+    expect(onChangeStrokes).toHaveBeenCalledTimes(1);
+    const updated: OrchestratedStroke[] = onChangeStrokes.mock.calls[0][0];
+    // The measure stays whole (padded to the beat) but the fractional ratios
+    // survive: the old homogeneous grid would have returned [1/3, 1/3, 1/3].
+    expect(updated.map((s) => s.durationRatio)).toEqual([1 / 3, 1 / 3, 0.25, 0.083]);
+    expect(updated[2].hits.map((h) => h.voice)).toEqual(['tom_floor', 'kick']);
+  });
 });

@@ -48,164 +48,144 @@ export function dynamicToVelocity(dynamic: Dynamic): number {
   }
 }
 
-export interface FormulaSlot {
-  slotIndex: number;
+// Continuous Metric Timeline (docs/adr/0013): a measure is polyphonic events
+// at fractional timeInMeasure offsets — the same offsets the audio scheduler
+// uses — never a coerced homogeneous slot grid.
+export interface FormulaEvent {
   beatOffset: number;
   durationRatio: number;
   hits: import('../../domain/dawson/types').DrumHit[];
   isRest: boolean;
 }
 
-export function strokesToSlots(
+export function eventsFromStrokes(
   strokes: OrchestratedStroke[],
-  targetBeats: number,
-  slotDuration: number
-): FormulaSlot[] {
-  const totalSlots = Math.max(1, Math.round(targetBeats / slotDuration));
-  const slots: FormulaSlot[] = Array.from({ length: totalSlots }, (_, s) => ({
-    slotIndex: s,
-    beatOffset: Math.round(s * slotDuration * 1000) / 1000,
-    durationRatio: slotDuration,
-    hits: [],
-    isRest: true,
-  }));
-
+  targetBeats: number
+): FormulaEvent[] {
   const resolved = resolveStrokeOffsets(strokes, 0);
-
+  const events: FormulaEvent[] = [];
   resolved.forEach(({ stroke, offset }) => {
-    const slotIdx = Math.min(
-      totalSlots - 1,
-      Math.max(0, Math.round(offset / slotDuration))
-    );
-
-    if (!stroke.isRest && stroke.hits && stroke.hits.length > 0) {
-      slots[slotIdx].hits = [...stroke.hits];
-      slots[slotIdx].isRest = false;
-    } else if (stroke.isRest) {
-      slots[slotIdx].isRest = true;
-      slots[slotIdx].hits = [];
+    if (offset >= targetBeats) return;
+    const beatOffset = Math.round(Math.min(offset, targetBeats) * 1000) / 1000;
+    const isRest = stroke.isRest || stroke.hits.length === 0;
+    const previous = events[events.length - 1];
+    if (previous && previous.beatOffset === beatOffset) {
+      // Same timeInMeasure: merge into one unison chord.
+      if (!isRest) {
+        previous.hits = [...previous.hits, ...stroke.hits];
+        previous.isRest = false;
+      }
+      return;
     }
+    events.push({
+      beatOffset,
+      durationRatio: stroke.durationRatio,
+      hits: [...stroke.hits],
+      isRest,
+    });
   });
-
-  return slots;
+  return events;
 }
 
-export function slotsToStrokes(slots: FormulaSlot[], preserveAll = false): OrchestratedStroke[] {
-  if (slots.length === 0) {
+// Quantization Adapter (docs/adr/0013): ONLY newly created events get snapped
+// to the current subdivision grid; existing events keep their exact offsets.
+export function quantizeTime(
+  time: number,
+  slotDuration: number,
+  targetBeats: number
+): number {
+  const grid = slotDuration > 0 ? slotDuration : 0.25;
+  const snapped = Math.round(Math.max(0, time) / grid) * grid;
+  const lastStart = Math.max(0, targetBeats - grid);
+  return Math.round(Math.min(snapped, lastStart) * 1000) / 1000;
+}
+
+export function getEventIndexForTime(
+  time: number,
+  events: FormulaEvent[],
+  tolerance: number
+): number {
+  let bestIdx = -1;
+  let bestDiff = Infinity;
+  events.forEach((event, i) => {
+    const diff = Math.abs(event.beatOffset - time);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
+  });
+  return bestDiff <= tolerance ? bestIdx : -1;
+}
+
+// Commit continuous events back to the editor's stroke list: gaps between
+// events become explicit rests so the audio scheduler (which consumes the same
+// stroke list) hears the events at the offsets the canvas shows.
+export function commitEvents(
+  events: FormulaEvent[],
+  targetBeats: number,
+  preserveAll: boolean
+): OrchestratedStroke[] {
+  const sorted = [...events].sort((a, b) => a.beatOffset - b.beatOffset);
+  const hasSounding = sorted.some((event) => !event.isRest && event.hits.length > 0);
+  if (sorted.length === 0) {
+    return [{ durationRatio: 0.25, isRest: true, hits: [] }];
+  }
+  if (!hasSounding && !preserveAll) {
+    const first = sorted[0];
     return [
       {
-        durationRatio: 0.25,
+        durationRatio: first.durationRatio,
         isRest: true,
         hits: [],
       },
     ];
   }
 
+  const strokes: OrchestratedStroke[] = [];
+  let cursor = 0;
+  sorted.forEach((event) => {
+    // Sequential-safe: the stroke model cannot overlap, so an event earlier
+    // than the running cursor is clamped forward.
+    const offset = Math.max(event.beatOffset, cursor);
+    const gap = offset - cursor;
+    if (gap > 0.001) {
+      strokes.push({
+        durationRatio: Math.round(gap * 1000) / 1000,
+        isRest: true,
+        hits: [],
+      });
+    }
+    strokes.push({
+      durationRatio: event.durationRatio,
+      isRest: event.isRest || event.hits.length === 0,
+      hits: event.hits,
+    });
+    cursor = offset + event.durationRatio;
+  });
+
   if (preserveAll) {
-    return slots.map((s) => ({
-      durationRatio: s.durationRatio,
-      isRest: s.isRest || s.hits.length === 0,
-      hits: s.hits,
-    }));
+    const trailing = targetBeats - cursor;
+    if (trailing > 0.001) {
+      strokes.push({
+        durationRatio: Math.round(trailing * 1000) / 1000,
+        isRest: true,
+        hits: [],
+      });
+    }
+    return strokes;
   }
 
   let lastNonRestIdx = -1;
-  for (let i = slots.length - 1; i >= 0; i--) {
-    const slot = slots[i];
-    if (slot && !slot.isRest && slot.hits.length > 0) {
+  for (let i = strokes.length - 1; i >= 0; i--) {
+    if (!strokes[i].isRest) {
       lastNonRestIdx = i;
       break;
     }
   }
   if (lastNonRestIdx === -1) {
-    const firstRest = slots[0];
-    return [
-      {
-        durationRatio: firstRest ? firstRest.durationRatio : 0.25,
-        isRest: true,
-        hits: [],
-      },
-    ];
+    return [{ durationRatio: strokes[0].durationRatio, isRest: true, hits: [] }];
   }
-
-  return slots.slice(0, lastNonRestIdx + 1).map((s) => ({
-    durationRatio: s.durationRatio,
-    isRest: s.isRest || s.hits.length === 0,
-    hits: s.hits,
-  }));
-}
-
-export function getSlotGeometry(
-  slotIndex: number,
-  totalSlots: number,
-  layout: DrumStaffFormulaLayout | null
-): { centerX: number; leftBoundary: number; rightBoundary: number; width: number } {
-  if (!layout) {
-    return { centerX: 0, leftBoundary: 0, rightBoundary: 0, width: 0 };
-  }
-
-  const coords = layout.strokeCoordinates;
-  const startX = layout.stave.getNoteStartX();
-  const endX = layout.stave.getNoteEndX();
-  const noteWidth = Math.max(10, endX - startX);
-  const fallbackSlotWidth = noteWidth / totalSlots;
-
-  if (coords && coords.length === totalSlots && coords[slotIndex]) {
-    const currentX = coords[slotIndex].x;
-    const prevX = slotIndex > 0 && coords[slotIndex - 1] ? coords[slotIndex - 1].x : startX;
-    const nextX = slotIndex < totalSlots - 1 && coords[slotIndex + 1] ? coords[slotIndex + 1].x : endX;
-
-    const leftBoundary = slotIndex === 0 ? startX : (prevX + currentX) / 2;
-    const rightBoundary = slotIndex === totalSlots - 1 ? endX : (currentX + nextX) / 2;
-
-    return {
-      centerX: currentX,
-      leftBoundary,
-      rightBoundary,
-      width: Math.max(1, rightBoundary - leftBoundary),
-    };
-  }
-
-  const leftBoundary = startX + slotIndex * fallbackSlotWidth;
-  const rightBoundary = leftBoundary + fallbackSlotWidth;
-  return {
-    centerX: leftBoundary + fallbackSlotWidth / 2,
-    leftBoundary,
-    rightBoundary,
-    width: fallbackSlotWidth,
-  };
-}
-
-export function getSlotIndexForX(
-  x: number,
-  totalSlots: number,
-  layout: DrumStaffFormulaLayout | null
-): number {
-  if (!layout) return 0;
-  const coords = layout.strokeCoordinates;
-
-  if (coords && coords.length === totalSlots) {
-    let closestIdx = 0;
-    let minDiff = Infinity;
-    for (let i = 0; i < totalSlots; i++) {
-      const geom = getSlotGeometry(i, totalSlots, layout);
-      if (x >= geom.leftBoundary && x <= geom.rightBoundary) {
-        return i;
-      }
-      const diff = Math.abs(geom.centerX - x);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIdx = i;
-      }
-    }
-    return closestIdx;
-  }
-
-  const startX = layout.stave.getNoteStartX();
-  const endX = layout.stave.getNoteEndX();
-  const noteWidth = Math.max(10, endX - startX);
-  const slotWidth = noteWidth / totalSlots;
-  return Math.min(totalSlots - 1, Math.max(0, Math.floor((x - startX) / slotWidth)));
+  return strokes.slice(0, lastNonRestIdx + 1);
 }
 
 export function getSlotLabels(totalSlots: number, slotDuration: number, _targetBeats?: number): string[] {
@@ -216,32 +196,25 @@ export function getSlotLabels(totalSlots: number, slotDuration: number, _targetB
     const subOffset = beatOffset - Math.floor(beatOffset);
 
     if (Math.abs(slotDuration - 0.25) < 0.03) {
-      // 16th note subdivision (4 per beat): 1, e, &, a
-      const step4 = Math.round(subOffset * 4);
-      const names = [`${beatNum}`, 'e', '&', 'a'];
-      labels.push(names[step4 % 4] || `${s + 1}`);
+      const names = ['1', 'e', '&', 'a'];
+      labels.push(names[Math.round(subOffset * 4) % 4]);
     } else if (Math.abs(slotDuration - 0.5) < 0.05) {
-      // 8th note subdivision (2 per beat): 1, &
-      const step2 = Math.round(subOffset * 2);
-      const names = [`${beatNum}`, '&'];
-      labels.push(names[step2 % 2] || `${s + 1}`);
+      labels.push(Math.round(subOffset * 2) === 0 ? `${beatNum}` : 'e');
     } else if (Math.abs(slotDuration - 1 / 6) < 0.02) {
-      // 16th note triplet (sextuplet, 6 per beat): 1, trip, let, &, trip, let
-      const step6 = Math.round(subOffset * 6);
-      const names = [`${beatNum}`, 'trip', 'let', '&', 'trip', 'let'];
-      labels.push(names[step6 % 6] || `${s + 1}`);
+      labels.push('t');
     } else if (Math.abs(slotDuration - 1 / 3) < 0.03) {
-      // 8th note triplet (3 per beat): 1, trip, let
-      const step3 = Math.round(subOffset * 3);
-      const names = [`${beatNum}`, 'trip', 'let'];
-      labels.push(names[step3 % 3] || `${s + 1}`);
+      const names = ['1', 't', 'r'];
+      labels.push(names[Math.round(subOffset * 3) % 3]);
     } else if (Math.abs(slotDuration - 0.125) < 0.02) {
-      // 32nd note subdivision (8 per beat)
-      const step8 = Math.round(subOffset * 8);
-      const names = [`${beatNum}`, 'e', '&', 'a', `${beatNum}`, 'e', '&', 'a'];
-      labels.push(names[step8 % 8] || `${s + 1}`);
+      const names = ['1', 'e', 'a', 's', '1', 'e', 'a', 's'];
+      labels.push(names[Math.round(subOffset * 8) % 8]);
+    } else if (Math.abs(slotDuration - 1 / 12) < 0.01) {
+      const names = ['1', 't', 'r', 't', 'r', 't'];
+      labels.push(names[Math.round(subOffset * 6) % 6]);
     } else {
-      labels.push(`${s + 1}`);
+      const step8 = Math.round(subOffset * 8);
+      const names = ['1', 'e', 'a', 's', '1', 'e', 'a', 's'];
+      labels.push(names[step8 % 8]);
     }
   }
   return labels;
@@ -251,7 +224,7 @@ interface DragGuideState {
   x: number;
   y: number;
   voice: DrumVoice | null;
-  slotLabel?: string;
+  timeLabel?: string;
   isOffStave: boolean;
 }
 
@@ -274,42 +247,71 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
   const rendererRef = useRef<DrumStaffFormulaRenderer>(new DrumStaffFormulaRenderer());
   const layoutRef = useRef<DrumStaffFormulaLayout | null>(null);
 
-  // Subdivision slots calculation
   const slotDuration = selectedDuration > 0 ? selectedDuration : 0.25;
+
+  // Events are the canvas's working set: continuous timeInMeasure offsets.
+  const events = useMemo(
+    () => eventsFromStrokes(strokes, targetBeats),
+    [strokes, targetBeats]
+  );
+
+  // The quantization grid is display + creation only (the Quantization Adapter
+  // of docs/adr/0013): the labels of the grid the adapter snaps NEW events to.
   const totalSlots = Math.max(1, Math.round(targetBeats / slotDuration));
-  const slotLabels = useMemo(
+  const gridLabels = useMemo(
     () => getSlotLabels(totalSlots, slotDuration, targetBeats),
     [totalSlots, slotDuration, targetBeats]
   );
 
-  // Hover state for interactive slot guidelines
-  const [hoverSlot, setHoverSlot] = useState<{ slotIndex: number; voice: DrumVoice | null } | null>(null);
+  const labelForTime = (time: number): string => {
+    const step = Math.max(
+      0,
+      Math.min(totalSlots - 1, Math.round(time / slotDuration))
+    );
+    return gridLabels[step];
+  };
 
-  // Dragging state
+  const [hoverEvent, setHoverEvent] = useState<{ eventIndex: number; voice: DrumVoice | null } | null>(null);
+
   const [dragGuide, setDragGuide] = useState<DragGuideState | null>(null);
   const dragRef = useRef<{
     isTracking: boolean;
     isDragging: boolean;
     startX: number;
     startY: number;
-    sourceSlotIndex: number;
+    sourceEventIndex: number;
     sourceVoice: DrumVoice | null;
     currentVoice: DrumVoice | null;
     lastSoundedVoice: DrumVoice | null;
-    targetSlotIndex: number;
+    targetTime: number;
     isOffStave: boolean;
   }>({
     isTracking: false,
     isDragging: false,
     startX: 0,
     startY: 0,
-    sourceSlotIndex: -1,
+    sourceEventIndex: -1,
     sourceVoice: null,
     currentVoice: null,
     lastSoundedVoice: null,
-    targetSlotIndex: -1,
+    targetTime: -1,
     isOffStave: false,
   });
+
+  const resetDragRef = () => {
+    dragRef.current = {
+      isTracking: false,
+      isDragging: false,
+      startX: 0,
+      startY: 0,
+      sourceEventIndex: -1,
+      sourceVoice: null,
+      currentVoice: null,
+      lastSoundedVoice: null,
+      targetTime: -1,
+      isOffStave: false,
+    };
+  };
 
   const getEventCoords = useCallback(
     (e: React.MouseEvent<HTMLDivElement> | React.DragEvent<HTMLDivElement> | React.PointerEvent<HTMLDivElement>) => {
@@ -319,14 +321,14 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         typeof e.clientX === 'number' && !isNaN(e.clientX)
           ? e.clientX
           : typeof native.clientX === 'number'
-          ? native.clientX
-          : 80;
+            ? native.clientX
+            : 80;
       const clientY =
         typeof e.clientY === 'number' && !isNaN(e.clientY)
           ? e.clientY
           : typeof native.clientY === 'number'
-          ? native.clientY
-          : 80;
+            ? native.clientY
+            : 80;
       return {
         x: clientX - (rect.left || 0),
         y: clientY - (rect.top || 0),
@@ -335,13 +337,56 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     []
   );
 
-  const commitSlots = useCallback(
-    (updatedSlots: FormulaSlot[]) => {
+  // Event geometry from the RENDERED note anchors (ADR-0012 seam): neighbor
+  // midpoints of strokeCoordinates, never against a slot count. Hitboxes
+  // agree with noteheads even in mixed-ratio figures.
+  const getEventGeometry = (
+    eventIndex: number,
+    anchorEvents: FormulaEvent[],
+    layout: DrumStaffFormulaLayout | null
+  ): { centerX: number; leftBoundary: number; rightBoundary: number; width: number } => {
+    if (!layout) {
+      return { centerX: 0, leftBoundary: 0, rightBoundary: 0, width: 0 };
+    }
+    const startX = layout.stave.getNoteStartX();
+    const endX = layout.stave.getNoteEndX();
+    const coords = layout.strokeCoordinates;
+
+    const anchorXOf = (index: number): number | null => {
+      if (!coords || index < 0 || index >= anchorEvents.length) return null;
+      const coordinate = coords[index];
+      return coordinate ? coordinate.x : null;
+    };
+
+    const eventCenterX = (event: FormulaEvent): number =>
+      layout.getXForBeatOffset(event.beatOffset, targetBeats);
+
+    const currentX = anchorXOf(eventIndex) ?? eventCenterX(anchorEvents[eventIndex]);
+    const prevX = eventIndex > 0 ? anchorXOf(eventIndex - 1) ?? eventCenterX(anchorEvents[eventIndex - 1]) : startX;
+    const nextX =
+      eventIndex < anchorEvents.length - 1
+        ? anchorXOf(eventIndex + 1) ?? eventCenterX(anchorEvents[eventIndex + 1])
+        : endX;
+
+    const leftBoundary = eventIndex === 0 ? startX : (prevX + currentX) / 2;
+    const rightBoundary =
+      eventIndex === anchorEvents.length - 1 ? endX : (currentX + nextX) / 2;
+
+    return {
+      centerX: currentX,
+      leftBoundary,
+      rightBoundary,
+      width: Math.max(1, rightBoundary - leftBoundary),
+    };
+  };
+
+  const commitEventsOf = useCallback(
+    (updatedEvents: FormulaEvent[]) => {
       const preserveAll =
         (targetBeats !== undefined && targetBeats > 1.0) ||
         (strokes.length > 0 &&
         Math.abs(calculateFormulaDuration(strokes) - targetBeats) < 0.05);
-      onChangeStrokes(slotsToStrokes(updatedSlots, preserveAll));
+      onChangeStrokes(commitEvents(updatedEvents, targetBeats, preserveAll));
     },
     [strokes, targetBeats, onChangeStrokes]
   );
@@ -369,21 +414,35 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     renderStave();
   }, [renderStave]);
 
-  // Track hover over slot and voice line
+  // Gesture seam: continuous x -> timeInMeasure through the note-anchored
+  // layout mapping (ADR-0012), then nearest existing event by TIME distance.
+  // The half-grid tolerance is where the Quantization Adapter creates instead.
+  const gestureTime = (x: number, layout: DrumStaffFormulaLayout): number =>
+    layout.getBeatOffsetForX(x, targetBeats);
+
+  const halfGridTolerance = slotDuration / 2;
+
+  // Track hover over event and voice line
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !containerRef.current || !layoutRef.current || dragRef.current.isDragging) {
-      if (hoverSlot) setHoverSlot(null);
+      if (hoverEvent) setHoverEvent(null);
       return;
     }
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
-    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
+    const time = gestureTime(x, layout);
+    const eventIndex =
+      events.length > 0 ? getEventIndexForTime(time, events, Infinity) : -1;
     const voice = layout.getDrumVoiceForY(y);
-    setHoverSlot({ slotIndex, voice });
+    if (eventIndex >= 0) {
+      setHoverEvent({ eventIndex, voice });
+    } else {
+      setHoverEvent(null);
+    }
   };
 
   const handleMouseLeave = () => {
-    setHoverSlot(null);
+    setHoverEvent(null);
   };
 
   // Click-to-stamp handler (only if not dragging)
@@ -397,17 +456,16 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || 'snare';
-    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
-
-    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
-    const targetSlot = slots[slotIndex];
-    if (!targetSlot) return;
+    const time = gestureTime(x, layout);
+    const workingEvents = events.map((event) => ({ ...event, hits: [...event.hits] }));
+    const targetIdx = getEventIndexForTime(time, workingEvents, halfGridTolerance);
 
     if (activeTool === 'eraser') {
-      if (targetSlot.hits && targetSlot.hits.length > 0) {
+      const targetEvent = targetIdx >= 0 ? workingEvents[targetIdx] : null;
+      if (targetEvent && targetEvent.hits.length > 0) {
         let minDiff = Infinity;
-        let targetHit = targetSlot.hits[0];
-        for (const hit of targetSlot.hits) {
+        let targetHit = targetEvent.hits[0];
+        for (const hit of targetEvent.hits) {
           const pas = DRUM_VOICE_PAS_MAP[hit.voice];
           if (pas) {
             const lineY = layout.stave.getYForLine(pas.line);
@@ -418,19 +476,28 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
             }
           }
         }
-        targetSlot.hits = targetSlot.hits.filter((h) => h !== targetHit);
-        if (targetSlot.hits.length === 0) {
-          targetSlot.isRest = true;
+        targetEvent.hits = targetEvent.hits.filter((h) => h !== targetHit);
+        if (targetEvent.hits.length === 0) {
+          targetEvent.isRest = true;
         }
-        commitSlots(slots);
+        commitEventsOf(workingEvents);
       }
       return;
     }
 
     if (activeTool === 'rest') {
-      targetSlot.hits = [];
-      targetSlot.isRest = true;
-      commitSlots(slots);
+      if (targetIdx >= 0) {
+        workingEvents[targetIdx].hits = [];
+        workingEvents[targetIdx].isRest = true;
+      } else {
+        workingEvents.push({
+          beatOffset: quantizeTime(time, slotDuration, targetBeats),
+          durationRatio: slotDuration,
+          hits: [],
+          isRest: true,
+        });
+      }
+      commitEventsOf(workingEvents);
       return;
     }
 
@@ -440,26 +507,39 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
       player.triggerVoice(drumVoice, 0, vel, 'orchestration');
     }
 
-    if (targetSlot.isRest || targetSlot.hits.length === 0) {
-      targetSlot.hits = [{ voice: drumVoice, dynamic: selectedDynamic }];
-      targetSlot.isRest = false;
+    let targetEvent = targetIdx >= 0 ? workingEvents[targetIdx] : null;
+    if (!targetEvent) {
+      // Quantization Adapter: a NEW event snaps to the subdivision grid.
+      const created = {
+        beatOffset: quantizeTime(time, slotDuration, targetBeats),
+        durationRatio: slotDuration,
+        hits: [] as import('../../domain/dawson/types').DrumHit[],
+        isRest: false,
+      };
+      workingEvents.push(created);
+      targetEvent = created;
+    }
+
+    if (targetEvent.isRest || targetEvent.hits.length === 0) {
+      targetEvent.hits = [{ voice: drumVoice, dynamic: selectedDynamic }];
+      targetEvent.isRest = false;
     } else {
-      const existingIdx = targetSlot.hits.findIndex((h) => h.voice === drumVoice);
+      const existingIdx = targetEvent.hits.findIndex((h) => h.voice === drumVoice);
       if (existingIdx >= 0) {
-        if (targetSlot.hits[existingIdx].dynamic === selectedDynamic && targetSlot.hits.length > 1) {
-          targetSlot.hits.splice(existingIdx, 1);
-        } else if (targetSlot.hits[existingIdx].dynamic === selectedDynamic) {
-          targetSlot.hits = [];
-          targetSlot.isRest = true;
+        if (targetEvent.hits[existingIdx].dynamic === selectedDynamic && targetEvent.hits.length > 1) {
+          targetEvent.hits.splice(existingIdx, 1);
+        } else if (targetEvent.hits[existingIdx].dynamic === selectedDynamic) {
+          targetEvent.hits = [];
+          targetEvent.isRest = true;
         } else {
-          targetSlot.hits[existingIdx] = { voice: drumVoice, dynamic: selectedDynamic };
+          targetEvent.hits[existingIdx] = { voice: drumVoice, dynamic: selectedDynamic };
         }
       } else {
-        targetSlot.hits.push({ voice: drumVoice, dynamic: selectedDynamic });
+        targetEvent.hits.push({ voice: drumVoice, dynamic: selectedDynamic });
       }
     }
 
-    commitSlots(slots);
+    commitEventsOf(workingEvents);
   };
 
   // HTML5 Drag-and-Drop (e.g. from palette)
@@ -470,14 +550,20 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const voice = layout.getDrumVoiceForY(y);
-    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
-    const geom = getSlotGeometry(slotIndex, totalSlots, layout);
+    const time = gestureTime(x, layout);
+    const targetIdx = getEventIndexForTime(time, events, halfGridTolerance);
+    const guideX =
+      targetIdx >= 0
+        ? getEventGeometry(targetIdx, events, layout).centerX
+        : layout.getXForBeatOffset(quantizeTime(time, slotDuration, targetBeats), targetBeats);
 
     setDragGuide({
-      x: geom.centerX,
+      x: guideX,
       y,
       voice,
-      slotLabel: slotLabels[slotIndex],
+      timeLabel: labelForTime(
+        targetIdx >= 0 ? events[targetIdx].beatOffset : time
+      ),
       isOffStave: y < 0 || y > height,
     });
   };
@@ -505,43 +591,52 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
     const drumVoice = layout.getDrumVoiceForY(y) || payload?.voice || 'snare';
-    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
+    const time = gestureTime(x, layout);
 
     if (player && drumVoice) {
       player.triggerVoice(drumVoice, 0, dynamicToVelocity(dynamic), 'orchestration');
     }
 
-    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
-    const targetSlot = slots[slotIndex];
-    if (!targetSlot) return;
-
-    targetSlot.isRest = false;
-    const existingIdx = targetSlot.hits.findIndex((h) => h.voice === drumVoice);
-    if (existingIdx >= 0) {
-      targetSlot.hits[existingIdx] = { voice: drumVoice, dynamic };
-    } else {
-      targetSlot.hits.push({ voice: drumVoice, dynamic });
+    const workingEvents = events.map((event) => ({ ...event, hits: [...event.hits] }));
+    let targetEvent =
+      workingEvents[getEventIndexForTime(time, workingEvents, halfGridTolerance)];
+    if (!targetEvent) {
+      const created = {
+        beatOffset: quantizeTime(time, slotDuration, targetBeats),
+        durationRatio: payload?.durationRatio || slotDuration,
+        hits: [] as import('../../domain/dawson/types').DrumHit[],
+        isRest: false,
+      };
+      workingEvents.push(created);
+      targetEvent = created;
     }
 
-    commitSlots(slots);
+    targetEvent.isRest = false;
+    const existingIdx = targetEvent.hits.findIndex((h) => h.voice === drumVoice);
+    if (existingIdx >= 0) {
+      targetEvent.hits[existingIdx] = { voice: drumVoice, dynamic };
+    } else {
+      targetEvent.hits.push({ voice: drumVoice, dynamic });
+    }
+
+    commitEventsOf(workingEvents);
   };
 
-  // Pointer drag gestures for existing notes (transposition & horizontal slot shifts)
+  // Pointer drag gestures for existing events (transposition & metric shifts)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly || !containerRef.current || !layoutRef.current) return;
 
     const { x, y } = getEventCoords(e);
     const layout = layoutRef.current;
-    const slotIndex = getSlotIndexForX(x, totalSlots, layout);
+    const time = gestureTime(x, layout);
+    const sourceIndex = getEventIndexForTime(time, events, halfGridTolerance);
+    const sourceEvent = sourceIndex >= 0 ? events[sourceIndex] : null;
 
-    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
-    const slot = slots[slotIndex];
-
-    if (slot && !slot.isRest && slot.hits && slot.hits.length > 0) {
+    if (sourceEvent && !sourceEvent.isRest && sourceEvent.hits.length > 0) {
       // Find the hit closest to clicked Y
-      let closestVoice = slot.hits[0].voice;
+      let closestVoice = sourceEvent.hits[0].voice;
       let minDiff = Infinity;
-      slot.hits.forEach((h) => {
+      sourceEvent.hits.forEach((h) => {
         const pas = DRUM_VOICE_PAS_MAP[h.voice];
         const lineY = pas ? layout.stave.getYForLine(pas.line) : y;
         const diff = Math.abs(lineY - y);
@@ -556,11 +651,11 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         isDragging: false,
         startX: x,
         startY: y,
-        sourceSlotIndex: slotIndex,
+        sourceEventIndex: sourceIndex,
         sourceVoice: closestVoice,
         currentVoice: closestVoice,
         lastSoundedVoice: closestVoice,
-        targetSlotIndex: slotIndex,
+        targetTime: sourceEvent.beatOffset,
         isOffStave: false,
       };
     }
@@ -582,7 +677,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     }
 
     const layout = layoutRef.current;
-    const targetSlot = getSlotIndexForX(x, totalSlots, layout);
+    const time = gestureTime(x, layout);
 
     const isOffStave = y < -20 || y > height + 20;
     const currentVoice = layout.getDrumVoiceForY(y);
@@ -595,15 +690,22 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
     }
 
     state.currentVoice = currentVoice;
-    state.targetSlotIndex = targetSlot;
+    state.targetTime = time;
     state.isOffStave = isOffStave;
 
-    const geom = getSlotGeometry(targetSlot, totalSlots, layout);
+    const targetIdx = getEventIndexForTime(time, events, halfGridTolerance);
+    const guideX =
+      targetIdx >= 0
+        ? getEventGeometry(targetIdx, events, layout).centerX
+        : layout.getXForBeatOffset(quantizeTime(time, slotDuration, targetBeats), targetBeats);
     setDragGuide({
-      x: geom.centerX,
+      x: guideX,
       y,
       voice: currentVoice,
-      slotLabel: slotLabels[targetSlot],
+      timeLabel:
+        targetIdx >= 0
+          ? labelForTime(events[targetIdx].beatOffset)
+          : labelForTime(time),
       isOffStave,
     });
   };
@@ -613,65 +715,64 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
 
     const {
       isDragging,
-      sourceSlotIndex,
+      sourceEventIndex,
       sourceVoice,
       currentVoice,
-      targetSlotIndex,
+      targetTime,
       isOffStave,
     } = dragRef.current;
 
-    dragRef.current = {
-      isTracking: false,
-      isDragging: false,
-      startX: 0,
-      startY: 0,
-      sourceSlotIndex: -1,
-      sourceVoice: null,
-      currentVoice: null,
-      lastSoundedVoice: null,
-      targetSlotIndex: -1,
-      isOffStave: false,
-    };
+    resetDragRef();
     setDragGuide(null);
 
     // If it was just a click (movement < 5px), let handleClick handle it
-    if (!isDragging || sourceSlotIndex === -1 || !sourceVoice) return;
+    if (!isDragging || sourceEventIndex === -1 || !sourceVoice) return;
 
-    const slots = strokesToSlots(strokes, targetBeats, slotDuration);
-    const srcSlot = slots[sourceSlotIndex];
-    if (!srcSlot) return;
+    const workingEvents = events.map((event) => ({ ...event, hits: [...event.hits] }));
+    const srcEvent = workingEvents[sourceEventIndex];
+    if (!srcEvent) return;
 
     if (isOffStave) {
-      // Remove the dragged voice from source slot
-      srcSlot.hits = srcSlot.hits.filter((h) => h.voice !== sourceVoice);
-      if (srcSlot.hits.length === 0) {
-        srcSlot.isRest = true;
+      // Remove the dragged voice from the source event
+      srcEvent.hits = srcEvent.hits.filter((h) => h.voice !== sourceVoice);
+      if (srcEvent.hits.length === 0) {
+        srcEvent.isRest = true;
       }
-      commitSlots(slots);
+      commitEventsOf(workingEvents);
       return;
     }
 
-    const dstSlot = slots[targetSlotIndex];
-    if (!dstSlot) return;
-
     const finalVoice = currentVoice || sourceVoice;
-
-    // If moved to a different slot or different voice
-    if (targetSlotIndex !== sourceSlotIndex || finalVoice !== sourceVoice) {
-      // Remove from source slot
-      srcSlot.hits = srcSlot.hits.filter((h) => h.voice !== sourceVoice);
-      if (srcSlot.hits.length === 0) {
-        srcSlot.isRest = true;
-      }
-
-      // Add to target slot
-      dstSlot.isRest = false;
-      const existing = dstSlot.hits.findIndex((h) => h.voice === finalVoice);
-      if (existing === -1) {
-        dstSlot.hits.push({ voice: finalVoice, dynamic: selectedDynamic });
-      }
-      commitSlots(slots);
+    let dstIdx = getEventIndexForTime(targetTime, workingEvents, halfGridTolerance);
+    if (dstIdx === sourceEventIndex && finalVoice === sourceVoice) {
+      return;
     }
+
+    // Remove from the source event
+    srcEvent.hits = srcEvent.hits.filter((h) => h.voice !== sourceVoice);
+    if (srcEvent.hits.length === 0) {
+      srcEvent.isRest = true;
+    }
+
+    // Add to the target event, created at the snapped grid time when new
+    let dstEvent = dstIdx >= 0 ? workingEvents[dstIdx] : null;
+    if (!dstEvent) {
+      const created = {
+        beatOffset: quantizeTime(targetTime, slotDuration, targetBeats),
+        durationRatio: slotDuration,
+        hits: [] as import('../../domain/dawson/types').DrumHit[],
+        isRest: false,
+      };
+      workingEvents.push(created);
+      dstEvent = created;
+    }
+
+    dstEvent.isRest = false;
+    const existing = dstEvent.hits.findIndex((h) => h.voice === finalVoice);
+    if (existing === -1) {
+      dstEvent.hits.push({ voice: finalVoice, dynamic: selectedDynamic });
+    }
+    commitEventsOf(workingEvents);
   };
 
   return (
@@ -701,59 +802,97 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
         {/* VexFlow 5-Line Percussion Score Container */}
         <div ref={containerRef} style={{ width, height }} />
 
-        {/* Visual Subdivision Slot Grid Guidelines */}
+        {/* Quantization grid: display guides for the grid the adapter snaps NEW events to */}
         {layoutRef.current && (
           <div className="absolute inset-0 pointer-events-none">
-            {Array.from({ length: totalSlots }).map((_, s) => {
-              const geom = getSlotGeometry(s, totalSlots, layoutRef.current);
-              const slotLabel = slotLabels[s] || `${s + 1}`;
-              const isHovered = hoverSlot?.slotIndex === s;
-              const isDownbeat = (s * slotDuration) % 1.0 < 0.01;
-
+            {Array.from({ length: totalSlots - 1 }).map((_, s) => {
+              const boundaryX =
+                layoutRef.current!.getXForBeatOffset(
+                  (s + 1) * slotDuration,
+                  targetBeats
+                );
+              const isDownbeat = ((s + 1) * slotDuration) % 1.0 < 0.01;
               return (
-                <React.Fragment key={s}>
-                  {/* Slot Column Guideline */}
-                  {s > 0 && (
-                    <div
-                      className={cn(
-                        'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
-                        isDownbeat ? 'border-border' : 'border-dashed border-border/80'
-                      )}
-                      style={{ left: `${geom.leftBoundary}px` }}
-                    />
+                <div
+                  key={s}
+                  className={cn(
+                    'absolute top-7 bottom-3 pointer-events-none border-r transition-colors',
+                    isDownbeat ? 'border-border' : 'border-dashed border-border/80'
                   )}
-
-                  {/* Hover Column Wash */}
-                  {isHovered && (
-                    <div
-                      className="absolute top-7 bottom-3 pointer-events-none bg-primary/10 border-x border-primary/30 rounded-none transition-all"
-                      style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
-                    />
-                  )}
-
-                  {/* Slot Header Label */}
-                  <div
-                    className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
-                    style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
-                  >
-                    <span
-                      className={cn(
-                        'px-1.5 py-0.2 rounded-none transition-colors',
-                        isHovered
-                          ? 'bg-primary text-primary-foreground font-bold shadow-xs'
-                          : isDownbeat
-                          ? 'text-primary font-bold bg-primary/10 border border-primary/30'
-                          : 'text-muted-foreground'
-                      )}
-                    >
-                      {slotLabel}
-                    </span>
-                  </div>
-                </React.Fragment>
+                  style={{ left: `${boundaryX}px` }}
+                />
               );
             })}
           </div>
         )}
+
+        {/* Hover wash + header labels follow the metric EVENT anchors */}
+        {layoutRef.current && hoverEvent && hoverEvent.eventIndex >= 0 && hoverEvent.eventIndex < events.length && (
+          (() => {
+            const geom = getEventGeometry(hoverEvent.eventIndex, events, layoutRef.current!);
+            const event = events[hoverEvent.eventIndex];
+            const label = labelForTime(event.beatOffset);
+            return (
+              <div className="absolute inset-0 pointer-events-none">
+                {/* Hover Column Wash */}
+                <div
+                  className="absolute top-7 bottom-3 pointer-events-none bg-primary/10 border-x border-primary/30 rounded-none transition-all"
+                  style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
+                />
+
+                {/* Event Header Label */}
+                <div
+                  className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
+                  style={{ left: `${geom.leftBoundary}px`, width: `${geom.width}px` }}
+                >
+                  <span
+                    className={cn(
+                      'px-1.5 py-0.2 rounded-none transition-colors',
+                      'bg-primary text-primary-foreground font-bold shadow-xs'
+                    )}
+                  >
+                    {label}
+                  </span>
+                </div>
+              </div>
+            );
+          })()
+        )}
+
+        {/* Downbeat header labels on the quantization grid (display only) */}
+        {layoutRef.current &&
+          Array.from({ length: totalSlots }).map((_, s) => {
+            const time = s * slotDuration;
+            const isDownbeat = time % 1.0 < 0.01;
+            if (!isDownbeat) {
+              return null;
+            }
+            const startX = layoutRef.current!.stave.getNoteStartX();
+            const boundaryX =
+              s === 0
+                ? startX
+                : layoutRef.current!.getXForBeatOffset(time, targetBeats);
+            const nextX =
+              s === totalSlots - 1
+                ? layoutRef.current!.stave.getNoteEndX()
+                : layoutRef.current!.getXForBeatOffset((s + 1) * slotDuration, targetBeats);
+            return (
+              <div
+                key={`label-${s}`}
+                className="absolute top-1 pointer-events-none flex justify-center text-[10px] font-mono font-semibold"
+                style={{ left: `${boundaryX}px`, width: `${Math.max(10, nextX - boundaryX)}px` }}
+              >
+                <span
+                  className={cn(
+                    'px-1.5 py-0.2 rounded-none transition-colors',
+                    'text-primary font-bold bg-primary/10 border border-primary/30'
+                  )}
+                >
+                  {gridLabels[s] || `${s + 1}`}
+                </span>
+              </div>
+            );
+          })}
 
         {/* Animated Audition Playhead */}
         {playheadBeat !== null && playheadBeat !== undefined && layoutRef.current && (
@@ -793,7 +932,7 @@ export const PartitureFormulaCanvas: React.FC<PartitureFormulaCanvasProps> = ({
               >
                 {dragGuide.isOffStave
                   ? 'Remove'
-                  : `${dragGuide.slotLabel ? `${dragGuide.slotLabel} • ` : ''}${
+                  : `${dragGuide.timeLabel ? `${dragGuide.timeLabel} • ` : ''}${
                       DRUM_VOICE_PAS_MAP[dragGuide.voice]?.label || dragGuide.voice
                     }`}
               </div>

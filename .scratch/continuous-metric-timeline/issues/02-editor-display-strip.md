@@ -4,8 +4,8 @@
 
 **Blocked by:** 01 (Canvas speaks continuous events).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] PartitureFormulaEditor.test.tsx stays green (slot-step toggle behavior: adds/removes a hit at the step's position, commits strokes).
-- [ ] The editor compiles without the deleted slot-array exports (tsc green in the same commit as the change).
-- [ ] A mixed-ratio figure (1/3 + 0.25 strokes) shown in the editor: step buttons still snap to grid times; the existing fractional events stay addressable by the canvas gestures (verified by the canvas suite, not duplicated here).
+- [x] PartitureFormulaEditor.test.tsx stays green (slot-step toggle behavior: adds/removes a hit at the step's position, commits strokes).
+- [x] The editor imports eventsFromStrokes/commitEvents/getEventIndexForTime instead of the deleted slot pair; tsc green in the same commit as the canvas deletion (module pair).
+- [x] Mixed-ratio figure through a step toggle: durations [1/3, 1/3, 0.25, 0.083 pad] — fractional ratios preserved (old grid would have re-quantized to [1/3, 1/3, 1/3]).

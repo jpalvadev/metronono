@@ -10,8 +10,9 @@ import {
   PartitureFormulaCanvas,
   dynamicToVelocity,
   getSlotLabels,
-  strokesToSlots,
-  slotsToStrokes,
+  eventsFromStrokes,
+  commitEvents,
+  getEventIndexForTime,
 } from './PartitureFormulaCanvas';
 import { DRUM_VOICE_PAS_MAP } from '../../notation/DrumVoicePAS';
 import { cn } from '../../lib/utils';
@@ -96,55 +97,82 @@ export const PartitureFormulaEditor: React.FC<PartitureFormulaEditorProps> = ({
     [totalSlots, slotDuration, targetBeats]
   );
 
-  const currentSlots = useMemo(
-    () => strokesToSlots(strokes, targetBeats, slotDuration),
-    [strokes, targetBeats, slotDuration]
-  );
+  // The subdivision bar is a QUANTIZED DISPLAY over the continuous events
+  // (docs/adr/0013): each step shows the event nearest its time within half a
+  // grid step; the events themselves keep their exact fractional offsets.
+  const currentSlots = useMemo(() => {
+    const events = eventsFromStrokes(strokes, targetBeats);
+    const halfGrid = slotDuration / 2;
+    return Array.from({ length: totalSlots }, (_, s) => {
+      const stepTime = Math.round(s * slotDuration * 1000) / 1000;
+      const eventIndex = getEventIndexForTime(stepTime, events, halfGrid);
+      const event = eventIndex >= 0 ? events[eventIndex] : null;
+      return {
+        slotIndex: s,
+        beatOffset: stepTime,
+        durationRatio: event ? event.durationRatio : slotDuration,
+        hits: event && !event.isRest ? [...event.hits] : [],
+        isRest: !event || event.isRest,
+      };
+    });
+  }, [strokes, targetBeats, slotDuration]);
 
-  // Handle slot step click from the subdivision bar
+  // Handle slot step click from the subdivision bar: the Quantization Adapter
+  // (docs/adr/0013) turns the step into a time, finds the event nearest it,
+  // and creates a NEW event snapped to the step only when none is nearby.
   const handleToggleSlot = (slotIndex: number) => {
     if (readOnly) return;
-    const workingSlots = strokesToSlots(strokes, targetBeats, slotDuration);
-    const targetSlot = workingSlots[slotIndex];
-    if (!targetSlot) return;
+    const workingEvents = eventsFromStrokes(strokes, targetBeats).map((event) => ({
+      ...event,
+      hits: [...event.hits],
+    }));
+    const stepTime = Math.round(slotIndex * slotDuration * 1000) / 1000;
+    const halfGrid = slotDuration / 2;
+    let targetIdx = getEventIndexForTime(stepTime, workingEvents, halfGrid);
 
-    if (activeTool === 'eraser') {
-      targetSlot.hits = [];
-      targetSlot.isRest = true;
-      onChangeStrokes(slotsToStrokes(workingSlots, true));
+    if (activeTool === 'eraser' || activeTool === 'rest') {
+      if (targetIdx >= 0) {
+        workingEvents[targetIdx].hits = [];
+        workingEvents[targetIdx].isRest = true;
+      }
+      onChangeStrokes(commitEvents(workingEvents, targetBeats, true));
       return;
     }
 
-    if (activeTool === 'rest') {
-      targetSlot.hits = [];
-      targetSlot.isRest = true;
-      onChangeStrokes(slotsToStrokes(workingSlots, true));
-      return;
-    }
-
-    // Active tool === 'note': toggle activeVoice on this slot
+    // Active tool === 'note': toggle activeVoice on the nearest event
     if (player) {
       player.triggerVoice(activeVoice, 0, dynamicToVelocity(selectedDynamic), 'orchestration');
     }
 
-    if (targetSlot.isRest || targetSlot.hits.length === 0) {
-      targetSlot.hits = [{ voice: activeVoice, dynamic: selectedDynamic }];
-      targetSlot.isRest = false;
+    let targetEvent = targetIdx >= 0 ? workingEvents[targetIdx] : null;
+    if (!targetEvent) {
+      targetEvent = {
+        beatOffset: stepTime,
+        durationRatio: slotDuration,
+        hits: [],
+        isRest: false,
+      };
+      workingEvents.push(targetEvent);
+    }
+
+    if (targetEvent.isRest || targetEvent.hits.length === 0) {
+      targetEvent.hits = [{ voice: activeVoice, dynamic: selectedDynamic }];
+      targetEvent.isRest = false;
     } else {
-      const existingIdx = targetSlot.hits.findIndex((h) => h.voice === activeVoice);
+      const existingIdx = targetEvent.hits.findIndex((h) => h.voice === activeVoice);
       if (existingIdx >= 0) {
-        if (targetSlot.hits.length > 1) {
-          targetSlot.hits.splice(existingIdx, 1);
+        if (targetEvent.hits.length > 1) {
+          targetEvent.hits.splice(existingIdx, 1);
         } else {
-          targetSlot.hits = [];
-          targetSlot.isRest = true;
+          targetEvent.hits = [];
+          targetEvent.isRest = true;
         }
       } else {
-        targetSlot.hits.push({ voice: activeVoice, dynamic: selectedDynamic });
+        targetEvent.hits.push({ voice: activeVoice, dynamic: selectedDynamic });
       }
     }
 
-    onChangeStrokes(slotsToStrokes(workingSlots, true));
+    onChangeStrokes(commitEvents(workingEvents, targetBeats, true));
   };
 
   const handleClearAll = () => {

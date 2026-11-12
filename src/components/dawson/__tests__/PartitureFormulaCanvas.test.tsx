@@ -298,4 +298,47 @@ describe('PartitureFormulaCanvas', () => {
     // (sub-pixel tolerance covers glyph justification, not metric drift).
     expect(Math.abs(glyphXs[1] - playheadLeft)).toBeLessThanOrEqual(2);
   });
+
+  // Continuous Metric Timeline (docs/adr/0013): a mixed figure (1/3 swing
+  // beside 1/4 straight) must survive editing without the measure being
+  // re-quantized onto the selected grid.
+  it('keeps mixed 1/3 and 1/4 figures without re-quantizing on edit', () => {
+    const strokes: OrchestratedStroke[] = [
+      { durationRatio: 1 / 3, hits: [{ voice: 'ride', dynamic: 'normal' }] },
+      { durationRatio: 1 / 3, isRest: true, hits: [] },
+      { durationRatio: 0.25, hits: [{ voice: 'tom_floor', dynamic: 'normal' }] },
+    ];
+    const onChangeStrokes = vi.fn();
+
+    render(
+      <PartitureFormulaCanvas
+        strokes={strokes}
+        onChangeStrokes={onChangeStrokes}
+        activeTool="note"
+        selectedDuration={0.5}
+        selectedDynamic="accent"
+        player={mockPlayer}
+        width={500}
+        targetBeats={1.0}
+      />
+    );
+
+    const canvas = screen.getByTestId('partiture-formula-canvas');
+
+    // Click over the 0.25 event (offset 2/3) toward the right of the measure.
+    fireEvent.click(canvas, {
+      clientX: 380,
+      clientY: 60,
+    });
+
+    expect(onChangeStrokes).toHaveBeenCalledTimes(1);
+    const updated: OrchestratedStroke[] = onChangeStrokes.mock.calls[0][0];
+    const durations = updated.map((s) => s.durationRatio);
+    expect(durations).toEqual([1 / 3, 1 / 3, 0.25]);
+    expect(updated[1].isRest).toBe(true);
+    expect(updated[1].hits).toHaveLength(0);
+    // The stamped voice merges into the nearest event as a chord.
+    expect(updated[2].hits).toHaveLength(2);
+    expect(updated[2].hits.some((h) => h.voice === 'tom_floor')).toBe(true);
+  });
 });

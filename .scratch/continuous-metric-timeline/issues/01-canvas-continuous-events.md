@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Click-stamp, unison stacking, rest mode, eraser, palette-drop and drag-between-position suites stay green (behavior pins unchanged).
-- [ ] New RED: a measure with a 1/3-beat stroke beside a 0.25-beat stroke round-trips through a click edit with both events present, no collision, no count drift.
-- [ ] New RED: a click at an x between two events commits into the nearest event by *time* (note-anchored), not slot rounding.
-- [ ] Slot-array exports (strokesToSlots, slotsToStrokes) no longer exist in the canvas module (tsc fails any consumer trying them).
-- [ ] Hover/drag geometry derives from event anchors: the hover wash for a triplet measure aligns with the rendered notehead anchors.
+- [x] Click-stamp, unison stacking, rest mode, eraser, palette-drop and drag-between-position suites stay green (behavior pins unchanged).
+- [x] Mixed 1/3 + 0.25 figure round-trips through a click edit: durations [1/3, 1/3, 0.25] preserved, chord merged at the fractional event, no slot collision.
+- [x] A click at an x between events commits into the nearest event by *time* (continuous getBeatOffsetForX, half-grid tolerance), not slot rounding.
+- [x] strokesToSlots/slotsToStrokes/getSlotGeometry/getSlotIndexForX no longer exist (editor rebuilt in the same commit, tsc green).
+- [x] Hover wash and drag guides derive from the rendered note anchors (getEventGeometry over strokeCoordinates).

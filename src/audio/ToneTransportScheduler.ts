@@ -23,6 +23,7 @@ import { DrumKitPlayer } from './DrumKitPlayer';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
 import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
 import { BackgroundAudioService } from './BackgroundAudioService';
+import { ScheduledDrumEvent } from '../domain/dawson/types';
 
 // Names every node of the audio graph carries, so a test can follow a sound from the voice
 // that made it to the audio destination through its Mixing Channel.
@@ -207,6 +208,11 @@ export class ToneTransportScheduler {
   private drumKitPlayer: IDrumKitPlayer;
   private dawsonEngine?: DawsonEngine;
   private readingLine: ReadingLine | null = null;
+  // The Measure Plan (docs/adr/0011): one entry per reading-line measure, each holding its
+  // resolved Scheduled Drum Events bucketed by whole beat. The audio clock tick only reads
+  // a bucket — the domain is never consulted there. Null means "not built yet".
+  private measurePlan: ScheduledDrumEvent[][][] | null = null;
+  private unsubscribeDawsonChange?: () => void;
   private scheduledEventId: number | null = null;
   private beatListeners: Set<(event: BeatEvent) => void> = new Set();
   private dropoutListeners: Set<(isDropout: boolean) => void> = new Set();
@@ -228,6 +234,10 @@ export class ToneTransportScheduler {
     this.readingLine = options?.readingLine ?? null;
     // The Drum Kit Player plays on the Mixing Channel nodes the Mixer owns, so it is built from it.
     this.drumKitPlayer = options?.drumKitPlayer ?? new DrumKitPlayer(this.audioMixer);
+
+    if (this.dawsonEngine) {
+      this.attachDawsonEngine(this.dawsonEngine);
+    }
 
     if (options?.backgroundAudioService) {
       this.setBackgroundAudioService(options.backgroundAudioService);
@@ -276,6 +286,58 @@ export class ToneTransportScheduler {
 
   public isAudioGraphReady(): boolean {
     return this.audioMixer.isGraphInitialized?.() ?? false;
+  }
+
+  /**
+   * Subscribes to the engine's change hook so ostinato, system or formula edits
+   * rebuild the Measure Plan at the edit gesture, never inside the audio tick.
+   */
+  private attachDawsonEngine(engine: DawsonEngine): void {
+    if (this.unsubscribeDawsonChange) {
+      this.unsubscribeDawsonChange();
+      this.unsubscribeDawsonChange = undefined;
+    }
+    this.unsubscribeDawsonChange = engine.onChange(() => this.buildMeasurePlans());
+    this.measurePlan = null;
+  }
+
+  /**
+   * Builds the Measure Plan: every reading-line measure resolved once and bucketed by whole
+   * beat, so the tick reads pre-resolved buckets instead of running resolveMeasure+filter.
+   * A composition edit rebuilds it through the setters or the engine's change hook — the
+   * tick never does (docs/adr/0011).
+   */
+  private buildMeasurePlans(): void {
+    if (!this.dawsonEngine) {
+      this.measurePlan = null;
+      return;
+    }
+    const engine = this.dawsonEngine;
+
+    const beats = Math.max(1, Math.floor(this.engine.getTimeSignature().beats));
+    const defaultMeasure: Measure = {
+      index: 0,
+      timeSignature: [4, 4],
+      totalBeats: 4,
+      events: [createRhythmicEvent({ isRest: true, durationBeats: 4.0, durationType: 'whole' })],
+    };
+    const measures: Measure[] =
+      this.readingLine && this.readingLine.measures.length > 0
+        ? [...this.readingLine.measures]
+        : [defaultMeasure];
+
+    this.measurePlan = measures.map((measure) => {
+      const buckets: ScheduledDrumEvent[][] = [];
+      for (let beat = 0; beat < beats; beat++) {
+        buckets.push([]);
+      }
+      for (const event of engine.resolveMeasure(measure, measure.index)) {
+        if (event.timeInMeasure >= 0 && event.timeInMeasure < beats) {
+          buckets[Math.floor(event.timeInMeasure)].push(event);
+        }
+      }
+      return buckets;
+    });
   }
 
   // Lazy acquisition of the Tone transport and audio clock (retryable)
@@ -442,12 +504,14 @@ export class ToneTransportScheduler {
   public getDawsonEngine(): DawsonEngine {
     if (!this.dawsonEngine) {
       this.dawsonEngine = new DawsonEngine();
+      this.attachDawsonEngine(this.dawsonEngine);
     }
     return this.dawsonEngine;
   }
 
   public setDawsonEngine(engine: DawsonEngine): void {
     this.dawsonEngine = engine;
+    this.attachDawsonEngine(engine);
   }
 
   // Background Audio Service Access
@@ -467,6 +531,7 @@ export class ToneTransportScheduler {
 
   public setReadingLine(line: ReadingLine | null): void {
     this.readingLine = line;
+    this.buildMeasurePlans();
   }
 
   // Storage Manager & Custom Audio Sample Integration
@@ -651,6 +716,12 @@ export class ToneTransportScheduler {
       this.unsubscribeStorage = undefined;
     }
 
+    if (this.unsubscribeDawsonChange) {
+      this.unsubscribeDawsonChange();
+      this.unsubscribeDawsonChange = undefined;
+    }
+    this.measurePlan = null;
+
     (this.clickPlayer as { dispose?: () => void })?.dispose?.();
     // The click voice this scheduler built is gone with the graph: a shell that unmounts and
     // mounts again re-acquires a live one rather than triggering a disposed synth.
@@ -671,25 +742,18 @@ export class ToneTransportScheduler {
       this.transport.clear(this.scheduledEventId);
       this.scheduledEventId = null;
     }
+    // A time signature change reshapes the plan buckets.
+    this.measurePlan = null;
     this.scheduleTicks();
-  }
-
-  private getMeasureForIndex(measureIndex: number): Measure | null {
-    if (this.readingLine && this.readingLine.measures.length > 0) {
-      return this.readingLine.measures[measureIndex % this.readingLine.measures.length];
-    }
-
-    // Default 4/4 measure with whole rest so ostinato patterns still sound!
-    return {
-      index: measureIndex,
-      timeSignature: [4, 4],
-      totalBeats: 4,
-      events: [createRhythmicEvent({ isRest: true, durationBeats: 4.0, durationType: 'whole' })],
-    };
   }
 
   private scheduleTicks(): void {
     if (!this.transport) return;
+
+    // Build the Measure Plan at scheduling gestures only (start, reschedule).
+    if (!this.measurePlan) {
+      this.buildMeasurePlans();
+    }
 
     const beatInterval = `${this.engine.getTimeSignature().beatUnit}n`;
     this.scheduledEventId = this.transport.scheduleRepeat((time: number) => {
@@ -726,15 +790,14 @@ export class ToneTransportScheduler {
         }
       }
 
-      // Dawson Drum Kit Orchestration & Ostinato Playback
+      // Dawson Drum Kit Orchestration & Ostinato Playback: the tick reads the
+      // Measure Plan bucket for the beat that arrived. Zero domain math here (docs/adr/0011).
       if (this.dawsonEngine && this.drumKitPlayer) {
-        const measure = this.getMeasureForIndex(beatEvent.measureIndex);
-        if (measure) {
-          const measureEvents = this.dawsonEngine.resolveMeasure(measure, beatEvent.measureIndex);
+        const plan = this.measurePlan ?? [];
+        if (plan.length > 0) {
+          const beatBuckets = plan[beatEvent.measureIndex % plan.length];
           const b = beatEvent.beatIndex;
-          const beatEvents = measureEvents.filter(
-            (e) => e.timeInMeasure >= b && e.timeInMeasure < b + 1.0
-          );
+          const beatEvents = beatBuckets[b] ?? [];
 
           for (const drumEvent of beatEvents) {
             const subOffset = drumEvent.timeInMeasure - b;

@@ -105,14 +105,6 @@ export class DrumStaffFormulaRenderer {
     const formulaDuration = calculateFormulaDuration(strokes);
     const targetBeats = options.targetBeats || (formulaDuration > 0 ? formulaDuration : 1.0);
 
-    // Polyphonic Voice 2 check: True if ANY stroke contains foot hits (stemVoice === 2)
-    const hasVoice2 = strokes.some(
-      (s) =>
-        !s.isRest &&
-        s.hits &&
-        s.hits.some((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2)
-    );
-
     const voice1Notes: StaveNote[] = [];
     const voice2Notes: StaveNote[] = [];
 
@@ -126,95 +118,27 @@ export class DrumStaffFormulaRenderer {
       const stroke = effectiveStrokes[i];
       const vexDur = durationRatioToVexDuration(stroke.durationRatio);
 
-      if (!hasVoice2) {
-        // Linear mode (Hands only): all hits share Voice 1 Stem.UP
-        if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
-          const restV1 = new StaveNote({
-            clef: 'percussion',
-            keys: ['c/5/r'],
-            duration: `${vexDur}r`,
-            stemDirection: Stem.UP,
-          });
-          voice1Notes.push(restV1);
-        } else {
-          const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
-          const noteV1 = new StaveNote({
-            clef: 'percussion',
-            keys,
-            duration: vexDur,
-            stemDirection: Stem.UP,
-          });
-          noteV1.setStemDirection(Stem.UP);
-          stroke.hits.forEach((hit) => {
-            if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
-          });
-          voice1Notes.push(noteV1);
-        }
+      if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
+        const restV1 = new StaveNote({
+          clef: 'percussion',
+          keys: ['c/5/r'],
+          duration: `${vexDur}r`,
+          stemDirection: Stem.UP,
+        });
+        voice1Notes.push(restV1);
       } else {
-        // Polyphonic mode: Voice 1 (Hands, Stem UP) & Voice 2 (Feet, Stem DOWN)
-        const v1Hits = stroke.isRest || !stroke.hits
-          ? []
-          : stroke.hits.filter((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 1);
-        const v2Hits = stroke.isRest || !stroke.hits
-          ? []
-          : stroke.hits.filter((h) => DRUM_VOICE_PAS_MAP[h.voice]?.stemVoice === 2);
-
-        // Voice 1 (Hands - Stem UP)
-        if (v1Hits.length > 0) {
-          const keysV1 = v1Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
-          const noteV1 = new StaveNote({
-            clef: 'percussion',
-            keys: keysV1,
-            duration: vexDur,
-            stemDirection: Stem.UP,
-          });
-          noteV1.setStemDirection(Stem.UP);
-          v1Hits.forEach((hit) => {
-            if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
-          });
-          voice1Notes.push(noteV1);
-        } else {
-          const restV1 = new StaveNote({
-            clef: 'percussion',
-            keys: ['c/5/r'],
-            duration: `${vexDur}r`,
-            stemDirection: Stem.UP,
-          });
-          if (v2Hits.length > 0) {
-            restV1.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
-          }
-          voice1Notes.push(restV1);
-        }
-
-        // Voice 2 (Feet - Stem DOWN)
-        if (v2Hits.length > 0) {
-          const keysV2 = v2Hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'f/4');
-          const noteV2 = new StaveNote({
-            clef: 'percussion',
-            keys: keysV2,
-            duration: vexDur,
-            stemDirection: Stem.DOWN,
-          });
-          noteV2.setStemDirection(Stem.DOWN);
-          v2Hits.forEach((hit) => {
-            if (hit.dynamic === 'accent') {
-              const art = new Articulation('a>');
-              art.setPosition(4); // ModifierPosition.BELOW so it renders clearly below foot notes
-              noteV2.addModifier(art, 0);
-            }
-          });
-          voice2Notes.push(noteV2);
-        } else {
-          const restV2 = new StaveNote({
-            clef: 'percussion',
-            keys: ['d/4/r'],
-            duration: `${vexDur}r`,
-            stemDirection: Stem.DOWN,
-          });
-          restV2.setStemDirection(Stem.DOWN);
-          restV2.setStyle({ fillStyle: 'transparent', strokeStyle: 'transparent' });
-          voice2Notes.push(restV2);
-        }
+        const keys = stroke.hits.map((h) => DRUM_VOICE_PAS_MAP[h.voice]?.key || 'c/5');
+        const noteV1 = new StaveNote({
+          clef: 'percussion',
+          keys,
+          duration: vexDur,
+          stemDirection: Stem.UP,
+        });
+        noteV1.setStemDirection(Stem.UP);
+        stroke.hits.forEach((hit) => {
+          if (hit.dynamic === 'accent') noteV1.addModifier(new Articulation('a>'), 0);
+        });
+        voice1Notes.push(noteV1);
       }
     }
 
@@ -298,13 +222,6 @@ export class DrumStaffFormulaRenderer {
     v1.addTickables(voice1Notes);
     voicesToFormat.push(v1);
 
-    if (hasVoice2 && voice2Notes.length > 0) {
-      const v2 = new Voice({ numBeats: Math.max(1, Math.ceil(targetBeats)), beatValue: 4 });
-      v2.setMode(Voice.Mode.SOFT);
-      v2.addTickables(voice2Notes);
-      voicesToFormat.push(v2);
-    }
-
     const availableWidth = stave.getNoteEndX() - stave.getNoteStartX();
     formatter.joinVoices(voicesToFormat).format(voicesToFormat, availableWidth);
 
@@ -349,41 +266,12 @@ export class DrumStaffFormulaRenderer {
           beams.push(...v1Beams);
         }
       });
-
-      // Voice 2 beams (if any unisons exist)
-      if (hasVoice2 && voice2Notes.length > 0) {
-        const v2BeatGroups = new Map<number, StaveNote[]>();
-        for (let i = 0; i < voice2Notes.length; i++) {
-          const n = voice2Notes[i];
-          if (n && !n.isRest()) {
-            const dur = n.getDuration();
-            if (dur === '8' || dur === '16' || dur === '32') {
-              const offset = strokeOffsets[i]?.offset ?? 0;
-              const beatBucket = Math.floor(offset / 1.0);
-              if (!v2BeatGroups.has(beatBucket)) v2BeatGroups.set(beatBucket, []);
-              v2BeatGroups.get(beatBucket)!.push(n);
-            }
-          }
-        }
-        v2BeatGroups.forEach((group) => {
-          if (group.length > 1) {
-            const v2Beams = Beam.generateBeams(group, {
-              stemDirection: Stem.DOWN,
-              beamRests: false,
-            });
-            beams.push(...v2Beams);
-          }
-        });
-      }
     } catch {
       // Safe fallback if notes can't be auto-beamed
     }
 
     // Draw voices AFTER beams are attached so no stray flags are drawn under beams
     v1.draw(context, stave);
-    if (hasVoice2 && voice2Notes.length > 0) {
-      voicesToFormat[1].draw(context, stave);
-    }
 
     // Draw beams onto context
     beams.forEach((b) => {
@@ -402,9 +290,6 @@ export class DrumStaffFormulaRenderer {
     // Re-enforce explicit stem directions after drawing / beaming
     voice1Notes.forEach((n) => {
       if (!n.isRest()) n.setStemDirection(Stem.UP);
-    });
-    voice2Notes.forEach((n) => {
-      if (!n.isRest()) n.setStemDirection(Stem.DOWN);
     });
 
     // Build stroke coordinates

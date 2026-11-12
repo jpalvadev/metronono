@@ -30,7 +30,7 @@ describe('DrumStaffFormulaRenderer', () => {
     expect(layout.strokeCoordinates.length).toBeGreaterThan(0);
   });
 
-  it('separates hand hits into Voice 1 (Stem.UP) and foot hits into Voice 2 (Stem.DOWN)', () => {
+  it('renders all hits (hands and feet) in Voice 1 unified with Stem.UP', () => {
     const strokes: OrchestratedStroke[] = [
       // Beat 0: Kick + Crash unison (polyphonic chord)
       {
@@ -49,19 +49,11 @@ describe('DrumStaffFormulaRenderer', () => {
 
     const layout = renderer.render(container, strokes, { width: 500 });
 
-    // Voice 1 should have hands (crash, snare) with Stem.UP
+    // Voice 1 should have all notes with Stem.UP
     expect(layout.voice1Notes.length).toBeGreaterThan(0);
     layout.voice1Notes.forEach((note) => {
       if (!note.isRest()) {
         expect(note.getStemDirection()).toBe(Stem.UP);
-      }
-    });
-
-    // Voice 2 should have feet (kick) with Stem.DOWN
-    expect(layout.voice2Notes.length).toBeGreaterThan(0);
-    layout.voice2Notes.forEach((note) => {
-      if (!note.isRest()) {
-        expect(note.getStemDirection()).toBe(Stem.DOWN);
       }
     });
   });
@@ -177,20 +169,12 @@ describe('DrumStaffFormulaRenderer', () => {
     expect(container.querySelector('svg')).toBeTruthy();
     expect(layout.stave).toBeDefined();
     expect(layout.voice1Notes.length).toBeGreaterThan(0);
-    expect(layout.voice2Notes.length).toBeGreaterThan(0);
 
-    // Ride notes should be Stem.UP
+    // All sounding notes should be Stem.UP
     const nonRestV1 = layout.voice1Notes.filter((n) => !n.isRest());
     expect(nonRestV1.length).toBeGreaterThanOrEqual(6);
     nonRestV1.forEach((n) => {
       expect(n.getStemDirection()).toBe(Stem.UP);
-    });
-
-    // Hi-hat foot notes in Voice 2 should be Stem.DOWN
-    const nonRestV2 = layout.voice2Notes.filter((n) => !n.isRest());
-    expect(nonRestV2.length).toBe(2);
-    nonRestV2.forEach((n) => {
-      expect(n.getStemDirection()).toBe(Stem.DOWN);
     });
   });
 

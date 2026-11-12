@@ -12,16 +12,19 @@ export type DrumLane = Extract<MixerChannelId, 'ostinato' | 'orchestration'>;
 export type RigMode = 'mix' | 'audition';
 type RigKey = `${DrumLane}:${RigMode}`;
 
+// The Audio Voice Pool (docs/adr/0011): every voice slot holds a small ring of
+// interchangeable synth instances cycled per stroke, so a rapid stroke never
+// cancels the live attack of the previous one on the same monophonic voice.
 interface DrumRig {
-  kick: Tone.MembraneSynth;
-  snareNoise: Tone.NoiseSynth;
-  snareMembrane: Tone.MembraneSynth;
-  tomHigh: Tone.MembraneSynth;
-  tomMid: Tone.MembraneSynth;
-  tomFloor: Tone.MembraneSynth;
-  crash: Tone.MetalSynth;
-  ride: Tone.MetalSynth;
-  hihat: Tone.MetalSynth;
+  kick: Tone.MembraneSynth[];
+  snareNoise: Tone.NoiseSynth[];
+  snareMembrane: Tone.MembraneSynth[];
+  tomHigh: Tone.MembraneSynth[];
+  tomMid: Tone.MembraneSynth[];
+  tomFloor: Tone.MembraneSynth[];
+  crash: Tone.MetalSynth[];
+  ride: Tone.MetalSynth[];
+  hihat: Tone.MetalSynth[];
 }
 
 export interface IDrumKitPlayer {
@@ -55,88 +58,120 @@ function labelNode<T>(node: T, label: string): T {
 function buildRig(lane: DrumLane, mode: RigMode, lineNode: IGainNodeLike): DrumRig {
   const named = (voice: string) => `rig:${lane}:${mode}:${voice}`;
 
-  const kick = new Tone.MembraneSynth({
-    pitchDecay: 0.05,
-    octaves: 5,
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
-  });
-  kick.connect(lineNode as any);
+  const buildMembers = <T extends Tone.ToneAudioNode>(
+    create: () => T,
+    count: number,
+    label: string
+  ): T[] => {
+    const members: T[] = [];
+    for (let index = 0; index < count; index++) {
+      const member = create();
+      labelNode(member, label);
+      member.connect(lineNode as any);
+      members.push(member);
+    }
+    return members;
+  };
 
-  const snareNoise = new Tone.NoiseSynth({
-    noise: { type: 'white' },
-    envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
-  });
-  snareNoise.connect(lineNode as any);
+  const kick = buildMembers(
+    () => new Tone.MembraneSynth({
+      pitchDecay: 0.05,
+      octaves: 5,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
+    }),
+    2,
+    named('kick')
+  );
 
-  const snareMembrane = new Tone.MembraneSynth({
-    pitchDecay: 0.01,
-    octaves: 2,
-    oscillator: { type: 'triangle' },
-    envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
-  });
-  snareMembrane.connect(lineNode as any);
+  const snareNoise = buildMembers(
+    () => new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
+    }),
+    2,
+    named('snare')
+  );
 
-  const tomHigh = new Tone.MembraneSynth({
-    pitchDecay: 0.04,
-    octaves: 4,
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.3 },
-  });
-  tomHigh.connect(lineNode as any);
+  const snareMembrane = buildMembers(
+    () => new Tone.MembraneSynth({
+      pitchDecay: 0.01,
+      octaves: 2,
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
+    }),
+    2,
+    named('snare')
+  );
 
-  const tomMid = new Tone.MembraneSynth({
-    pitchDecay: 0.04,
-    octaves: 4,
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
-  });
-  tomMid.connect(lineNode as any);
+  const tomHigh = buildMembers(
+    () => new Tone.MembraneSynth({
+      pitchDecay: 0.04,
+      octaves: 4,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.3 },
+    }),
+    2,
+    named('tom_high')
+  );
 
-  const tomFloor = new Tone.MembraneSynth({
-    pitchDecay: 0.05,
-    octaves: 4,
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.45, sustain: 0.01, release: 0.4 },
-  });
-  tomFloor.connect(lineNode as any);
+  const tomMid = buildMembers(
+    () => new Tone.MembraneSynth({
+      pitchDecay: 0.04,
+      octaves: 4,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.3 },
+    }),
+    2,
+    named('tom_mid')
+  );
 
-  const crash = new Tone.MetalSynth({
-    envelope: { attack: 0.001, decay: 1.2, release: 0.2 },
-    harmonicity: 5.1,
-    modulationIndex: 32,
-    resonance: 4000,
-    octaves: 1.5,
-  });
-  crash.connect(lineNode as any);
+  const tomFloor = buildMembers(
+    () => new Tone.MembraneSynth({
+      pitchDecay: 0.05,
+      octaves: 4,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.45, sustain: 0.01, release: 0.4 },
+    }),
+    2,
+    named('tom_floor')
+  );
 
-  const ride = new Tone.MetalSynth({
-    envelope: { attack: 0.001, decay: 0.6, release: 0.15 },
-    harmonicity: 4.8,
-    modulationIndex: 28,
-    resonance: 5000,
-    octaves: 1.2,
-  });
-  ride.connect(lineNode as any);
+  const crash = buildMembers(
+    () => new Tone.MetalSynth({
+      envelope: { attack: 0.001, decay: 1.2, release: 0.2 },
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance: 4000,
+      octaves: 1.5,
+    }),
+    3,
+    named('crash')
+  );
 
-  const hihat = new Tone.MetalSynth({
-    envelope: { attack: 0.001, decay: 0.05, release: 0.02 },
-    harmonicity: 5.2,
-    modulationIndex: 36,
-    resonance: 6000,
-    octaves: 1.5,
-  });
-  hihat.connect(lineNode as any);
+  const ride = buildMembers(
+    () => new Tone.MetalSynth({
+      envelope: { attack: 0.001, decay: 0.6, release: 0.15 },
+      harmonicity: 4.8,
+      modulationIndex: 28,
+      resonance: 5000,
+      octaves: 1.2,
+    }),
+    3,
+    named('ride')
+  );
 
-  labelNode(kick, named('kick'));
-  labelNode(snareNoise, named('snare'));
-  labelNode(snareMembrane, named('snare'));
-  labelNode(tomHigh, named('tom_high'));
-  labelNode(tomMid, named('tom_mid'));
-  labelNode(tomFloor, named('tom_floor'));
-  labelNode(crash, named('crash'));
-  labelNode(ride, named('ride'));
-  labelNode(hihat, named('hihat'));
+  const hihat = buildMembers(
+    () => new Tone.MetalSynth({
+      envelope: { attack: 0.001, decay: 0.05, release: 0.02 },
+      harmonicity: 5.2,
+      modulationIndex: 36,
+      resonance: 6000,
+      octaves: 1.5,
+    }),
+    3,
+    named('hihat')
+  );
 
   return { kick, snareNoise, snareMembrane, tomHigh, tomMid, tomFloor, crash, ride, hihat };
 }
@@ -154,6 +189,8 @@ export class DrumKitPlayer implements IDrumKitPlayer {
   private mixer: IAudioMixer;
   private rigs: Map<RigKey, DrumRig> = new Map();
   private customSampleBuffers: Map<DrumVoice, any> = new Map();
+  // Which ring member each voice slot uses next, per rig (docs/adr/0011 voice pool).
+  private rigCursors: Map<RigKey, Record<string, number>> = new Map();
 
   constructor(mixer: IAudioMixer) {
     this.mixer = mixer;
@@ -254,22 +291,27 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     this.disposeRigs();
   }
 
+  /**
+   * Cycles the voice slot's ring: consecutive strokes on one voice use distinct
+   * synth instances, so a rapid stroke never cancels the previous live attack.
+   */
+  private nextMember(rigKey: RigKey, slot: string, ring: any[]): any {
+    const cursors = this.rigCursors.get(rigKey) ?? {};
+    const index = cursors[slot] ?? 0;
+    cursors[slot] = index + 1;
+    this.rigCursors.set(rigKey, cursors);
+    return ring[index % ring.length];
+  }
+
   private disposeRigs(): void {
     const synths: Tone.ToneAudioNode[] = [];
     this.rigs.forEach((rig) => {
-      synths.push(
-        rig.kick,
-        rig.snareNoise,
-        rig.snareMembrane,
-        rig.tomHigh,
-        rig.tomMid,
-        rig.tomFloor,
-        rig.crash,
-        rig.ride,
-        rig.hihat
-      );
+      for (const ring of Object.values(rig)) {
+        synths.push(...(ring as Tone.ToneAudioNode[]));
+      }
     });
     this.rigs.clear();
+    this.rigCursors.clear();
 
     synths.forEach((synth) => {
       try {
@@ -293,7 +335,8 @@ export class DrumKitPlayer implements IDrumKitPlayer {
       return;
     }
 
-    const rig = this.rigs.get(`${lane}:${mode}`);
+    const rigKey = `${lane}:${mode}` as RigKey;
+    const rig = this.rigs.get(rigKey);
     if (!rig) return;
 
     try {
@@ -301,49 +344,61 @@ export class DrumKitPlayer implements IDrumKitPlayer {
 
       switch (voice) {
         case 'kick':
-          rig.kick.triggerAttackRelease('C1', '8n', audioTime, velocity);
+          this.nextMember(rigKey, 'kick', rig.kick)
+            .triggerAttackRelease('C1', '8n', audioTime, velocity);
           break;
 
         case 'snare':
-          rig.snareMembrane.triggerAttackRelease('D2', '16n', audioTime, velocity * 0.7);
-          rig.snareNoise.triggerAttackRelease('16n', audioTime, velocity);
+          this.nextMember(rigKey, 'snareMembrane', rig.snareMembrane)
+            .triggerAttackRelease('D2', '16n', audioTime, velocity * 0.7);
+          this.nextMember(rigKey, 'snareNoise', rig.snareNoise)
+            .triggerAttackRelease('16n', audioTime, velocity);
           break;
 
         case 'snare_ghost':
-          rig.snareNoise.triggerAttackRelease('32n', audioTime, velocity * 0.4);
+          this.nextMember(rigKey, 'snareNoise', rig.snareNoise)
+            .triggerAttackRelease('32n', audioTime, velocity * 0.4);
           break;
 
         case 'tom_high':
-          rig.tomHigh.triggerAttackRelease('G2', '8n', audioTime, velocity);
+          this.nextMember(rigKey, 'tomHigh', rig.tomHigh)
+            .triggerAttackRelease('G2', '8n', audioTime, velocity);
           break;
 
         case 'tom_mid':
-          rig.tomMid.triggerAttackRelease('D2', '8n', audioTime, velocity);
+          this.nextMember(rigKey, 'tomMid', rig.tomMid)
+            .triggerAttackRelease('D2', '8n', audioTime, velocity);
           break;
 
         case 'tom_floor':
-          rig.tomFloor.triggerAttackRelease('A1', '8n', audioTime, velocity);
+          this.nextMember(rigKey, 'tomFloor', rig.tomFloor)
+            .triggerAttackRelease('A1', '8n', audioTime, velocity);
           break;
 
         case 'ride':
-          rig.ride.triggerAttackRelease('16n', audioTime, velocity);
+          this.nextMember(rigKey, 'ride', rig.ride)
+            .triggerAttackRelease('16n', audioTime, velocity);
           break;
 
         case 'ride_bell':
-          rig.ride.triggerAttackRelease('32n', audioTime, velocity * 1.1);
+          this.nextMember(rigKey, 'ride', rig.ride)
+            .triggerAttackRelease('32n', audioTime, velocity * 1.1);
           break;
 
         case 'hihat_closed':
         case 'hihat_foot':
-          rig.hihat.triggerAttackRelease('32n', audioTime, velocity);
+          this.nextMember(rigKey, 'hihat', rig.hihat)
+            .triggerAttackRelease('32n', audioTime, velocity);
           break;
 
         case 'hihat_open':
-          rig.hihat.triggerAttackRelease('8n', audioTime, velocity);
+          this.nextMember(rigKey, 'hihat', rig.hihat)
+            .triggerAttackRelease('8n', audioTime, velocity);
           break;
 
         case 'crash':
-          rig.crash.triggerAttackRelease('4n', audioTime, velocity);
+          this.nextMember(rigKey, 'crash', rig.crash)
+            .triggerAttackRelease('4n', audioTime, velocity);
           break;
 
         default:

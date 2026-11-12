@@ -17,4 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: npm ci
+      # The guard drives a real Chromium; the headless-shell binary is not on
+      # the runner, so fetch the revision this playwright version expects.
+      - run: npx playwright install chromium-headless-shell
       - run: npm run check:live

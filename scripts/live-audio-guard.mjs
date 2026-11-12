@@ -130,26 +130,32 @@ function bootVite() {
   const startBtn = (await page.locator('button').filter({ hasText: /start clock/i })).first();
   await startBtn.click();
 
-  // The beat indicator in the sight-reading header advances once per beat.
-  const readBeat = () =>
-    page.evaluate(() => {
-      const labels = Array.from(document.querySelectorAll('span')).filter((s) => (s.textContent || '').trim() === 'Beat:');
-      if (!labels.length) return null;
-      const value = labels[0].nextElementSibling;
-      return value ? (value.textContent || '').trim() : null;
+  // The page counts its own beat changes. Sampling the DOM from here would undercount:
+  // an evaluate round-trip can span two beats, and a lost beat is a flaky guard, not a
+  // stalled clock. The observer watches the Beat: readout's own subtree.
+  await page.evaluate(() => {
+    const labels = Array.from(document.querySelectorAll('span')).filter((s) => (s.textContent || '').trim() === 'Beat:');
+    const value = labels.length ? labels[0].nextElementSibling : null;
+    if (!value) return;
+    window.__beatCount = 0;
+    window.__lastBeat = (value.textContent || '').trim();
+    const observer = new MutationObserver(() => {
+      const text = (value.textContent || '').trim();
+      if (text !== window.__lastBeat) {
+        window.__lastBeat = text;
+        window.__beatCount++;
+      }
     });
+    observer.observe(value, { characterData: true, childList: true, subtree: true });
+    window.__beatWatched = true;
+  });
 
-  let beatChanges = 0;
-  let previous = await readBeat();
   const sampledAt = Date.now();
-  while (Date.now() - sampledAt < RUN_MS) {
-    const current = await readBeat();
-    if (current !== null && previous !== null && current !== previous) beatChanges++;
-    if (current !== null) previous = current;
-    await page.waitForTimeout(100);
-  }
-
+  await page.waitForTimeout(RUN_MS);
   const elapsedSeconds = (Date.now() - sampledAt) / 1000;
+
+  const beatWatched = await page.evaluate(() => window.__beatWatched === true);
+  const beatChanges = await page.evaluate(() => window.__beatCount ?? 0);
   const after = await page.evaluate(() => ({ census: window.__census, errors: window.__errors }));
   const started = after.census.sourceStart || 0;
   await browser.close();
@@ -170,12 +176,7 @@ function bootVite() {
   } else if (beatChanges < expectedBeats * 0.75) {
     failures.push('the audio clock delivered ' + beatChanges + ' beats in ' + elapsedSeconds.toFixed(1) + 's while ' + configuredBpm + ' bpm asks for ~' + expectedBeats.toFixed(1));
   }
-  if (configuredBpm === null) {
-    failures.push('the configured tempo could not be read from the page, so the cadence cannot be checked');
-  } else if (beatChanges < expectedBeats * 0.75) {
-    failures.push('the audio clock delivered ' + beatChanges + ' beats in ' + elapsedSeconds.toFixed(1) + 's while ' + configuredBpm + ' bpm asks for ~' + expectedBeats.toFixed(1));
-  }
-  if (beatChanges === 0) failures.push('the beat indicator never advanced: the clock is stalled');
+  if (!beatWatched) failures.push('no beat readout was found to watch: the cadence cannot be checked');
   if (started < beatChanges) failures.push('only ' + started + ' sources started for ' + beatChanges + ' beats: the clock beats go unheard');
   const toneErrors = after.errors.filter((line) => !BENIGN_CONSOLE.test(line));
   if (toneErrors.length) failures.push(...toneErrors);

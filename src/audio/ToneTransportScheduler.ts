@@ -184,6 +184,11 @@ export class ToneClickPlayer implements IClickPlayer {
     );
   }
 
+  /** Stop leaves nothing waiting to sound behind the mixer. */
+  public stopPendingSamples(): void {
+    this.retirePendingSamples(Number.POSITIVE_INFINITY);
+  }
+
   private playVoice(key: ClickVoiceKey, time: number, velocity?: number, pitch?: string): void {
     const custom = this.customBuffers.get(key);
     if (custom) {
@@ -757,6 +762,8 @@ export class ToneTransportScheduler {
     this.playing = false;
     this.playStateListeners.forEach((listener) => listener(false));
     this.backgroundAudioService?.onPlaybackStop?.();
+    this.drumKitPlayer?.stopPendingSamples?.();
+    this.clickPlayer?.stopPendingSamples?.();
 
     if (this.lastDropoutState) {
       this.lastDropoutState = false;

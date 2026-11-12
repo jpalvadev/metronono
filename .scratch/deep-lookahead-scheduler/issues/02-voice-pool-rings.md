@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Two strokes in a row on the same rig voice trigger two distinct synth nodes (observed via the fake Tone trigger records).
-- [ ] No new audio node is created per stroke: node-kind counts stay stable across many fired beats.
-- [ ] Voice slots keep their exact timbres (a ride stroke still triggers a MetalSynth of the ride slot; existing routing-to-Mixing-Channel assertions hold).
-- [ ] The eager graph wiring suite (single kick stroke routing, 6 destination inputs, dispose disconnects all) stays green with ring-labeled slots.
-- [ ] dispose() of the player disposes every ring member.
+- [x] Two strokes in a row on the same rig voice trigger two distinct synth nodes (observed via the fake Tone trigger records).
+- [x] No new audio node is created per stroke: node-kind counts stay stable across many fired beats.
+- [x] Voice slots keep their exact timbres (a ride stroke still triggers a MetalSynth of the ride slot; existing routing-to-Mixing-Channel assertions hold).
+- [x] The eager graph wiring suite (single kick stroke routing, 6 destination inputs, dispose disconnects all) stays green with ring-labeled slots.
+- [x] dispose() of the player disposes every ring member.

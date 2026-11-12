@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Measure Plan), 02 (Voice Pool), 03 (Sample lifecycle).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Session suite green: node-kind counts bounded, resolve count per measure, retirement complete, teardown clean.
-- [ ] Full npm run check green on the integration branch (style sweep, tsc, whole vitest suite).
+- [x] Session suite green: node-kind counts bounded, resolve count per measure, retirement complete, teardown clean.
+- [x] Full npm run check green on the integration branch (style sweep, tsc, whole vitest suite).

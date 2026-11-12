@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The injected domain engine's public resolveMeasure is called at most once per measure while playing N beats of a repeating line (today: once per beat).
-- [ ] Changing the ostinato or system on the domain engine while playing changes the strokes heard in subsequent measures (via the engine's change hook, no scheduler setter).
-- [ ] setReadingLine mid-session changes the strokes heard in subsequent measures.
-- [ ] Strokes keep landing at the same audio-clock instants as before (time + subOffset × beatDuration), with clicks still muted by mask/dropout and drum strokes not gated by them.
-- [ ] The existing mock-transport scheduler suite (timings, gap clicks, ramp, dropout) stays green.
+- [x] The injected domain engine's public resolveMeasure is called at most once per measure while playing N beats of a repeating line (today: once per beat).
+- [x] Changing the ostinato or system on the domain engine while playing changes the strokes heard in subsequent measures (via the engine's change hook, no scheduler setter).
+- [x] setReadingLine mid-session changes the strokes heard in subsequent measures.
+- [x] Strokes keep landing at the same audio-clock instants as before (time + subOffset × beatDuration), with clicks still muted by mask/dropout and drum strokes not gated by them.
+- [x] The existing mock-transport scheduler suite (timings, gap clicks, ramp, dropout) stays green.

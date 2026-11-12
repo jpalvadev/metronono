@@ -91,6 +91,24 @@ describe('Sample stroke lifecycle', () => {
     expect(timed.map((w) => w.value)).toEqual([0.9, 0.4]);
   });
 
+  it('stop drains every pending sample source', async () => {
+    const scheduler = new ToneTransportScheduler();
+    const player = scheduler.getDrumKitPlayer();
+    await scheduler.start();
+
+    player.loadSampleBuffer?.('ride', fakeAudioBuffer(1, 88200, 44100)); // 2s window
+    player.play(
+      { timeInMeasure: 1.0, voice: 'ride', velocity: 0.8, dynamic: 'normal', source: 'orchestration' },
+      1.0
+    );
+    scheduler.stop();
+
+    const sources = fakeToneRecorder.bufferSources();
+    expect(sources).toHaveLength(1);
+    expect(sources[0].stoppedAt).not.toBeNull();
+    expect(sources[0].disposed).toBe(true);
+  });
+
   it('dispose drains every pending sample source', async () => {
     const scheduler = new ToneTransportScheduler();
     const player = scheduler.getDrumKitPlayer();

@@ -12,6 +12,9 @@ export type DrumLane = Extract<MixerChannelId, 'ostinato' | 'orchestration'>;
 export type RigMode = 'mix' | 'audition';
 type RigKey = `${DrumLane}:${RigMode}`;
 
+// Voice slot keys inside a rig, addressed by the ring cursors.
+type RigSlot = 'kick' | 'snareNoise' | 'snareMembrane' | 'tomHigh' | 'tomMid' | 'tomFloor' | 'crash' | 'ride' | 'hihat';
+
 // The Audio Voice Pool (docs/adr/0011): every voice slot holds a small ring of
 // interchangeable synth instances cycled per stroke, so a rapid stroke never
 // cancels the live attack of the previous one on the same monophonic voice.
@@ -40,6 +43,9 @@ export interface IDrumKitPlayer {
   removeSampleBuffer?(voice: DrumVoice): void;
   hasCustomSample?(voice: DrumVoice): boolean;
   clearAllCustomSamples?(): void;
+  // Retire every still-pending sample source when the transport stops, so stopping
+  // leaves nothing waiting to sound behind the mixer.
+  stopPendingSamples?(): void;
   playCustomSample?(
     buffer: any,
     time: number,
@@ -359,6 +365,11 @@ export class DrumKitPlayer implements IDrumKitPlayer {
     );
   }
 
+  /** Stop leaves nothing waiting to sound behind the mixer. */
+  public stopPendingSamples(): void {
+    this.retirePendingSamples(Number.POSITIVE_INFINITY);
+  }
+
   public dispose(): void {
     this.customSampleBuffers.clear();
     this.retirePendingSamples(Number.POSITIVE_INFINITY);
@@ -379,7 +390,7 @@ export class DrumKitPlayer implements IDrumKitPlayer {
    * Cycles the voice slot's ring: consecutive strokes on one voice use distinct
    * synth instances, so a rapid stroke never cancels the previous live attack.
    */
-  private nextMember(rigKey: RigKey, slot: string, ring: any[]): any {
+  private nextMember<T>(rigKey: RigKey, slot: RigSlot, ring: T[]): T {
     const cursors = this.rigCursors.get(rigKey) ?? {};
     const index = cursors[slot] ?? 0;
     cursors[slot] = index + 1;

@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Across N sample strokes the Gain-node kind count stays constant (one per voice slot per lane/mode), not N.
-- [ ] Each stroke's velocity is observable as its own gain write record, so dynamics survive pooling.
-- [ ] Every recorded BufferSource ends up stopped and disposed once its playback window elapsed (after enough fired ticks), and the click player's sample gains disconnect on dispose.
-- [ ] stop()/dispose() leaves no pending sample sources feeding the graph (destination teardown assertion holds).
-- [ ] Audition previews of sample voices still sound through the Audition node while the Mixing Channel is muted (pooling does not merge the two gain identities).
+- [x] Across N sample strokes the Gain-node kind count stays constant (one per voice slot per lane/mode), not N.
+- [x] Each stroke's velocity is observable as its own gain write record, so dynamics survive pooling.
+- [x] Every recorded BufferSource ends up stopped and disposed once its playback window elapsed (after enough fired ticks), and the click player's sample gains disconnect on dispose.
+- [x] stop()/dispose() leaves no pending sample sources feeding the graph (destination teardown assertion holds).
+- [x] Audition previews of sample voices still sound through the Audition node while the Mixing Channel is muted (pooling does not merge the two gain identities).

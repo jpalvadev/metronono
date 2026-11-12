@@ -29,6 +29,7 @@ export interface FormulaEditorDialogProps {
   onClose: () => void;
   formula?: SubdivisionFormula | null;
   defaultTrigger?: 'short' | 'long';
+  targetBeats?: number;
   onSave: (formula: SubdivisionFormula) => void;
   onDelete?: (formulaId: string) => void;
   player?: IDrumKitPlayer;
@@ -39,6 +40,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
   onClose,
   formula,
   defaultTrigger = 'short',
+  targetBeats,
   onSave,
   onDelete,
   player,
@@ -93,7 +95,7 @@ export const FormulaEditorDialog: React.FC<FormulaEditorDialogProps> = ({
   }, []);
 
   const totalDuration = useMemo(() => calculateFormulaDuration(strokes), [strokes]);
-  const expectedDuration = trigger === 'short' ? 0.5 : 1.0;
+  const expectedDuration = targetBeats ?? (trigger === 'short' ? 0.5 : 1.0);
   const isBudgetMatched = Math.abs(totalDuration - expectedDuration) < 0.01;
   const isOverBudget = totalDuration > expectedDuration + 0.01;
   const isUnderBudget = totalDuration < expectedDuration - 0.01;

@@ -50,7 +50,9 @@ export interface DrumStaffFormulaLayout {
  * Converts a stroke duration ratio (in beats) to a standard VexFlow duration string.
  */
 export function durationRatioToVexDuration(ratio: number): string {
-  if (ratio >= 0.9) return 'q'; // quarter note
+  if (ratio >= 3.9) return 'w'; // whole note / whole rest (4 beats)
+  if (ratio >= 1.9) return 'h'; // half note (2 beats)
+  if (ratio >= 0.9) return 'q'; // quarter note (1 beat)
   if (Math.abs(ratio - 0.5) < 0.05) return '8'; // eighth note
   if (Math.abs(ratio - 1 / 3) < 0.02) return '8'; // triplet eighth
   if (Math.abs(ratio - 0.25) < 0.03) return '16'; // sixteenth note

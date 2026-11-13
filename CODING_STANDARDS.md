@@ -14,6 +14,10 @@ Keep engraving geometry (spacing, stem reach, beam thickness, clearances) as mod
 
 **Canvas stage geometry enclosure (hard rule)**: Any interactive overlay (guidelines, drop zones, playheads) layered on top of a VexFlow SVG must reside inside a dedicated stage container whose inline style dimensions (`width`, `height`) strictly match the VexFlow renderer's canvas dimensions (`style={{ width, height }}`). Never wrap the SVG in flexible or centered flex parents without pinning the stage bounding box.
 
+## Modal and tab component tests (hard rule)
+
+When selecting buttons or tabs that share names with launchers or headings (e.g. launcher `Manage Systems, Formulas & Ostinatos` vs tab `Ostinatos (2)`), anchor regex queries (`/^Ostinatos/i`) or scope queries to the modal container rather than loose unanchored substring matches (`/Ostinatos/i`) that trigger ambiguous multiple-element errors.
+
 ## One style (judgement call)
 
 Reach for this section whenever a diff adds or repaints color. Every surface draws from a token role: `bg-primary`/`text-primary` for the Accent (interactive elements, active states, the Playhead), Success/Warning/Destructive for state, `bg-card`/`text-foreground`/`border-border` for surfaces, `secondary`/`muted` for neutral chrome. The names and their fixed meanings live in `GLOSSARY.md` § Interface — read it before reviewing a restyle.

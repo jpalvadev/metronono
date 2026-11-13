@@ -143,11 +143,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     setBeatMaskState(scheduler.getBeatMask());
   };
 
-  const handleSetPresetMask = (mask: boolean[]) => {
-    scheduler.setBeatMask(mask);
-    setBeatMaskState(scheduler.getBeatMask());
-  };
-
   // Tempo Ramp handlers
   const handleToggleRamp = () => {
     const updated = {
@@ -263,46 +258,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               </button>
             );
           })}
-        </div>
-
-        {/* Quick Beat Presets */}
-        <div className="flex gap-1.5 text-xs text-muted-foreground">
-          <button
-            type="button"
-            onClick={() => handleSetPresetMask(Array(timeSignature.beats).fill(true))}
-            className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium"
-          >
-            All
-          </button>
-          {timeSignature.beats === 4 && (
-            <>
-              <button
-                type="button"
-                onClick={() => handleSetPresetMask([false, true, false, true])}
-                className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-primary border border-border text-[11px] font-medium"
-              >
-                2 & 4 (Jazz)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetPresetMask([true, false, true, false])}
-                className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium"
-              >
-                1 & 3
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              const mask = Array(timeSignature.beats).fill(false);
-              mask[0] = true;
-              handleSetPresetMask(mask);
-            }}
-            className="px-2 py-0.5 rounded-none bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-medium"
-          >
-            1 Only
-          </button>
         </div>
       </div>
 

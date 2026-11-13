@@ -219,13 +219,27 @@ describe('Metronome Component', () => {
       expect(mockScheduler.toggleBeat).toHaveBeenCalledWith(0);
     });
 
-    it('provides quick presets for standard feels like 2 & 4 jazz hi-hat', () => {
+    it('does not render quick beat preset buttons (All, 2 & 4 (Jazz), 1 & 3, 1 Only)', () => {
       render(<Metronome scheduler={mockScheduler} />);
 
-      const jazzBtn = screen.getByRole('button', { name: /2 & 4/i });
-      fireEvent.click(jazzBtn);
+      expect(screen.queryByRole('button', { name: /^all$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /2 & 4/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /1 & 3/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /1 only/i })).not.toBeInTheDocument();
+    });
 
-      expect(mockScheduler.setBeatMask).toHaveBeenCalledWith([false, true, false, true]);
+    it('allows toggling individual beats in arbitrary time signatures like 7/8', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      const numeratorInput = screen.getByLabelText(/time signature numerator/i);
+      const denominatorSelect = screen.getByLabelText(/time signature denominator/i);
+      fireEvent.change(numeratorInput, { target: { value: '7' } });
+      fireEvent.change(denominatorSelect, { target: { value: '8' } });
+
+      const beat6Btn = screen.getByRole('button', { name: /beat 6:/i });
+      fireEvent.click(beat6Btn);
+
+      expect(mockScheduler.toggleBeat).toHaveBeenCalledWith(5);
     });
   });
 

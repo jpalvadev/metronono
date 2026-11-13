@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { ReadingLine } from '../domain/rhythm/types';
+import { ReadingLine, ReadingFeel } from '../domain/rhythm/types';
 import { ProceduralGenerator } from '../domain/rhythm/ProceduralGenerator';
 import {
   REED_PAGE_37_EXERCISE_ONE,
@@ -66,6 +66,9 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
   const [pulseFeel, setPulseFeel] = useState<'straight' | 'triplet'>(() =>
     scheduler?.getPulseFeel?.() ?? 'straight'
   );
+  const [readingFeel, setReadingFeel] = useState<ReadingFeel>(() =>
+    scheduler?.getReadingFeel?.() ?? 'straight'
+  );
   const isFourFour =
     timeSignature.beats === 4 && timeSignature.beatUnit === 4 && pulseFeel === 'straight';
 
@@ -76,11 +79,23 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
     const unsubPulseFeel = scheduler?.onPulseFeelChange?.((feel) => {
       setPulseFeel(feel);
     });
+    const unsubReadingFeel = scheduler?.onReadingFeelChange?.((feel) => {
+      setReadingFeel(feel);
+    });
     return () => {
       unsubTimeSig?.();
       unsubPulseFeel?.();
+      unsubReadingFeel?.();
     };
   }, [scheduler]);
+
+  const handleFeelChange = useCallback(
+    (feel: ReadingFeel) => {
+      setReadingFeel(feel);
+      scheduler?.setReadingFeel?.(feel);
+    },
+    [scheduler]
+  );
 
   useEffect(() => {
     if (scheduler?.setReadingLine) {
@@ -120,8 +135,37 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           </div>
         </div>
 
-        {/* Right side: Exercise Mode Switcher */}
+        {/* Right side: Feel Selector & Exercise Mode Switcher */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {/* Feel Selector (Straight vs Swing) */}
+          <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border" data-testid="reading-feel-toggle">
+            <span className="text-[11px] font-medium text-muted-foreground px-1.5">Feel:</span>
+            <Button
+              variant={readingFeel === 'straight' ? 'default' : 'ghost'}
+              size="sm"
+              disabled={!isFourFour}
+              className={cn(
+                'h-7 px-2.5 text-xs font-medium rounded-none transition-all',
+                readingFeel === 'straight' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
+              )}
+              onClick={() => handleFeelChange('straight')}
+            >
+              Straight
+            </Button>
+            <Button
+              variant={readingFeel === 'swing' ? 'default' : 'ghost'}
+              size="sm"
+              disabled={!isFourFour}
+              className={cn(
+                'h-7 px-2.5 text-xs font-medium rounded-none transition-all',
+                readingFeel === 'swing' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
+              )}
+              onClick={() => handleFeelChange('swing')}
+            >
+              Swing (♫ = ♩♪)
+            </Button>
+          </div>
+
           {/* Mode Switcher Tabs */}
           <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
             <Button
@@ -293,6 +337,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
       <ReadingView
         readingLine={activeLine}
         scheduler={scheduler}
+        readingFeel={readingFeel}
       />
     </div>
   );

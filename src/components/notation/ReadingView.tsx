@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { ReadingLine } from '../../domain/rhythm/types';
+import { ReadingLine, ReadingFeel } from '../../domain/rhythm/types';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
 import { BeatEvent } from '../../domain/metronome/MetronomeEngine';
 import { ReadingScoreRenderer } from '../../notation/ReadingScoreRenderer';
@@ -12,6 +12,7 @@ import { cn } from '../../lib/utils';
 export interface ReadingViewProps {
   readingLine: ReadingLine;
   scheduler?: ToneTransportScheduler;
+  readingFeel?: ReadingFeel;
   isPlaying?: boolean;
   currentMeasureIndex?: number;
   currentBeatIndex?: number;
@@ -23,6 +24,7 @@ export interface ReadingViewProps {
 export const ReadingView: React.FC<ReadingViewProps> = ({
   readingLine,
   scheduler,
+  readingFeel: propReadingFeel,
   isPlaying = false,
   currentMeasureIndex: externalMeasureIndex,
   currentBeatIndex: externalBeatIndex,
@@ -47,6 +49,24 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   const [timeSignature, setTimeSignature] = useState(() =>
     scheduler?.getTimeSignature?.() ?? { beats: 4, beatUnit: 4 }
   );
+  const [readingFeel, setReadingFeel] = useState<ReadingFeel>(() =>
+    propReadingFeel ?? scheduler?.getReadingFeel?.() ?? 'straight'
+  );
+
+  useEffect(() => {
+    if (propReadingFeel !== undefined) {
+      setReadingFeel(propReadingFeel);
+    }
+  }, [propReadingFeel]);
+
+  useEffect(() => {
+    const unsubFeel = scheduler?.onReadingFeelChange?.((feel) => {
+      setReadingFeel(feel);
+    });
+    return () => {
+      unsubFeel?.();
+    };
+  }, [scheduler]);
 
   const isFourFour = timeSignature.beats === 4 && timeSignature.beatUnit === 4;
   const effectiveIsPlaying = isFourFour && (isPlaying || internalPlaying);
@@ -112,7 +132,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     };
   }, []);
 
-  // Render score notation whenever readingLine, containerWidth, or systemCols change
+  // Render score notation whenever readingLine, containerWidth, systemCols, or readingFeel change
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -122,12 +142,13 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
         measuresPerSystem: systemCols,
         staveSpacing: 110,
         showMeasureNumbers: true,
+        readingFeel,
       });
       setLayout(newLayout);
     } catch (err) {
       console.error('Error rendering reading score:', err);
     }
-  }, [renderer, readingLine, containerWidth, systemCols]);
+  }, [renderer, readingLine, containerWidth, systemCols, readingFeel]);
 
   // Subscribe to scheduler's beat events
   useEffect(() => {

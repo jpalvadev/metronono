@@ -127,4 +127,67 @@ describe('ReadingTrainingSection', () => {
     expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /procedural generator/i })).not.toBeDisabled();
   });
+
+  describe('Reading Feel Selector (Straight vs Swing)', () => {
+    it('renders Feel selector with Straight and Swing buttons, defaulting to Straight', () => {
+      render(<ReadingTrainingSection />);
+
+      expect(screen.getByRole('button', { name: /^Straight$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Swing/i })).toBeInTheDocument();
+    });
+
+    it('toggles feel, notifies scheduler, and remains fully active in 4/4', async () => {
+      const { ToneTransportScheduler } = await import('../../audio/ToneTransportScheduler');
+      const { MetronomeEngine } = await import('../../domain/metronome/MetronomeEngine');
+      const scheduler = new ToneTransportScheduler({
+        engine: new MetronomeEngine(120, '4/4'),
+      });
+
+      render(<ReadingTrainingSection scheduler={scheduler} />);
+
+      const straightBtn = screen.getByRole('button', { name: /^Straight$/i });
+      const swingBtn = screen.getByRole('button', { name: /Swing/i });
+
+      expect(scheduler.getReadingFeel()).toBe('straight');
+      expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+
+      // Click Swing button
+      fireEvent.click(swingBtn);
+
+      expect(scheduler.getReadingFeel()).toBe('swing');
+      // Remains active in 4/4 without suspension badge
+      expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+      expect(swingBtn).not.toBeDisabled();
+      expect(straightBtn).not.toBeDisabled();
+
+      // Score renders Swing indicator
+      expect(document.querySelector('.reading-swing-indicator')).toBeInTheDocument();
+
+      // Click Straight button
+      fireEvent.click(straightBtn);
+      expect(scheduler.getReadingFeel()).toBe('straight');
+      expect(document.querySelector('.reading-swing-indicator')).not.toBeInTheDocument();
+    });
+
+    it('reacts to external scheduler reading feel changes', async () => {
+      const { ToneTransportScheduler } = await import('../../audio/ToneTransportScheduler');
+      const { MetronomeEngine } = await import('../../domain/metronome/MetronomeEngine');
+      const scheduler = new ToneTransportScheduler({
+        engine: new MetronomeEngine(120, '4/4'),
+      });
+
+      render(<ReadingTrainingSection scheduler={scheduler} />);
+
+      const swingBtn = screen.getByRole('button', { name: /Swing/i });
+
+      // Change feel on scheduler directly
+      const { act } = await import('@testing-library/react');
+      act(() => {
+        scheduler.setReadingFeel('swing');
+      });
+
+      expect(document.querySelector('.reading-swing-indicator')).toBeInTheDocument();
+      expect(swingBtn).toHaveClass('bg-primary');
+    });
+  });
 });

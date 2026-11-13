@@ -32,6 +32,10 @@ _Avoid_: Click track, timer
 The Metronome's internal-clock training mode that silences full measures of the Metronome click — either via a deterministic cycle of Click Bars and Silent Bars (mutually exclusive with randomness), or via stochastic Silence Probability when both bar counts are zero — while notation, Ostinato, and Dawson Orchestration continue uninterrupted.
 _Avoid_: Stochastic muting, random mute, click dropout
 
+**Tempo Ramp**:
+The Metronome's gradual tempo-transition mode that interpolates linearly in either direction between a user-defined Start BPM and Target BPM over a configured number of bars per leg. Upon reaching Target BPM, it either holds there (default) or oscillates continuously back and forth between Start BPM and Target BPM. Enabling Tempo Ramp preserves the current BPM and restores it when disabled; while active, manual BPM edits are locked, and changing any ramp parameter resets the Metronome to measure 0, beat 0 so the ramp restarts from Start BPM.
+_Avoid_: Speed trainer, auto-tempo, BPM sweep
+
 **Sample Bank**:
 The `.wav` audio asset registry providing default bundled samples (`public/samples/<voiceId>.wav`) and user-configurable overrides for drum kit voices and metronome subdivisions, with zero synthesized fallback.
 _Avoid_: Sound font, sound pack, synth fallback

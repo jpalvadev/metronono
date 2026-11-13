@@ -66,12 +66,22 @@ describe('App', () => {
   it('exposes the mixing-channel loudness controls exactly once, in the Mixer Panel', () => {
     render(<App />);
 
-    for (const label of ['Click Volume', 'Ostinato Volume', 'Orchestrated Line Volume']) {
+    for (const label of [
+      'Downbeat Volume',
+      'Regular Volume',
+      'Subdivision Volume',
+      'Subdivision Divisions',
+      'Ostinato Volume',
+      'Orchestrated Line Volume',
+    ]) {
       expect(screen.getAllByLabelText(label)).toHaveLength(1);
     }
-    for (const channel of ['Click', 'Ostinato', 'Orchestrated Line']) {
+    for (const channel of ['Downbeat', 'Regular', 'Subdivision', 'Ostinato', 'Orchestrated Line']) {
       expect(screen.getAllByRole('button', { name: `Mute ${channel}` })).toHaveLength(1);
     }
+    expect(screen.queryByTestId('mixer-row-click')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Click Volume')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mute Click' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Master Volume')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mixer-preset-row')).not.toBeInTheDocument();
 

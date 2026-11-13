@@ -32,6 +32,8 @@ Audio behaviour is asserted at two seams, and only their union covers what the u
 
 With Tone.js and synthesized fallback retired (`docs/adr/0014-pure-webaudio-wav-sample-engine.md`), the eager graph holds only persistent mixer/master native nodes (`<= 10` nodes) and creates one-shot `AudioBufferSourceNode`s per trigger. Assert the bound at both seams — the deterministic half headless in `src/audio/__tests__/EagerGraphNodeBudget.test.ts` (zero synths, `<= 10` persistent nodes before playback), and the browser half through `npm run check:live`.
 
+In headless transport tests, each invocation of `scheduledCallback!(time)` calls `engine.nextBeat()`, advancing `beatIndex` monotonically through the measure ($0 \to 1 \to \dots$). When asserting audio triggers across multiple ticks, ensure the test measure populates notes on each targeted beat or advances through the full measure length to wrap back to beat 0.
+
 ## Checks
 
 `npm run check` (`node scripts/one-style.mjs && tsc --noEmit && vitest run`) is the repo's guardrail, enforced by a pre-commit hook and by CI (`.github/workflows/check.yml`, on pushes to `main` and `feat/**`). Diff review should confirm the changed files pass it; run it rather than assuming.

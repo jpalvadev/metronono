@@ -25,8 +25,8 @@ export interface IAudioClockTransport {
 }
 
 export interface IClickPlayer {
-  play(isDownbeat: boolean, time: number, velocity?: number, pitch?: string): void;
-  playSubdivision?(time: number, velocity?: number, pitch?: string): void;
+  play(isDownbeat: boolean, time: number, velocity?: number): void;
+  playSubdivision?(time: number, velocity?: number): void;
   // Preview one click voice through the Audition node the Click Channel shares.
   audition?(voice: 'downbeat' | 'regular' | 'subdivision', time?: number, velocity?: number): void;
   // Voice-level partials: a caller can retune one voice, or one field of it.

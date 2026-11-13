@@ -15,9 +15,9 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
       let tempoRamp = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
       let dropout = { enabled: false, probability: 0.25 };
       let clickConfig = {
-        downbeat: { pitch: 'A6', volume: 1.0 },
-        regular: { pitch: 'E5', volume: 0.7 },
-        subdivision: { pitch: 'C5', volume: 0.5, divisions: 1 },
+        downbeat: { volume: 1.0, muted: false },
+        regular: { volume: 0.7, muted: false },
+        subdivision: { volume: 0.5, muted: false, divisions: 1 },
       };
       const beatListeners: Array<(event: any) => void> = [];
       const dropoutListeners: Array<(isDropout: boolean) => void> = [];
@@ -185,19 +185,9 @@ describe('Metronome Component', () => {
     expect(mockScheduler.setVolume).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/^Volume$/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^toggle mute$/i })).not.toBeInTheDocument();
-
-    // Click voice volumes are velocity shaping inside the Click Channel, so they stay.
-    fireEvent.click(screen.getByRole('button', { name: /click sounds/i }));
     for (const label of ['Downbeat volume', 'Regular volume', 'Subdivision volume']) {
-      expect(screen.getByLabelText(label)).toBeInTheDocument();
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
     }
-
-    fireEvent.change(screen.getByLabelText('Downbeat volume'), { target: { value: '60' } });
-    expect(mockScheduler.updateVoiceConfig).toHaveBeenCalledWith(
-      'downbeat',
-      expect.objectContaining({ volume: 0.6 })
-    );
-    expect(mockScheduler.setVolume).not.toHaveBeenCalled();
   });
 
   describe('Beat Selector Toggles (Beat Mask)', () => {
@@ -288,40 +278,19 @@ describe('Metronome Component', () => {
     });
   });
 
-  describe('Accent, Pitch & Gap Click Customization', () => {
-    it('allows customizing click pitch and volume', () => {
+  describe('Click Sounds & Pitches Removal', () => {
+    it('does not render Click Sounds & Pitches, pitch inputs, per-voice volumes, or Gap Clicks buttons', () => {
       render(<Metronome scheduler={mockScheduler} />);
 
-      // Open accents panel
-      const accentsToggle = screen.getByRole('button', { name: /click sounds/i });
-      fireEvent.click(accentsToggle);
-
-      const downbeatPitchInput = screen.getByLabelText(/downbeat pitch/i);
-      fireEvent.change(downbeatPitchInput, { target: { value: 'C7' } });
-      fireEvent.blur(downbeatPitchInput);
-
-      expect(mockScheduler.updateVoiceConfig).toHaveBeenCalledWith(
-        'downbeat',
-        expect.objectContaining({ pitch: 'C7' })
-      );
-    });
-
-    it('offers gap clicks and splits each beat when requested', () => {
-      render(<Metronome scheduler={mockScheduler} />);
-
-      // Open the Click Sounds panel where the subdivision voice is configured
-      fireEvent.click(screen.getByRole('button', { name: /click sounds/i }));
-
-      // The beat starts undivided: no gap clicks
-      expect(screen.getByText(/Gap Clicks: none/i)).toBeInTheDocument();
-
-      // Split each beat into three, so the gap between beats gets two clicks
-      fireEvent.click(screen.getByRole('button', { name: /gap clicks: split each beat into 3/i }));
-      expect(mockScheduler.updateVoiceConfig).toHaveBeenCalledWith(
-        'subdivision',
-        expect.objectContaining({ divisions: 3 })
-      );
-      expect(screen.getByText(/Gap Clicks: split each beat into 3 parts/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Click Sounds & Pitches/i)).toBeNull();
+      expect(screen.queryByRole('button', { name: /click sounds/i })).toBeNull();
+      expect(screen.queryByLabelText(/downbeat pitch/i)).toBeNull();
+      expect(screen.queryByLabelText(/regular pitch/i)).toBeNull();
+      expect(screen.queryByLabelText(/subdivision pitch/i)).toBeNull();
+      expect(screen.queryByLabelText(/downbeat volume/i)).toBeNull();
+      expect(screen.queryByLabelText(/regular volume/i)).toBeNull();
+      expect(screen.queryByLabelText(/subdivision volume/i)).toBeNull();
+      expect(screen.queryByText(/Gap clicks:/i)).toBeNull();
     });
   });
 });

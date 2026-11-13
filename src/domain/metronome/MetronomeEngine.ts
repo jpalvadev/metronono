@@ -14,7 +14,6 @@ export interface BeatEvent {
 }
 
 export interface ClickVoiceConfig {
-  pitch: string;
   volume: number;
   muted: boolean;
 }
@@ -22,7 +21,6 @@ export interface ClickVoiceConfig {
 // The subdivision voice also carries the Gap Clicks count: how many equal parts each
 // beat is split into. One part means only the beat click, so no gap clicks.
 export interface SubdivisionVoiceConfig {
-  pitch: string;
   volume: number;
   muted: boolean;
   divisions: number;
@@ -52,9 +50,9 @@ export interface DropoutConfig {
 // asks for gap clicks. Shared so a click player built without a config agrees.
 export function createDefaultClickConfig(): MetronomeClickConfig {
   return {
-    downbeat: { pitch: 'A6', volume: 1.0, muted: false },
-    regular: { pitch: 'E5', volume: 0.7, muted: false },
-    subdivision: { pitch: 'C5', volume: 0.5, muted: false, divisions: 1 },
+    downbeat: { volume: 1.0, muted: false },
+    regular: { volume: 0.7, muted: false },
+    subdivision: { volume: 0.5, muted: false, divisions: 1 },
   };
 }
 

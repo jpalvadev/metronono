@@ -5,9 +5,6 @@ import {
   VolumeX,
   Activity,
   TrendingUp,
-  Sliders,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import {
@@ -15,7 +12,6 @@ import {
   TimeSignature,
   TempoRampConfig,
   DropoutConfig,
-  MetronomeClickConfig,
 } from '../domain/metronome/MetronomeEngine';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
@@ -36,12 +32,6 @@ function getTempoMarking(bpm: number): string {
   return 'Prestissimo';
 }
 
-// The subdivision voice splits each beat into equal parts so its clicks land in
-// the gaps between beats; one part is the beat click alone, with no gap clicks.
-function getGapClicksLabel(divisions: number): string {
-  return divisions > 1 ? `Split each beat into ${divisions} parts` : 'None';
-}
-
 export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler }) => {
   const scheduler = useMemo(() => customScheduler ?? new ToneTransportScheduler(), [customScheduler]);
 
@@ -56,10 +46,8 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const [beatMask, setBeatMaskState] = useState<boolean[]>(() => scheduler.getBeatMask());
   const [rampConfig, setRampConfigState] = useState<TempoRampConfig>(() => scheduler.getTempoRampConfig());
   const [dropoutConfig, setDropoutConfigState] = useState<DropoutConfig>(() => scheduler.getDropoutConfig());
-  const [clickConfig, setClickConfigState] = useState<MetronomeClickConfig>(() => scheduler.getClickConfig());
   const [isDropout, setIsDropout] = useState<boolean>(false);
   const [currentMeasure, setCurrentMeasure] = useState<number>(0);
-  const [showAccents, setShowAccents] = useState<boolean>(false);
 
   const activeBeatTimeoutRef = useRef<number | null>(null);
 
@@ -203,22 +191,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     };
     scheduler.setDropoutConfig(updated);
     setDropoutConfigState(scheduler.getDropoutConfig());
-  };
-
-  // Voice accent customization handlers
-  const handleVoicePitchChange = (voice: 'downbeat' | 'regular' | 'subdivision', pitch: string) => {
-    scheduler.updateVoiceConfig(voice, { pitch });
-    setClickConfigState(scheduler.getClickConfig());
-  };
-
-  const handleVoiceVolumeChange = (voice: 'downbeat' | 'regular' | 'subdivision', volPercent: number) => {
-    scheduler.updateVoiceConfig(voice, { volume: volPercent / 100 });
-    setClickConfigState(scheduler.getClickConfig());
-  };
-
-  const handleGapClicksChange = (divisions: number) => {
-    scheduler.updateVoiceConfig('subdivision', { divisions });
-    setClickConfigState(scheduler.getClickConfig());
   };
 
   const isCurrentTimeSig = (tsStr: string) => {
@@ -557,141 +529,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               Random bars will be completely silenced to test whether your internal tempo drifts.
             </p>
-          </div>
-        )}
-      </div>
-
-      {/* Click Accents & Pitches Customization (Collapsible) */}
-      <div className="bg-secondary/30 border border-border rounded-none p-3 flex flex-col gap-2.5">
-        <button
-          type="button"
-          onClick={() => setShowAccents(!showAccents)}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <div className="flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Click Sounds & Pitches</span>
-          </div>
-          {showAccents ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
-
-        {showAccents && (
-          <div className="flex flex-col gap-2.5 pt-2 border-t border-border text-xs">
-            {/* Downbeat voice */}
-            <div className="grid grid-cols-2 gap-3 items-center">
-              <div>
-                <label htmlFor="downbeat-pitch-input" className="block text-muted-foreground mb-1 text-[11px] font-medium">
-                  Downbeat Pitch
-                </label>
-                <input
-                  id="downbeat-pitch-input"
-                  type="text"
-                  value={clickConfig.downbeat.pitch}
-                  onChange={(e) => handleVoicePitchChange('downbeat', e.target.value)}
-                  aria-label="Downbeat pitch"
-                  className="w-full bg-secondary/50 border border-input rounded-none px-2 py-1 font-mono text-center text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-muted-foreground mb-1 text-[11px] font-medium">
-                  Volume ({Math.round(clickConfig.downbeat.volume * 100)}%)
-                </label>
-                <Slider
-                  min={0}
-                  max={100}
-                  value={Math.round(clickConfig.downbeat.volume * 100)}
-                  onChange={(v) => handleVoiceVolumeChange('downbeat', v)}
-                  ariaLabel="Downbeat volume"
-                />
-              </div>
-            </div>
-
-            {/* Regular voice */}
-            <div className="grid grid-cols-2 gap-3 items-center">
-              <div>
-                <label htmlFor="regular-pitch-input" className="block text-muted-foreground mb-1 text-[11px] font-medium">
-                  Regular Pitch
-                </label>
-                <input
-                  id="regular-pitch-input"
-                  type="text"
-                  value={clickConfig.regular.pitch}
-                  onChange={(e) => handleVoicePitchChange('regular', e.target.value)}
-                  aria-label="Regular pitch"
-                  className="w-full bg-secondary/50 border border-input rounded-none px-2 py-1 font-mono text-center text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-muted-foreground mb-1 text-[11px] font-medium">
-                  Volume ({Math.round(clickConfig.regular.volume * 100)}%)
-                </label>
-                <Slider
-                  min={0}
-                  max={100}
-                  value={Math.round(clickConfig.regular.volume * 100)}
-                  onChange={(v) => handleVoiceVolumeChange('regular', v)}
-                  ariaLabel="Regular volume"
-                />
-              </div>
-            </div>
-
-            {/* Subdivision voice */}
-            <div className="grid grid-cols-2 gap-3 items-center">
-              <div>
-                <label htmlFor="subdivision-pitch-input" className="block text-muted-foreground mb-1 text-[11px] font-medium">
-                  Subdivision Pitch
-                </label>
-                <input
-                  id="subdivision-pitch-input"
-                  type="text"
-                  value={clickConfig.subdivision.pitch}
-                  onChange={(e) => handleVoicePitchChange('subdivision', e.target.value)}
-                  aria-label="Subdivision pitch"
-                  className="w-full bg-secondary/50 border border-input rounded-none px-2 py-1 font-mono text-center text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-muted-foreground mb-1 text-[11px] font-medium">
-                  Volume ({Math.round(clickConfig.subdivision.volume * 100)}%)
-                </label>
-                <Slider
-                  min={0}
-                  max={100}
-                  value={Math.round(clickConfig.subdivision.volume * 100)}
-                  onChange={(v) => handleVoiceVolumeChange('subdivision', v)}
-                  ariaLabel="Subdivision volume"
-                />
-              </div>
-            </div>
-
-            {/* Gap Clicks: how many equal parts each beat is clicked into */}
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">
-                Gap clicks: {getGapClicksLabel(clickConfig.subdivision.divisions ?? 1)}
-              </span>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4].map((divisions) => {
-                  const isActive = (clickConfig.subdivision.divisions ?? 1) === divisions;
-                  return (
-                    <button
-                      key={divisions}
-                      type="button"
-                      onClick={() => handleGapClicksChange(divisions)}
-                      aria-label={`Gap clicks: ${getGapClicksLabel(divisions)}`}
-                      title={divisions === 1 ? 'Beat clicks only' : 'Click the gaps between beats too'}
-                      className={cn(
-                        'px-2 py-0.5 rounded-none text-xs font-mono border border-border cursor-pointer select-none transition-all',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-                      )}
-                    >
-                      {divisions === 1 ? 'None' : `${divisions}×`}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         )}
       </div>

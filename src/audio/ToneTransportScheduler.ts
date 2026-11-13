@@ -748,7 +748,7 @@ export class ToneTransportScheduler {
           ? clickConfig.downbeat
           : clickConfig.regular;
         if (!voiceConfig.muted && voiceConfig.volume > 0) {
-          this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume, voiceConfig.pitch);
+          this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume);
         }
 
         // Gap clicks: the subdivision voice heard at the even fractions of the beat,
@@ -763,8 +763,7 @@ export class ToneTransportScheduler {
           for (let gap = 1; gap < divisions; gap++) {
             this.clickPlayer.playSubdivision(
               time + (gap / divisions) * beatDuration,
-              clickConfig.subdivision.volume,
-              clickConfig.subdivision.pitch
+              clickConfig.subdivision.volume
             );
           }
         }

@@ -73,12 +73,12 @@ describe('ToneTransportScheduler', () => {
 
     // Trigger first beat (time = 1.0)
     scheduledCallback!(1.0);
-    expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 1.0, 'A6');
+    expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 1.0);
     expect(beatListener).toHaveBeenCalledWith(expect.objectContaining({ beatIndex: 0, isDownbeat: true }));
 
     // Trigger second beat (time = 1.5)
     scheduledCallback!(1.5);
-    expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.7, 'E5');
+    expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.7);
     expect(beatListener).toHaveBeenCalledWith(expect.objectContaining({ beatIndex: 1, isDownbeat: false }));
   });
 
@@ -126,7 +126,7 @@ describe('ToneTransportScheduler', () => {
       // Beat 1: active
       mockClickPlayer.play.mockClear();
       scheduledCallback!(1.5);
-      expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, expect.any(Number), expect.any(String));
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, expect.any(Number));
       expect(beatListener).toHaveBeenCalledWith(
         expect.objectContaining({ beatIndex: 1, isMuted: false })
       );
@@ -179,21 +179,21 @@ describe('ToneTransportScheduler', () => {
       expect(mockTransport.bpm.value).toBe(110);
     });
 
-    it('passes customized click pitch and volume to click player', async () => {
+    it('passes customized click volume to click player without pitch', async () => {
       scheduler.setClickConfig({
-        downbeat: { pitch: 'C7', volume: 0.95 },
-        regular: { pitch: 'G4', volume: 0.45 },
+        downbeat: { volume: 0.95 },
+        regular: { volume: 0.45 },
       });
 
       await scheduler.start();
 
       // Downbeat (beat 0)
       scheduledCallback!(1.0);
-      expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 0.95, 'C7');
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 0.95);
 
       // Regular beat (beat 1)
       scheduledCallback!(1.5);
-      expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.45, 'G4');
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(false, 1.5, 0.45);
     });
 
     it('schedules Dawson drum events in sync with beat ticks on audio clock', async () => {
@@ -289,7 +289,7 @@ describe('ToneTransportScheduler', () => {
     it('plays no gap clicks while the beat is undivided', async () => {
       await scheduler.start();
       scheduledCallback!(1.0);
-      expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 1.0, 'A6');
+      expect(mockClickPlayer.play).toHaveBeenCalledWith(true, 1.0, 1.0);
       expect(mockClickPlayer.playSubdivision).not.toHaveBeenCalled();
     });
 
@@ -299,12 +299,12 @@ describe('ToneTransportScheduler', () => {
 
       // Beat 0 at 1.0s: gap click at the half-beat 1.25s
       scheduledCallback!(1.0);
-      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.25, 0.5, 'C5');
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.25, 0.5);
 
       // Beat 1 at 1.5s: gap click at 1.75s
       mockClickPlayer.playSubdivision.mockClear();
       scheduledCallback!(1.5);
-      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.75, 0.5, 'C5');
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.75, 0.5);
     });
 
     it('splits the beat into three evenly spaced gap clicks', async () => {
@@ -315,24 +315,22 @@ describe('ToneTransportScheduler', () => {
       scheduledCallback!(1.0);
       expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(
         expect.closeTo(1.1667, 3),
-        0.5,
-        'C5'
+        0.5
       );
       expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(
         expect.closeTo(1.3333, 3),
-        0.5,
-        'C5'
+        0.5
       );
     });
 
-    it('uses the configured subdivision pitch and volume', async () => {
+    it('uses the configured subdivision volume without pitch', async () => {
       scheduler.setClickConfig({
-        subdivision: { pitch: 'F5', volume: 0.35, divisions: 2 },
+        subdivision: { volume: 0.35, divisions: 2 },
       });
       await scheduler.start();
 
       scheduledCallback!(1.0);
-      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.25, 0.35, 'F5');
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.25, 0.35);
     });
 
     it('silences gap clicks of a beat muted by the beat mask', async () => {
@@ -366,7 +364,7 @@ describe('ToneTransportScheduler', () => {
 
       // 60 BPM -> 1s beats: the gap click of the beat at 1.0s lands at 1.5s
       scheduledCallback!(1.0);
-      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.5, 0.5, 'C5');
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.5, 0.5);
     });
   });
 });

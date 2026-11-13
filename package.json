@@ -12,6 +12,7 @@
     "check:style": "node scripts/one-style.mjs",
     "check:tokens": "node scripts/one-style.mjs --audit",
     "check:live": "node scripts/live-audio-guard.mjs",
+    "check:layout": "node scripts/live-layout-guard.mjs",
     "cap:sync": "cap sync",
     "cap:build:android": "vite build && cap sync android",
     "build:apk": "npm run cap:build:android && cd android && gradlew.bat assembleDebug"

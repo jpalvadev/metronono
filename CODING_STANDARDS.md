@@ -18,6 +18,10 @@ Keep engraving geometry (spacing, stem reach, beam thickness, clearances) as mod
 
 When selecting buttons or tabs that share names with launchers or headings (e.g. launcher `Manage Systems, Formulas & Ostinatos` vs tab `Ostinatos (2)`), anchor regex queries (`/^Ostinatos/i`) or scope queries to the modal container rather than loose unanchored substring matches (`/Ostinatos/i`) that trigger ambiguous multiple-element errors.
 
+## Responsive layout (judgement call)
+
+jsdom has no CSS layout engine (`clientWidth === 0`), so unit tests cannot catch `flex` toolbar overflow on mobile viewports. Put `flex-wrap` on horizontal button/control rows and `min-w-0` on flex/grid children holding SVG canvases, and run `npm run check:layout` (`scripts/live-layout-guard.mjs`) when modifying page/section layouts or score containers to verify zero horizontal overflow in real Chromium at `1280px` and `375px`.
+
 ## One style (judgement call)
 
 Reach for this section whenever a diff adds or repaints color. Every surface draws from a token role: `bg-primary`/`text-primary` for the Accent (interactive elements, active states, the Playhead), Success/Warning/Destructive for state, `bg-card`/`text-foreground`/`border-border` for surfaces, `secondary`/`muted` for neutral chrome. The names and their fixed meanings live in `GLOSSARY.md` § Interface — read it before reviewing a restyle.

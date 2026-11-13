@@ -248,8 +248,8 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>Bars:</span>
-              <div className="flex items-center gap-1">
-                {[4, 8, 16].map((count) => (
+              <div className="flex flex-wrap items-center gap-1">
+                {[4, 8, 16, 32, 48, 64].map((count) => (
                   <Button
                     key={count}
                     variant={measureCount === count ? 'secondary' : 'ghost'}

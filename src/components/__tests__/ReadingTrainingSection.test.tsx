@@ -190,4 +190,21 @@ describe('ReadingTrainingSection', () => {
       expect(swingBtn).toHaveClass('bg-primary');
     });
   });
+
+  describe('Extended Bar Counts', () => {
+    it('displays bar-count options 4, 8, 16, 32, 48, 64 defaulting to 4 and generates that exact measure count', () => {
+      render(<ReadingTrainingSection />);
+
+      // Defaults to 4 measures
+      expect(screen.getByText('1 / 4')).toBeInTheDocument();
+      expect(document.querySelectorAll('g.vf-stave')).toHaveLength(4);
+
+      for (const count of [8, 16, 32, 48, 64]) {
+        const btn = screen.getByRole('button', { name: String(count) });
+        fireEvent.click(btn);
+        expect(screen.getByText(`1 / ${count}`)).toBeInTheDocument();
+        expect(document.querySelectorAll('g.vf-stave')).toHaveLength(count);
+      }
+    });
+  });
 });

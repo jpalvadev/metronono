@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DawsonEngine } from '../DawsonEngine';
 import { createRhythmicEvent, Measure } from '../../rhythm/types';
 import { REED_PAGE_37_EXERCISE_ONE } from '../../rhythm/ReedLibrary';
@@ -376,6 +376,142 @@ describe('DawsonEngine', () => {
       const m0Events = events.filter((e) => e.measureIndex === 0);
       expect(m0Events.some((e) => e.source === 'ostinato')).toBe(true);
       expect(m0Events.some((e) => e.source === 'orchestration')).toBe(true);
+    });
+  });
+
+  describe('Reading Feel (Straight vs Swing)', () => {
+    it('initializes with straight feel by default and notifies on change', () => {
+      expect(engine.getReadingFeel()).toBe('straight');
+
+      const feelListener = vi.fn();
+      const changeListener = vi.fn();
+      const unsubFeel = engine.onReadingFeelChange(feelListener);
+      const unsubChange = engine.onChange(changeListener);
+
+      engine.setReadingFeel('swing');
+      expect(engine.getReadingFeel()).toBe('swing');
+      expect(feelListener).toHaveBeenCalledWith('swing');
+      expect(changeListener).toHaveBeenCalledTimes(1);
+
+      // Idempotent set should not fire listeners again
+      engine.setReadingFeel('swing');
+      expect(feelListener).toHaveBeenCalledTimes(1);
+      expect(changeListener).toHaveBeenCalledTimes(1);
+
+      unsubFeel();
+      unsubChange();
+      engine.setReadingFeel('straight');
+      expect(engine.getReadingFeel()).toBe('straight');
+      expect(feelListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves eighth-note upbeats evenly in straight feel and swung at beat + 2/3 in swing feel', () => {
+      // 4 beats with 8 eighth notes
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: Array.from({ length: 8 }, () =>
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' })
+        ),
+      };
+
+      // 1. Straight feel
+      engine.setReadingFeel('straight');
+      const straightEvents = engine.resolveOrchestrationEvents(measure);
+      expect(straightEvents).toHaveLength(8);
+      const straightTimes = straightEvents.map((e) => e.timeInMeasure);
+      expect(straightTimes).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
+
+      // 2. Swing feel
+      engine.setReadingFeel('swing');
+      const swingEvents = engine.resolveOrchestrationEvents(measure);
+      expect(swingEvents).toHaveLength(8);
+      const swingTimes = swingEvents.map((e) => e.timeInMeasure);
+
+      // Downbeats remain exact integers
+      expect(swingTimes[0]).toBe(0);
+      expect(swingTimes[2]).toBe(1);
+      expect(swingTimes[4]).toBe(2);
+      expect(swingTimes[6]).toBe(3);
+
+      // Upbeats are transformed to beat + 2/3 (approx 0.667, 1.667, 2.667, 3.667)
+      expect(swingTimes[1]).toBeCloseTo(0 + 2 / 3, 3);
+      expect(swingTimes[3]).toBeCloseTo(1 + 2 / 3, 3);
+      expect(swingTimes[5]).toBeCloseTo(2 + 2 / 3, 3);
+      expect(swingTimes[7]).toBeCloseTo(3 + 2 / 3, 3);
+    });
+
+    it('keeps downbeat quarter notes and other non-upbeat divisions at nominal offsets', () => {
+      // Beat 0: quarter note (1.0 beat)
+      // Beat 1: eighth rest (0.5) + eighth note (0.5, offset 1.5)
+      // Beat 2: half note (2.0 beats, offset 2.0)
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: [
+          createRhythmicEvent({ durationBeats: 1.0, durationType: 'quarter' }),
+          createRhythmicEvent({ isRest: true, durationBeats: 0.5, durationType: '8th' }),
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+          createRhythmicEvent({ durationBeats: 2.0, durationType: 'half' }),
+        ],
+      };
+
+      engine.setReadingFeel('swing');
+      const events = engine.resolveOrchestrationEvents(measure);
+      expect(events).toHaveLength(3); // 2 notes + 1 half note (rest excluded)
+
+      // Downbeat quarter note at 0.0
+      expect(events[0].timeInMeasure).toBe(0);
+      // Upbeat eighth note at 1.5 transformed to 1 + 2/3
+      expect(events[1].timeInMeasure).toBeCloseTo(1 + 2 / 3, 3);
+      // Downbeat half note at 2.0 remains 2.0
+      expect(events[2].timeInMeasure).toBe(2);
+    });
+
+    it('dispatches multi-stroke formulas with nominal stroke durations without elastic distortion', () => {
+      // Short formula with two 16th strokes (0.25 beat each)
+      const doubleStrokeFormula = {
+        id: 'test_double',
+        name: 'Test Double',
+        trigger: 'short' as const,
+        strokes: [
+          {
+            durationRatio: 0.25,
+            hits: [{ voice: 'snare' as const, dynamic: 'accent' as const }],
+          },
+          {
+            durationRatio: 0.25,
+            hits: [{ voice: 'snare' as const, dynamic: 'normal' as const }],
+          },
+        ],
+      };
+
+      engine.setShortFormula(doubleStrokeFormula);
+
+      // Measure with an upbeat eighth note at beat 0.5
+      const measure: Measure = {
+        index: 0,
+        timeSignature: [4, 4],
+        totalBeats: 4,
+        events: [
+          createRhythmicEvent({ isRest: true, durationBeats: 0.5, durationType: '8th' }),
+          createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' }),
+          createRhythmicEvent({ isRest: true, durationBeats: 3.0, durationType: 'dotted-half' }),
+        ],
+      };
+
+      // Swing feel: onset shifts to 2/3 (~0.667).
+      // First stroke at 0.667, second stroke at 0.667 + 0.25 = 0.917
+      engine.setReadingFeel('swing');
+      const events = engine.resolveOrchestrationEvents(measure);
+      expect(events).toHaveLength(2);
+      expect(events[0].timeInMeasure).toBeCloseTo(2 / 3, 3);
+      expect(events[1].timeInMeasure).toBeCloseTo(2 / 3 + 0.25, 3);
+      // Duration ratios are preserved without elastic stretching
+      expect(events[0].durationBeats).toBe(0.25);
+      expect(events[1].durationBeats).toBe(0.25);
     });
   });
 });

@@ -7,6 +7,8 @@ export type NoteDuration =
   | 'dotted-half'    // 3.0 beats
   | 'whole';         // 4.0 beats
 
+export type ReadingFeel = 'straight' | 'swing';
+
 export interface RhythmicEvent {
   readonly id: string;
   readonly isRest: boolean;

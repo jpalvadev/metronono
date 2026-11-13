@@ -26,7 +26,7 @@ import { DefaultSampleLoader } from './DefaultSampleLoader';
 import { NativeLookaheadTransport } from './NativeLookaheadTransport';
 import { getAudioContext, resumeAudioContext } from './WebAudioContext';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
-import { Measure, ReadingLine, createRhythmicEvent } from '../domain/rhythm/types';
+import { Measure, ReadingLine, ReadingFeel, createRhythmicEvent } from '../domain/rhythm/types';
 import { BackgroundAudioService } from './BackgroundAudioService';
 import { ScheduledDrumEvent } from '../domain/dawson/types';
 
@@ -146,6 +146,9 @@ export class ToneTransportScheduler {
   private playStateListeners: Set<(isPlaying: boolean) => void> = new Set();
   private timeSignatureListeners: Set<(ts: TimeSignature) => void> = new Set();
   private pulseFeelListeners: Set<(feel: PulseFeel) => void> = new Set();
+  private readingFeel: ReadingFeel = 'straight';
+  private readingFeelListeners: Set<(feel: ReadingFeel) => void> = new Set();
+  private unsubscribeDawsonFeel?: () => void;
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
   private storageManager?: any;
@@ -161,6 +164,10 @@ export class ToneTransportScheduler {
     this.audioMixer = options?.audioMixer ?? new AudioMixer();
     this.dawsonEngine = options?.dawsonEngine;
     this.readingLine = options?.readingLine ?? null;
+    this.readingFeel =
+      options?.readingFeel ??
+      options?.dawsonEngine?.getReadingFeel?.() ??
+      'straight';
     // The Drum Kit Player plays on the Mixing Channel nodes the Mixer owns, so it is built from it.
     this.drumKitPlayer = options?.drumKitPlayer ?? new DrumKitPlayer(this.audioMixer);
 
@@ -226,7 +233,25 @@ export class ToneTransportScheduler {
       this.unsubscribeDawsonChange();
       this.unsubscribeDawsonChange = undefined;
     }
+    if (this.unsubscribeDawsonFeel) {
+      this.unsubscribeDawsonFeel();
+      this.unsubscribeDawsonFeel = undefined;
+    }
+    engine.setReadingFeel(this.readingFeel);
     this.unsubscribeDawsonChange = engine.onChange(() => this.buildMeasurePlans());
+    this.unsubscribeDawsonFeel = engine.onReadingFeelChange?.((feel) => {
+      if (this.readingFeel !== feel) {
+        this.readingFeel = feel;
+        this.buildMeasurePlans();
+        this.readingFeelListeners.forEach((l) => {
+          try {
+            l(this.readingFeel);
+          } catch {
+            // Safe listener dispatch
+          }
+        });
+      }
+    });
     this.measurePlan = null;
   }
 
@@ -366,6 +391,35 @@ export class ToneTransportScheduler {
     const nextFeel = this.engine.getPulseFeel();
     this.syncTransportAndPlans();
     this.pulseFeelListeners.forEach((listener) => listener(nextFeel));
+  }
+
+  public getReadingFeel(): ReadingFeel {
+    return this.dawsonEngine ? this.dawsonEngine.getReadingFeel() : this.readingFeel;
+  }
+
+  public setReadingFeel(feel: ReadingFeel): void {
+    const nextFeel: ReadingFeel = feel === 'swing' ? 'swing' : 'straight';
+    if (this.readingFeel !== nextFeel) {
+      this.readingFeel = nextFeel;
+      if (this.dawsonEngine) {
+        this.dawsonEngine.setReadingFeel(nextFeel);
+      }
+      this.buildMeasurePlans();
+      this.readingFeelListeners.forEach((listener) => {
+        try {
+          listener(this.readingFeel);
+        } catch {
+          // Safe listener dispatch
+        }
+      });
+    }
+  }
+
+  public onReadingFeelChange(listener: (feel: ReadingFeel) => void): () => void {
+    this.readingFeelListeners.add(listener);
+    return () => {
+      this.readingFeelListeners.delete(listener);
+    };
   }
 
   public tap(timestampMs?: number): number | null {
@@ -744,6 +798,10 @@ export class ToneTransportScheduler {
       this.unsubscribeDawsonChange();
       this.unsubscribeDawsonChange = undefined;
     }
+    if (this.unsubscribeDawsonFeel) {
+      this.unsubscribeDawsonFeel();
+      this.unsubscribeDawsonFeel = undefined;
+    }
     this.measurePlan = null;
 
     (this.clickPlayer as { dispose?: () => void })?.dispose?.();
@@ -760,6 +818,7 @@ export class ToneTransportScheduler {
     this.playStateListeners.clear();
     this.timeSignatureListeners.clear();
     this.pulseFeelListeners.clear();
+    this.readingFeelListeners.clear();
   }
 
   private reschedule(): void {

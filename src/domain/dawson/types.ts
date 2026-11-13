@@ -1,4 +1,4 @@
-import { Measure, ReadingLine, RhythmicEvent } from '../rhythm/types';
+import { Measure, ReadingLine, RhythmicEvent, ReadingFeel } from '../rhythm/types';
 
 export type DrumVoice =
   | 'kick'
@@ -49,6 +49,7 @@ export interface SubdivisionFormula {
   strokes: OrchestratedStroke[];
   description?: string;
   isCustom?: boolean;
+  feel?: 'straight' | 'swing' | 'neutral';
 }
 
 export interface DawsonSystem {
@@ -78,6 +79,7 @@ export interface DawsonEngineOptions {
   activeSystemId?: string | 'none';
   shortFormula?: SubdivisionFormula;
   longFormula?: SubdivisionFormula;
+  readingFeel?: ReadingFeel;
 }
 
-export type { Measure, ReadingLine, RhythmicEvent };
+export type { Measure, ReadingLine, RhythmicEvent, ReadingFeel };

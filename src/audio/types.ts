@@ -10,7 +10,7 @@ import {
 import { IAudioMixer } from './AudioMixer';
 import { IDrumKitPlayer } from './DrumKitPlayer';
 import { DawsonEngine } from '../domain/dawson/DawsonEngine';
-import { ReadingLine } from '../domain/rhythm/types';
+import { ReadingLine, ReadingFeel } from '../domain/rhythm/types';
 import { ScheduledDrumEvent } from '../domain/dawson/types';
 import type { BackgroundAudioService } from './BackgroundAudioService';
 
@@ -57,6 +57,7 @@ export interface ToneSchedulerOptions {
   drumKitPlayer?: IDrumKitPlayer;
   dawsonEngine?: DawsonEngine;
   readingLine?: ReadingLine;
+  readingFeel?: ReadingFeel;
   storageManager?: any;
   backgroundAudioService?: BackgroundAudioService;
 }
@@ -72,4 +73,5 @@ export type {
   IAudioMixer,
   IDrumKitPlayer,
   ScheduledDrumEvent,
+  ReadingFeel,
 };

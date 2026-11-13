@@ -601,5 +601,74 @@ describe('ToneTransportScheduler', () => {
 
       unsub();
     });
+
+    it('manages readingFeel, rebuilds Measure Plan eagerly, and schedules swung upbeats at audio rate', async () => {
+      const { DawsonEngine } = await import('../../domain/dawson/DawsonEngine');
+      const { createRhythmicEvent } = await import('../../domain/rhythm/types');
+      const dawsonEngine = new DawsonEngine();
+      dawsonEngine.setOstinato('none'); // Isolate orchestration events
+
+      const mockDrumPlayer = {
+        play: vi.fn(),
+        triggerVoice: vi.fn(),
+        initSynths: vi.fn(),
+        dispose: vi.fn(),
+      };
+
+      scheduler.setDawsonEngine(dawsonEngine);
+      scheduler.setDrumKitPlayer(mockDrumPlayer as any);
+
+      // Measure: 4 beats with 8 eighth notes (every beat has downbeat + upbeat)
+      scheduler.setReadingLine({
+        id: 'test_reading',
+        title: 'Test Reading',
+        tier: 1,
+        measures: [
+          {
+            index: 0,
+            timeSignature: [4, 4],
+            totalBeats: 4,
+            events: Array.from({ length: 8 }, () =>
+              createRhythmicEvent({ durationBeats: 0.5, durationType: '8th' })
+            ),
+          },
+        ],
+      });
+
+      expect(scheduler.getReadingFeel()).toBe('straight');
+
+      const feelListener = vi.fn();
+      const unsubFeel = scheduler.onReadingFeelChange(feelListener);
+
+      // Start playback in straight feel at 120 BPM (nominalDuration = 0.5s per quarter note)
+      await scheduler.start();
+      scheduledCallback!(1.0); // beat 0 at audio time 1.0s
+
+      expect(mockDrumPlayer.play).toHaveBeenCalledTimes(2);
+      const firstStraightCall = mockDrumPlayer.play.mock.calls[0];
+      const secondStraightCall = mockDrumPlayer.play.mock.calls[1];
+      // Downbeat at 1.0s
+      expect(firstStraightCall[1]).toBeCloseTo(1.0, 3);
+      // Upbeat at 1.0 + 0.5 * 0.5 = 1.25s
+      expect(secondStraightCall[1]).toBeCloseTo(1.25, 3);
+
+      // Switch to swing feel
+      mockDrumPlayer.play.mockClear();
+      scheduler.setReadingFeel('swing');
+      expect(scheduler.getReadingFeel()).toBe('swing');
+      expect(feelListener).toHaveBeenCalledWith('swing');
+
+      // Audio tick on beat 1 under swing feel (b = 1)
+      scheduledCallback!(1.5); // beat 1 at audio time 1.5s
+      expect(mockDrumPlayer.play).toHaveBeenCalledTimes(2);
+      const firstSwingCall = mockDrumPlayer.play.mock.calls[0];
+      const secondSwingCall = mockDrumPlayer.play.mock.calls[1];
+      // Downbeat for beat 1: subOffset 0.0 -> eventTime = 1.5 + 0.0 = 1.5s
+      expect(firstSwingCall[1]).toBeCloseTo(1.5, 3);
+      // Upbeat for beat 1: timeInMeasure = 1 + 2/3 -> subOffset = 2/3 -> eventTime = 1.5 + (2/3) * 0.5 = 1.8333s
+      expect(secondSwingCall[1]).toBeCloseTo(1.5 + (2 / 3) * 0.5, 3);
+
+      unsubFeel();
+    });
   });
 });

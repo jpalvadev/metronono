@@ -10,6 +10,7 @@ import {
   ReadingLine,
   SubdivisionFormula,
   DawsonSystem,
+  ReadingFeel,
 } from './types';
 import {
   DEFAULT_SHORT_FORMULAS,
@@ -27,6 +28,8 @@ export class DawsonEngine {
   private longFormula: SubdivisionFormula;
   private activeSystem?: DawsonSystem;
   private isSystemSilenced: boolean = false;
+  private readingFeel: ReadingFeel = 'straight';
+  private readingFeelListeners: Set<(feel: ReadingFeel) => void> = new Set();
   private changeListeners: Set<() => void> = new Set();
 
   public onChange(listener: () => void): () => void {
@@ -80,6 +83,36 @@ export class DawsonEngine {
           ? DEFAULT_DAWSON_SYSTEMS.inverted_bop
           : FACTORY_DAWSON_SYSTEMS.snare_and_kick || DEFAULT_DAWSON_SYSTEMS.classic_bop;
     }
+
+    if (options?.readingFeel) {
+      this.readingFeel = options.readingFeel === 'swing' ? 'swing' : 'straight';
+    }
+  }
+
+  public getReadingFeel(): ReadingFeel {
+    return this.readingFeel;
+  }
+
+  public setReadingFeel(feel: ReadingFeel): void {
+    const nextFeel: ReadingFeel = feel === 'swing' ? 'swing' : 'straight';
+    if (this.readingFeel !== nextFeel) {
+      this.readingFeel = nextFeel;
+      this.readingFeelListeners.forEach((l) => {
+        try {
+          l(this.readingFeel);
+        } catch {
+          // Safe listener dispatch
+        }
+      });
+      this.notifyChange();
+    }
+  }
+
+  public onReadingFeelChange(listener: (feel: ReadingFeel) => void): () => void {
+    this.readingFeelListeners.add(listener);
+    return () => {
+      this.readingFeelListeners.delete(listener);
+    };
   }
 
   public getMode(): DawsonMode {
@@ -249,10 +282,19 @@ export class DawsonEngine {
         const isLong = event.durationBeats >= 1.0 || event.hasTieToNext || event.isLong;
         const formula = isLong ? this.longFormula : this.shortFormula;
 
+        let noteOnsetTime = currentOffsetBeats;
+        if (this.readingFeel === 'swing') {
+          const beat = Math.floor(currentOffsetBeats);
+          const frac = currentOffsetBeats - beat;
+          if (Math.abs(frac - 0.5) < 0.05) {
+            noteOnsetTime = beat + 2 / 3;
+          }
+        }
+
         if (formula && formula.strokes && formula.strokes.length > 0) {
           let strokeOffset = 0;
           for (const stroke of formula.strokes) {
-            const timeInMeasure = Math.round((currentOffsetBeats + strokeOffset) * 1000) / 1000;
+            const timeInMeasure = Math.round((noteOnsetTime + strokeOffset) * 1000) / 1000;
             if (!stroke.isRest && stroke.hits && stroke.hits.length > 0) {
               for (const hit of stroke.hits) {
                 if (timeInMeasure < measure.totalBeats) {
@@ -281,7 +323,7 @@ export class DawsonEngine {
 
           const dynamic: Dynamic = 'normal';
           const velocity = this.dynamicToVelocity(dynamic);
-          const roundedTime = Math.round(currentOffsetBeats * 1000) / 1000;
+          const roundedTime = Math.round(noteOnsetTime * 1000) / 1000;
 
           events.push({
             timeInMeasure: roundedTime,

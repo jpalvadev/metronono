@@ -31,3 +31,43 @@
 - 16 [ ] I dont want horizontal or vertical scroll bars on the syncopation page, there should not be a vertical size limit, and horizontal scroll bar i think is a CSS bug or mistake. Also, as the width of the window shrink, the bars per row should dimishish, from 4 to 3, 2 and one, for cell phones.
 
 - 17 [ x ] on the main Alan Dawson Orchestration view there should not be an edit button, this is not the view for editing ostinatos or formulas. This function should be done only in the modal that opens with the button Manage Systems, Formulas & Ostinatos (removed the Ostinato, Short Formula, and Long Formula Edit buttons and FormulaEditorDialog wiring from DawsonOrchestrationSection; editing remains exclusively inside PresetManager opened via "Manage Systems, Formulas & Ostinatos")
+
+- 18 [ ] The tempo ramp up functionality should have a start bpm and a target bpm, and a checkbox if the tempo stays on the target BPM or if it goes up and down between both BPMS
+
+- 19 [ ] Delete from the main Alan Dawnson Orchestration the Button "Audition" from the Ostinato, and from the formulas, they are not needed here.
+
+- 20 [ ] the user should be able to select how the notes on the single line reading sound, if they are straight eights or swung eights
+
+- 21 [ ] I think the System concept (a conjugation of ostinatos and formulas) should not exists, it brings complexity or a concept that does not bring too much to the table, the user can select the ostinato and the interpretation system on the fly on the main Alan Dawson Orchestration view. We should delete every mention and functionlity of the "System", unless you say otherwise and see value on this concept. Also, on the modal view, when we select the formula tab there is the following error:
+PresetManager.tsx:720 Uncaught TypeError: Cannot read properties of undefined (reading 'map')
+    at PresetManager.tsx:720:61
+    at Array.map (<anonymous>)
+    at PresetManager.tsx:715:46
+    at Array.map (<anonymous>)
+    at PresetManager (PresetManager.tsx:687:35)
+
+PresetManager.tsx:720 Uncaught TypeError: Cannot read properties of undefined (reading 'map')
+    at PresetManager.tsx:720:61
+    at Array.map (<anonymous>)
+    at PresetManager.tsx:715:46
+    at Array.map (<anonymous>)
+    at PresetManager (PresetManager.tsx:687:35)
+installHook.js:1 The above error occurred in the <PresetManager> component:
+
+    at PresetManager (http://localhost:5173/src/components/dawson/PresetManager.tsx:40:3)
+    at div
+    at DawsonOrchestrationSection (http://localhost:5173/src/components/DawsonOrchestrationSection.tsx:35:3)
+    at div
+    at div
+    at main
+    at App (http://localhost:5173/src/App.tsx?t=1794538153877:31:26)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+chunk-FD5SMSK5.js?v=91c603c5:9176 Uncaught TypeError: Cannot read properties of undefined (reading 'map')
+    at PresetManager.tsx:720:61
+    at Array.map (<anonymous>)
+    at PresetManager.tsx:715:46
+    at Array.map (<anonymous>)
+    at PresetManager (PresetManager.tsx:687:35)
+﻿

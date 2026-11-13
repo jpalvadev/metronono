@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: completed
 
 # Reading Line Rhythmic Feel: Straight vs Swung Eighths (Jazz Swing)
 

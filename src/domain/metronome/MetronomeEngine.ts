@@ -127,6 +127,7 @@ export class MetronomeEngine {
   };
 
   private measureDropoutMap: Map<number, boolean> = new Map();
+  private dropoutCycleAnchorMeasure: number = 0;
 
   constructor(
     initialTempo: number = MetronomeEngine.DEFAULT_BPM,
@@ -352,17 +353,30 @@ export class MetronomeEngine {
   }
 
   public setDropoutConfig(config: Partial<DropoutConfig>): void {
+    const nextClickBars =
+      config.clickBars !== undefined
+        ? clampDropoutBars(config.clickBars)
+        : this.dropoutConfig.clickBars;
+    const nextSilentBars =
+      config.silentBars !== undefined
+        ? clampDropoutBars(config.silentBars)
+        : this.dropoutConfig.silentBars;
+
+    if (
+      nextClickBars !== this.dropoutConfig.clickBars ||
+      nextSilentBars !== this.dropoutConfig.silentBars
+    ) {
+      this.dropoutCycleAnchorMeasure = Math.max(0, this.currentMeasureIndex);
+      if (nextClickBars === 0 && nextSilentBars === 0) {
+        this.measureDropoutMap.clear();
+      }
+    }
+
     this.dropoutConfig = {
       ...this.dropoutConfig,
       ...config,
-      clickBars:
-        config.clickBars !== undefined
-          ? clampDropoutBars(config.clickBars)
-          : this.dropoutConfig.clickBars,
-      silentBars:
-        config.silentBars !== undefined
-          ? clampDropoutBars(config.silentBars)
-          : this.dropoutConfig.silentBars,
+      clickBars: nextClickBars,
+      silentBars: nextSilentBars,
     };
   }
 
@@ -377,7 +391,8 @@ export class MetronomeEngine {
     const { clickBars, silentBars } = this.dropoutConfig;
     if (clickBars > 0 || silentBars > 0) {
       const cycleLength = clickBars + silentBars;
-      const cyclePosition = ((measureIndex % cycleLength) + cycleLength) % cycleLength;
+      const offsetMeasure = measureIndex - this.dropoutCycleAnchorMeasure;
+      const cyclePosition = ((offsetMeasure % cycleLength) + cycleLength) % cycleLength;
       return cyclePosition >= clickBars;
     }
     if (this.dropoutConfig.probability <= 0) {
@@ -407,6 +422,7 @@ export class MetronomeEngine {
     this.currentBeatIndex = -1;
     this.currentMeasureIndex = -1;
     this.measureDropoutMap.clear();
+    this.dropoutCycleAnchorMeasure = 0;
   }
 
   public nextBeat(): BeatEvent {

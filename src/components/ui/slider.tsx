@@ -12,8 +12,9 @@ export interface SliderProps
 }
 
 export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
-  ({ className, value, min, max, step = 1, onChange, ariaLabel, ...props }, ref) => {
+  ({ className, value, min, max, step = 1, onChange, ariaLabel, disabled, ...props }, ref) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (disabled) return;
       onChange(Number(e.target.value));
     };
 
@@ -25,10 +26,12 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={handleChange}
         aria-label={ariaLabel}
         className={cn(
-          'w-full lyra-slider cursor-pointer block',
+          'w-full lyra-slider block',
+          disabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer',
           className
         )}
         {...props}

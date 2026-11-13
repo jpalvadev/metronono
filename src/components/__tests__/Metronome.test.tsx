@@ -379,6 +379,34 @@ describe('Metronome Component', () => {
       expect(silentBarsInput.value).toBe('32');
     });
 
+    it('disables Silence Probability slider and shows override note when bar cycle is active, and re-enables at 0/0', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /toggle dropout mode/i }));
+
+      const dropoutSlider = screen.getByLabelText(/dropout percentage/i) as HTMLInputElement;
+      expect(dropoutSlider).not.toBeDisabled();
+
+      // Activate Click Bars -> slider becomes disabled and override note appears
+      fireEvent.click(screen.getByRole('button', { name: /increase click bars/i }));
+      expect(dropoutSlider).toBeDisabled();
+      expect(screen.getByText(/bar cycle active/i)).toBeInTheDocument();
+
+      // Attempting to change the disabled slider does not update probability
+      vi.mocked(mockScheduler.setDropoutConfig).mockClear();
+      fireEvent.change(dropoutSlider, { target: { value: '80' } });
+      expect(mockScheduler.setDropoutConfig).not.toHaveBeenCalled();
+
+      // Return Click Bars to 0 -> slider is re-enabled and note disappears
+      fireEvent.click(screen.getByRole('button', { name: /decrease click bars/i }));
+      expect(dropoutSlider).not.toBeDisabled();
+      expect(screen.queryByText(/bar cycle active/i)).not.toBeInTheDocument();
+
+      // Activate Silent Bars -> slider disabled again
+      fireEvent.click(screen.getByRole('button', { name: /increase silent bars/i }));
+      expect(dropoutSlider).toBeDisabled();
+    });
+
     it('displays eye-catching visual badge when measure is dropped out without freezing playhead', () => {
       render(<Metronome scheduler={mockScheduler} />);
 

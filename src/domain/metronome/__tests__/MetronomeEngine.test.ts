@@ -523,6 +523,70 @@ describe('MetronomeEngine', () => {
       engine.setDropoutConfig({ clickBars: 0, silentBars: 0 });
       expect(engine.shouldMuteMeasure(0)).toBe(true);
     });
+
+    it('restarts the bar cycle from position 0 on reset()', () => {
+      engine.setDropoutConfig({ enabled: true, clickBars: 2, silentBars: 1 });
+      engine.reset();
+
+      // Advance through measures 0, 1 (click) and measure 2 (silent)
+      for (let m = 0; m < 3; m++) {
+        for (let b = 0; b < 4; b++) {
+          const ev = engine.nextBeat();
+          if (b === 0) {
+            expect(ev.isDropout).toBe(m === 2);
+          }
+        }
+      }
+
+      // Stop/restart via reset() -> starts back at position 0 (click phase)
+      engine.reset();
+      const restarted = engine.nextBeat();
+      expect(restarted.measureIndex).toBe(0);
+      expect(restarted.isDropout).toBe(false);
+    });
+
+    it('re-anchors the cycle at currentMeasureIndex on live clickBars/silentBars change without resetting measureIndex or Tempo Ramp', () => {
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 4,
+      });
+      engine.setDropoutConfig({ enabled: true, clickBars: 1, silentBars: 1 });
+      engine.reset();
+
+      // Measure 0 (audible, BPM 100..107.5)
+      for (let b = 0; b < 4; b++) {
+        expect(engine.nextBeat().isDropout).toBe(false);
+      }
+      // Measure 1 (silent, BPM 110..117.5)
+      for (let b = 0; b < 4; b++) {
+        const ev = engine.nextBeat();
+        expect(ev.measureIndex).toBe(1);
+        expect(ev.isDropout).toBe(true);
+      }
+
+      // Live edit: change cycle to 2 click / 1 silent while in measure 1
+      engine.setDropoutConfig({ clickBars: 2, silentBars: 1 });
+
+      // Measure 1 is now the anchor (cycle position 0 -> audible), and Measure 2 is position 1 -> audible,
+      // Measure 3 is position 2 -> silent; measureIndex & Tempo Ramp continue uninterrupted!
+      expect(engine.shouldMuteMeasure(1)).toBe(false);
+      const m2b0 = engine.nextBeat();
+      expect(m2b0.measureIndex).toBe(2);
+      expect(m2b0.bpm).toBe(120); // 50% of 100 -> 140
+      expect(m2b0.isDropout).toBe(false);
+
+      // Finish measure 2
+      for (let b = 1; b < 4; b++) {
+        engine.nextBeat();
+      }
+
+      const m3b0 = engine.nextBeat();
+      expect(m3b0.measureIndex).toBe(3);
+      expect(m3b0.bpm).toBe(130); // 75% of 100 -> 140
+      expect(m3b0.isDropout).toBe(true);
+    });
   });
 
   describe('NextBeat Event Properties & Mute Gating', () => {

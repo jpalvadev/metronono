@@ -187,7 +187,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     }
   };
 
+  const isDropoutBarCycleActive =
+    dropoutConfig.clickBars > 0 || dropoutConfig.silentBars > 0;
+
   const handleDropoutProbabilityChange = (percent: number) => {
+    if (isDropoutBarCycleActive) return;
     const updated = {
       ...dropoutConfig,
       probability: percent / 100,
@@ -587,7 +591,12 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                 );
               })}
             </div>
-            <div className="flex justify-between text-muted-foreground">
+            <div
+              className={cn(
+                'flex justify-between text-muted-foreground',
+                isDropoutBarCycleActive && 'opacity-40'
+              )}
+            >
               <span>Silence Probability</span>
               <span className="font-mono text-warning font-bold">
                 {Math.round(dropoutConfig.probability * 100)}%
@@ -598,11 +607,14 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               max={100}
               step={5}
               value={Math.round(dropoutConfig.probability * 100)}
+              disabled={isDropoutBarCycleActive}
               onChange={handleDropoutProbabilityChange}
               ariaLabel="Dropout percentage"
             />
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Random bars will be completely silenced to test whether your internal tempo drifts.
+              {isDropoutBarCycleActive
+                ? 'Bar cycle active — random Silence Probability is disabled.'
+                : 'Random bars will be completely silenced to test whether your internal tempo drifts.'}
             </p>
           </div>
         )}

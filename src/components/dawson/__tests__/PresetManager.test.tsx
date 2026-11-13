@@ -317,4 +317,45 @@ describe('PresetManager Component', () => {
       expect(duplicated?.isCustom).toBe(true);
     });
   });
+
+  describe('Formulas Tab Defensive Rendering', () => {
+    it('renders formulas without crashing when a stroke has missing or empty hits', () => {
+      presetManager.saveFormula({
+        id: 'corrupt_short',
+        name: 'Corrupt Short Formula',
+        trigger: 'short',
+        strokes: [
+          { durationRatio: 0.25 } as unknown as { durationRatio: number; hits: [] },
+          { durationRatio: 0.25, hits: [{ voice: 'snare', dynamic: 'normal' }] },
+        ],
+      });
+      presetManager.saveFormula({
+        id: 'corrupt_long',
+        name: 'Corrupt Long Formula',
+        trigger: 'long',
+        strokes: [
+          { durationRatio: 0.5 } as unknown as { durationRatio: number; hits: [] },
+          { durationRatio: 0.5, hits: [] },
+        ],
+      });
+
+      render(
+        <PresetManager
+          open={true}
+          onClose={mockOnClose}
+          presetManager={presetManager}
+          activeSystemId="classic_bop"
+          onSelectSystem={mockOnSelectSystem}
+          player={mockPlayer}
+        />
+      );
+
+      const formulasTab = screen.getByRole('button', { name: /Formulas/i });
+      fireEvent.click(formulasTab);
+
+      expect(screen.getByText('Corrupt Short Formula')).toBeInTheDocument();
+      expect(screen.getByText('Corrupt Long Formula')).toBeInTheDocument();
+      expect(screen.getAllByText('rest').length).toBeGreaterThanOrEqual(3);
+    });
+  });
 });

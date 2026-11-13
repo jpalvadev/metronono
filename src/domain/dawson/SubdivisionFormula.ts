@@ -561,25 +561,55 @@ export class DawsonPresetManager {
     }
   }
 
+  private normalizeStrokes(strokes: OrchestratedStroke[] | undefined): OrchestratedStroke[] {
+    if (!Array.isArray(strokes)) return [];
+    return strokes.map((stroke) => {
+      const hits = Array.isArray(stroke.hits) ? stroke.hits : [];
+      return {
+        ...stroke,
+        hits,
+        isRest: stroke.isRest || hits.length === 0 ? true : undefined,
+      };
+    });
+  }
+
+  private normalizeFormula(formula: SubdivisionFormula): SubdivisionFormula {
+    return {
+      ...formula,
+      strokes: this.normalizeStrokes(formula.strokes),
+    };
+  }
+
   private loadFromStorage(): void {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const storedFormulas = window.localStorage.getItem(`${this.storagePrefix}formulas`);
         if (storedFormulas) {
           const parsed = JSON.parse(storedFormulas) as SubdivisionFormula[];
-          parsed.forEach((f) => this.customFormulas.set(f.id, f));
+          parsed.forEach((f) => this.customFormulas.set(f.id, this.normalizeFormula(f)));
         }
 
         const storedSystems = window.localStorage.getItem(`${this.storagePrefix}systems`);
         if (storedSystems) {
           const parsed = JSON.parse(storedSystems) as DawsonSystem[];
-          parsed.forEach((s) => this.customSystems.set(s.id, s));
+          parsed.forEach((s) =>
+            this.customSystems.set(s.id, {
+              ...s,
+              shortFormula: this.normalizeFormula(s.shortFormula),
+              longFormula: this.normalizeFormula(s.longFormula),
+            })
+          );
         }
 
         const storedOstinatos = window.localStorage.getItem(`${this.storagePrefix}ostinatos`);
         if (storedOstinatos) {
           const parsed = JSON.parse(storedOstinatos) as OstinatoPattern[];
-          parsed.forEach((o) => this.customOstinatos.set(o.id, o));
+          parsed.forEach((o) =>
+            this.customOstinatos.set(o.id, {
+              ...o,
+              strokes: this.normalizeStrokes(o.strokes),
+            })
+          );
         }
       }
     } catch {

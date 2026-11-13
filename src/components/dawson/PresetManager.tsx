@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   DawsonSystem,
+  OrchestratedStroke,
   SubdivisionFormula,
   OstinatoPattern,
 } from '../../domain/dawson/types';
@@ -34,6 +35,13 @@ export interface PresetManagerProps {
   activeSystemId: string;
   onSelectSystem: (system: DawsonSystem) => void;
   player?: IDrumKitPlayer;
+}
+
+function formatStrokeLabel(stroke: OrchestratedStroke): string {
+  if (stroke.isRest || !stroke.hits || stroke.hits.length === 0) {
+    return 'rest';
+  }
+  return stroke.hits.map((h) => h.voice).join('+');
 }
 
 export const PresetManager: React.FC<PresetManagerProps> = ({
@@ -617,7 +625,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 key={idx}
                                 className="px-1.5 py-0.5 rounded-none bg-muted/50 border border-border/60 text-[10px] font-mono"
                               >
-                                {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
+                                {formatStrokeLabel(s)}
                               </span>
                             ))}
                           </div>
@@ -717,7 +725,7 @@ export const PresetManager: React.FC<PresetManagerProps> = ({
                                 key={idx}
                                 className="px-1.5 py-0.5 rounded-none bg-muted/50 border border-border/60 text-[10px] font-mono"
                               >
-                                {s.isRest ? 'rest' : s.hits.map((h) => h.voice).join('+')}
+                                {formatStrokeLabel(s)}
                               </span>
                             ))}
                           </div>

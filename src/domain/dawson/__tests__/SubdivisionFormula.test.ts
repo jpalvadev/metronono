@@ -446,5 +446,48 @@ describe('DawsonPresetManager CRUD & Persistence', () => {
       expect(manager.deleteSystem('snare_and_kick')).toBe(false);
       expect(manager.deleteSystem('hihat_foot_and_kick')).toBe(false);
     });
+
+    it('normalizes strokes with missing hits when loading formulas and ostinatos from storage', () => {
+      const prefix = 'test_normalize_';
+      window.localStorage.setItem(
+        `${prefix}formulas`,
+        JSON.stringify([
+          {
+            id: 'legacy_formula',
+            name: 'Legacy Formula',
+            trigger: 'long',
+            isCustom: true,
+            strokes: [
+              { durationRatio: 0.5 },
+              { durationRatio: 0.5, hits: [{ voice: 'kick', dynamic: 'normal' }] },
+            ],
+          },
+        ])
+      );
+      window.localStorage.setItem(
+        `${prefix}ostinatos`,
+        JSON.stringify([
+          {
+            id: 'legacy_ostinato',
+            name: 'Legacy Ostinato',
+            timeSignature: [4, 4],
+            isCustom: true,
+            strokes: [{ durationRatio: 4.0 }],
+          },
+        ])
+      );
+
+      const reloaded = new DawsonPresetManager({ storagePrefix: prefix });
+      const formula = reloaded.getFormula('legacy_formula');
+      expect(formula?.strokes[0].hits).toEqual([]);
+      expect(formula?.strokes[0].isRest).toBe(true);
+      expect(formula?.strokes[1].hits).toHaveLength(1);
+
+      const ostinato = reloaded.getOstinato('legacy_ostinato');
+      expect(ostinato?.strokes[0].hits).toEqual([]);
+      expect(ostinato?.strokes[0].isRest).toBe(true);
+
+      reloaded.clearCustomData();
+    });
   });
 });

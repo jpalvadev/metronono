@@ -149,13 +149,11 @@ describe('DawsonOrchestrationSection', () => {
       expect(engine.getOstinato()).toBe('jazz_swing');
     });
 
-    it('auditions ostinato pattern on demand when clicking Audition', () => {
+    it('does not render Audition buttons on the main view (auditioning lives in Manage Systems, Formulas & Ostinatos)', () => {
       render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-      const auditionOstinatoBtn = screen.getByTestId('ostinato-audition-btn');
-      fireEvent.click(auditionOstinatoBtn);
-
-      expect(mockTriggerVoice).toHaveBeenCalled();
+      expect(screen.queryByTestId('ostinato-audition-btn')).not.toBeInTheDocument();
+      expect(screen.queryAllByRole('button', { name: /\bAudition\b/i })).toHaveLength(0);
     });
 
     it('does not render Edit buttons on the main view (editing lives in Manage Systems, Formulas & Ostinatos)', () => {
@@ -185,7 +183,7 @@ describe('DawsonOrchestrationSection', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
     // No pads to click, no hit subscriptions to flash them: auditioning lives in
-    // the formula Audition buttons and the Sample Bank only.
+    // PresetManager and the Sample Bank only.
     expect(screen.queryByTestId(/drum-pad-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Click pad to audition/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Beats 2 & 4 Chick/i)).not.toBeInTheDocument();
@@ -216,16 +214,27 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.queryByText(/Dawson Systems & Formula Manager/i)).not.toBeInTheDocument();
   });
 
-  it('auditions short and long formulas from the main view without Edit buttons', () => {
+  it('retains auditioning inside the PresetManager dialog when opened', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-    // Formula audition
-    const auditionBtns = screen.getAllByRole('button', { name: /Audition/i });
-    expect(auditionBtns).toHaveLength(3); // Ostinato, Short formula, Long formula
-    fireEvent.click(auditionBtns[1]); // Short formula audition button
-    expect(mockTriggerVoice).toHaveBeenCalled();
+    // Main view has zero Audition buttons
+    expect(screen.queryAllByRole('button', { name: /\bAudition\b/i })).toHaveLength(0);
 
-    expect(screen.queryByRole('button', { name: /\bEdit\b/i })).not.toBeInTheDocument();
+    // Open PresetManager dialog
+    const manageBtn = screen.getByRole('button', { name: /Manage Systems, Formulas & Ostinatos/i });
+    fireEvent.click(manageBtn);
+
+    // Switch to Ostinatos tab where patterns can be auditioned
+    const ostinatosTab = screen.getByRole('button', { name: /^Ostinatos/i });
+    fireEvent.click(ostinatosTab);
+
+    // Audition buttons are present inside the dialog
+    const dialogAuditionBtns = screen.getAllByRole('button', { name: /\bAudition\b/i });
+    expect(dialogAuditionBtns.length).toBeGreaterThan(0);
+
+    // Trigger audition inside dialog
+    fireEvent.click(dialogAuditionBtns[0]);
+    expect(mockTriggerVoice).toHaveBeenCalled();
   });
 
   it('suspends controls with a "4/4 only" indicator in non-4/4 meters and preserves selections on return to 4/4', () => {

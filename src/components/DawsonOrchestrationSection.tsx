@@ -7,7 +7,6 @@ import {
 } from '../domain/dawson/types';
 import {
   DawsonPresetManager,
-  resolveStrokeOffsets,
 } from '../domain/dawson/SubdivisionFormula';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -15,7 +14,6 @@ import {
   Disc,
   Sliders,
   Layers,
-  Play,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { PresetManager } from './dawson/PresetManager';
@@ -145,54 +143,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
     [engine, presetManager]
   );
 
-  const handleAuditionFormula = useCallback(
-    (formula: SubdivisionFormula) => {
-      if (!player || formula.strokes.length === 0) return;
-      const tempoBpm = 100;
-      const beatDurationMs = (60 / tempoBpm) * 1000;
-      const resolved = resolveStrokeOffsets(formula.strokes, 0);
-
-      resolved.forEach(({ stroke, offset }) => {
-        if (stroke.isRest || !stroke.hits) return;
-        const delayMs = offset * beatDurationMs;
-        stroke.hits.forEach((hit) => {
-          const vel = engine.dynamicToVelocity(hit.dynamic);
-          if (delayMs <= 0) {
-            player.triggerVoice(hit.voice, 0, vel, 'orchestration');
-          } else {
-            setTimeout(() => {
-              player.triggerVoice(hit.voice, 0, vel, 'orchestration');
-            }, delayMs);
-          }
-        });
-      });
-    },
-    [player, engine]
-  );
-
-  const handleAuditionOstinato = useCallback(() => {
-    if (!player || ostinato === 'none' || !activeOstinatoPattern || activeOstinatoPattern.strokes.length === 0) {
-      return;
-    }
-    const tempoBpm = 100;
-    const beatDurationMs = (60 / tempoBpm) * 1000;
-    const resolved = resolveStrokeOffsets(activeOstinatoPattern.strokes, 0);
-
-    resolved.forEach(({ stroke, offset }) => {
-      if (stroke.isRest || !stroke.hits) return;
-      const delayMs = offset * beatDurationMs;
-      stroke.hits.forEach((hit) => {
-        const vel = engine.dynamicToVelocity(hit.dynamic);
-        if (delayMs <= 0) {
-          player.triggerVoice(hit.voice, 0, vel, 'ostinato');
-        } else {
-          setTimeout(() => {
-            player.triggerVoice(hit.voice, 0, vel, 'ostinato');
-          }, delayMs);
-        }
-      });
-    });
-  }, [player, ostinato, activeOstinatoPattern, engine]);
 
   return (
     <div
@@ -280,22 +230,9 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           />
 
           {/* Ostinato Action Footer */}
-          <div className="flex items-center justify-between pt-1 border-t border-border/60">
+          <div className="pt-1 border-t border-border/60">
             <div className="text-[11px] text-muted-foreground font-mono">
               {ostinato === 'none' ? 'Silenciado' : `${activeOstinatoPattern?.name ?? 'Jazz Swing'}`}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                type="button"
-                data-testid="ostinato-audition-btn"
-                variant="ghost"
-                size="sm"
-                disabled={!isFourFour || ostinato === 'none'}
-                onClick={handleAuditionOstinato}
-                className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
-              >
-                <Play className="w-3 h-3 fill-current" /> Audition
-              </Button>
             </div>
           </div>
         </div>
@@ -359,19 +296,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 targetBeats={0.5}
                 height={120}
               />
-
-              <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={!isFourFour || activeSystemId === 'none'}
-                  onClick={() => handleAuditionFormula(shortFormula)}
-                  className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
-                >
-                  <Play className="w-3 h-3 fill-current" /> Audition
-                </Button>
-              </div>
             </div>
 
             {/* Long Formula Card */}
@@ -391,19 +315,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 targetBeats={1.0}
                 height={120}
               />
-
-              <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={!isFourFour || activeSystemId === 'none'}
-                  onClick={() => handleAuditionFormula(longFormula)}
-                  className="h-6 px-2 text-[11px] text-destructive gap-1 rounded-none"
-                >
-                  <Play className="w-3 h-3 fill-current" /> Audition
-                </Button>
-              </div>
             </div>
           </div>
         </div>

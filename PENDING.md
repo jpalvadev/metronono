@@ -32,7 +32,7 @@
 
 - 18 [ x ] The tempo ramp up functionality should have a start bpm and a target bpm, and a checkbox if the tempo stays on the target BPM or if it goes up and down between both BPMS (added explicit Start BPM input, bidirectional linear interpolation, Oscillate Start ↔ Target checkbox with symmetric triangle-wave oscillation and direction/progress readout, manual BPM control lock while active, pre-ramp BPM snapshot/restore on disable, and full metronome reset to measure 0 beat 0 on live ramp parameter edits)
 
-- 19 [ ] Delete from the main Alan Dawnson Orchestration the Button "Audition" from the Ostinato, and from the formulas, they are not needed here.
+- 19 [ x ] Delete from the main Alan Dawnson Orchestration the Button "Audition" from the Ostinato, and from the formulas, they are not needed here. (removed Ostinato, Short Formula, and Long Formula Audition buttons, handlers, and unused stroke offset helpers from DawsonOrchestrationSection; auditioning remains available inside PresetManager modal)
 
 - 20 [ ] the user should be able to select how the notes on the single line reading sound, if they are straight eights or swung eights
 

@@ -421,10 +421,12 @@ describe('MetronomeEngine', () => {
   });
 
   describe('Stochastic Dropout Mode', () => {
-    it('is disabled by default with default probability of 25%', () => {
+    it('is disabled by default with default probability of 25% and 0/0 bar cycle', () => {
       const config = engine.getDropoutConfig();
       expect(config.enabled).toBe(false);
       expect(config.probability).toBe(0.25);
+      expect(config.clickBars).toBe(0);
+      expect(config.silentBars).toBe(0);
     });
 
     it('never mutes measures when disabled or probability is 0', () => {
@@ -463,6 +465,63 @@ describe('MetronomeEngine', () => {
       const firstDecision = engine.shouldMuteMeasure(3);
       expect(engine.shouldMuteMeasure(3)).toBe(firstDecision);
       expect(engine.shouldMuteMeasure(3)).toBe(firstDecision);
+    });
+  });
+
+  describe('Deterministic Dropout Bar Cycle', () => {
+    it('clamps clickBars and silentBars to integers in [0, 32]', () => {
+      engine.setDropoutConfig({ clickBars: -5, silentBars: 99 });
+      expect(engine.getDropoutConfig()).toMatchObject({ clickBars: 0, silentBars: 32 });
+
+      engine.setDropoutConfig({ clickBars: 3.7, silentBars: Number.NaN });
+      expect(engine.getDropoutConfig()).toMatchObject({ clickBars: 4, silentBars: 0 });
+    });
+
+    it('repeats a 3 click / 1 silent bar cycle and ignores probability', () => {
+      engine.setDropoutConfig({ enabled: true, probability: 1.0, clickBars: 3, silentBars: 1 });
+      const results = Array.from({ length: 8 }, (_, m) => engine.shouldMuteMeasure(m));
+      expect(results).toEqual([false, false, false, true, false, false, false, true]);
+    });
+
+    it('repeats a 2 click / 2 silent bar cycle across nextBeat events', () => {
+      engine.setDropoutConfig({ enabled: true, probability: 0, clickBars: 2, silentBars: 2 });
+      engine.reset();
+
+      const measureDropout: boolean[] = [];
+      for (let m = 0; m < 5; m++) {
+        for (let b = 0; b < 4; b++) {
+          const ev = engine.nextBeat();
+          if (b === 0) {
+            measureDropout.push(ev.isDropout);
+          }
+          expect(ev.isMuted).toBe(ev.isDropout);
+        }
+      }
+      expect(measureDropout).toEqual([false, false, true, true, false]);
+    });
+
+    it('keeps all measures audible when clickBars > 0 and silentBars === 0 (ignoring probability)', () => {
+      engine.setDropoutConfig({ enabled: true, probability: 1.0, clickBars: 3, silentBars: 0 });
+      expect([0, 1, 2, 3, 4].map((m) => engine.shouldMuteMeasure(m))).toEqual([
+        false,
+        false,
+        false,
+        false,
+        false,
+      ]);
+    });
+
+    it('keeps all measures silent when clickBars === 0 and silentBars > 0 (ignoring probability)', () => {
+      engine.setDropoutConfig({ enabled: true, probability: 0, clickBars: 0, silentBars: 2 });
+      expect([0, 1, 2, 3].map((m) => engine.shouldMuteMeasure(m))).toEqual([true, true, true, true]);
+    });
+
+    it('falls back to stochastic probability when both clickBars and silentBars return to 0', () => {
+      engine.setDropoutConfig({ enabled: true, probability: 1.0, clickBars: 2, silentBars: 2 });
+      expect(engine.shouldMuteMeasure(0)).toBe(false);
+
+      engine.setDropoutConfig({ clickBars: 0, silentBars: 0 });
+      expect(engine.shouldMuteMeasure(0)).toBe(true);
     });
   });
 

@@ -19,7 +19,7 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
       };
       let tempoRamp = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
-      let dropout = { enabled: false, probability: 0.25 };
+      let dropout = { enabled: false, probability: 0.25, clickBars: 0, silentBars: 0 };
       let clickConfig = {
         downbeat: { volume: 1.0, muted: false },
         regular: { volume: 0.7, muted: false },
@@ -336,6 +336,47 @@ describe('Metronome Component', () => {
       expect(mockScheduler.setDropoutConfig).toHaveBeenCalledWith(
         expect.objectContaining({ probability: 0.5 })
       );
+    });
+
+    it('renders Click Bars and Silent Bars selectors above Silence Probability and updates config with clamping', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /toggle dropout mode/i }));
+
+      const clickBarsInput = screen.getByLabelText(/^click bars$/i) as HTMLInputElement;
+      const silentBarsInput = screen.getByLabelText(/^silent bars$/i) as HTMLInputElement;
+      const dropoutSlider = screen.getByLabelText(/dropout percentage/i);
+
+      // Click Bars & Silent Bars appear before the Silence Probability slider in DOM order
+      expect(
+        clickBarsInput.compareDocumentPosition(dropoutSlider) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(
+        silentBarsInput.compareDocumentPosition(dropoutSlider) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+
+      expect(clickBarsInput.value).toBe('0');
+      expect(silentBarsInput.value).toBe('0');
+
+      // Increment Click Bars via + button
+      fireEvent.click(screen.getByRole('button', { name: /increase click bars/i }));
+      expect(mockScheduler.setDropoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ clickBars: 1 })
+      );
+      expect(clickBarsInput.value).toBe('1');
+
+      // Decrement Click Bars via - button
+      fireEvent.click(screen.getByRole('button', { name: /decrease click bars/i }));
+      expect(mockScheduler.setDropoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ clickBars: 0 })
+      );
+
+      // Type out-of-range value into Silent Bars -> clamped to 32
+      fireEvent.change(silentBarsInput, { target: { value: '50' } });
+      expect(mockScheduler.setDropoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ silentBars: 32 })
+      );
+      expect(silentBarsInput.value).toBe('32');
     });
 
     it('displays eye-catching visual badge when measure is dropped out without freezing playhead', () => {

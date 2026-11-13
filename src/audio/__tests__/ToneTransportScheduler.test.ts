@@ -198,6 +198,46 @@ describe('ToneTransportScheduler', () => {
       expect(dropoutListener).toHaveBeenCalledWith(true);
     });
 
+    it('gates beat clicks and Gap Clicks on a deterministic 1 click / 1 silent bar cycle while continuing callbacks', async () => {
+      const beatListener = vi.fn();
+      const dropoutListener = vi.fn();
+      scheduler.onBeat(beatListener);
+      scheduler.onDropoutChange(dropoutListener);
+
+      scheduler.setClickConfig({ subdivision: { divisions: 2 } });
+      scheduler.setDropoutConfig({ enabled: true, probability: 0, clickBars: 1, silentBars: 1 });
+
+      await scheduler.start();
+
+      // Measure 0 (4 beats): audible (downbeat + regular + gap clicks)
+      mockClickPlayer.play.mockClear();
+      mockClickPlayer.playSubdivision.mockClear();
+      for (let b = 0; b < 4; b++) {
+        scheduledCallback!(1.0 + b * 0.5);
+      }
+      expect(mockClickPlayer.play).toHaveBeenCalledTimes(4);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledTimes(4);
+
+      // Measure 1 (4 beats): completely silent (neither main nor gap clicks)
+      mockClickPlayer.play.mockClear();
+      mockClickPlayer.playSubdivision.mockClear();
+      for (let b = 0; b < 4; b++) {
+        scheduledCallback!(3.0 + b * 0.5);
+      }
+      expect(mockClickPlayer.play).not.toHaveBeenCalled();
+      expect(mockClickPlayer.playSubdivision).not.toHaveBeenCalled();
+      expect(dropoutListener).toHaveBeenCalledWith(true);
+
+      // Measure 2 beat 0: audible again
+      mockClickPlayer.play.mockClear();
+      mockClickPlayer.playSubdivision.mockClear();
+      scheduledCallback!(5.0);
+      expect(mockClickPlayer.play).toHaveBeenCalledTimes(1);
+      expect(mockClickPlayer.playSubdivision).toHaveBeenCalledTimes(1);
+      expect(dropoutListener).toHaveBeenCalledWith(false);
+      expect(beatListener).toHaveBeenCalledTimes(9);
+    });
+
     it('automates dynamic tempo changes to transport bpm during tempo ramp', async () => {
       scheduler.setTempoRampConfig({
         enabled: true,

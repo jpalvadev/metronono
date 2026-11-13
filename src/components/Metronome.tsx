@@ -196,6 +196,18 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     setDropoutConfigState(scheduler.getDropoutConfig());
   };
 
+  const handleDropoutBarCountChange = (field: 'clickBars' | 'silentBars', rawValue: number) => {
+    const clamped = Number.isFinite(rawValue)
+      ? Math.max(0, Math.min(32, Math.round(rawValue)))
+      : 0;
+    const updated = {
+      ...dropoutConfig,
+      [field]: clamped,
+    };
+    scheduler.setDropoutConfig(updated);
+    setDropoutConfigState(scheduler.getDropoutConfig());
+  };
+
   const rampProgress = scheduler.getRampProgress(currentMeasure, activeBeat ?? 0);
 
   return (
@@ -524,6 +536,57 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
 
         {dropoutConfig.enabled && (
           <div className="flex flex-col gap-2 pt-2 border-t border-border text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              {(
+                [
+                  { field: 'clickBars', label: 'Click Bars', id: 'dropout-click-bars' },
+                  { field: 'silentBars', label: 'Silent Bars', id: 'dropout-silent-bars' },
+                ] as const
+              ).map(({ field, label, id }) => {
+                const count = dropoutConfig[field];
+                return (
+                  <div key={field} className="flex flex-col gap-1">
+                    <label htmlFor={id} className="text-muted-foreground font-medium">
+                      {label}
+                    </label>
+                    <div className="flex items-center">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDropoutBarCountChange(field, count - 1)}
+                        disabled={count <= 0}
+                        aria-label={`Decrease ${label}`}
+                        className="h-7 px-2 rounded-none font-mono text-xs"
+                      >
+                        -
+                      </Button>
+                      <input
+                        id={id}
+                        type="number"
+                        min={0}
+                        max={32}
+                        value={count}
+                        onChange={(e) => handleDropoutBarCountChange(field, Number(e.target.value))}
+                        aria-label={label}
+                        className="w-full h-7 bg-muted/60 border-y border-border rounded-none px-1.5 font-mono text-center text-xs focus:outline-none"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDropoutBarCountChange(field, count + 1)}
+                        disabled={count >= 32}
+                        aria-label={`Increase ${label}`}
+                        className="h-7 px-2 rounded-none font-mono text-xs"
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Silence Probability</span>
               <span className="font-mono text-warning font-bold">

@@ -25,8 +25,12 @@ A paired mapping of a Short Formula and a Long Formula that routes the short and
 _Avoid_: Drum preset, rhythm mapping
 
 **Metronome**:
-The precision audio clock and beat generator supporting arbitrary N/D time signatures with quarter-note = BPM, a selectable pulse feel (Straight = 2 eighth notes / quarter-note pulse, or Triplet = 3 eighth notes / dotted-quarter pulse) where fractional remainder beats wrap at the exact measure boundary, per-pulse muting, gap clicks, tempo ramps, and stochastic muting.
+The precision audio clock and beat generator supporting arbitrary N/D time signatures with quarter-note = BPM, a selectable pulse feel (Straight = 2 eighth notes / quarter-note pulse, or Triplet = 3 eighth notes / dotted-quarter pulse) where fractional remainder beats wrap at the exact measure boundary, per-pulse muting, gap clicks, tempo ramps, and Dropout Mode.
 _Avoid_: Click track, timer
+
+**Dropout Mode**:
+The Metronome's internal-clock training mode that silences full measures of the Metronome click — either via a deterministic cycle of Click Bars and Silent Bars (mutually exclusive with randomness), or via stochastic Silence Probability when both bar counts are zero — while notation, Ostinato, and Dawson Orchestration continue uninterrupted.
+_Avoid_: Stochastic muting, random mute, click dropout
 
 **Sample Bank**:
 The `.wav` audio asset registry providing default bundled samples (`public/samples/<voiceId>.wav`) and user-configurable overrides for drum kit voices and metronome subdivisions, with zero synthesized fallback.

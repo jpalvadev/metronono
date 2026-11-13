@@ -46,6 +46,8 @@ export interface TempoRampConfig {
 export interface DropoutConfig {
   enabled: boolean;
   probability: number;
+  clickBars: number;
+  silentBars: number;
   seed?: number;
 }
 
@@ -72,6 +74,16 @@ function clampBeatDivisions(value: number): number {
   );
 }
 
+function clampDropoutBars(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MetronomeEngine.MIN_DROPOUT_BARS;
+  }
+  return Math.max(
+    MetronomeEngine.MIN_DROPOUT_BARS,
+    Math.min(MetronomeEngine.MAX_DROPOUT_BARS, Math.round(value))
+  );
+}
+
 export class MetronomeEngine {
   public static readonly MIN_BPM = 30;
   public static readonly MAX_BPM = 300;
@@ -85,6 +97,8 @@ export class MetronomeEngine {
   // alone, so no gap clicks; eight is the widest split a beat is ever clicked into.
   public static readonly MIN_BEAT_DIVISIONS = 1;
   public static readonly MAX_BEAT_DIVISIONS = 8;
+  public static readonly MIN_DROPOUT_BARS = 0;
+  public static readonly MAX_DROPOUT_BARS = 32;
 
   private tempo: number = MetronomeEngine.DEFAULT_BPM;
   private timeSignature: TimeSignature = { beats: 4, beatUnit: 4 };
@@ -108,6 +122,8 @@ export class MetronomeEngine {
   private dropoutConfig: DropoutConfig = {
     enabled: false,
     probability: 0.25,
+    clickBars: 0,
+    silentBars: 0,
   };
 
   private measureDropoutMap: Map<number, boolean> = new Map();
@@ -339,6 +355,14 @@ export class MetronomeEngine {
     this.dropoutConfig = {
       ...this.dropoutConfig,
       ...config,
+      clickBars:
+        config.clickBars !== undefined
+          ? clampDropoutBars(config.clickBars)
+          : this.dropoutConfig.clickBars,
+      silentBars:
+        config.silentBars !== undefined
+          ? clampDropoutBars(config.silentBars)
+          : this.dropoutConfig.silentBars,
     };
   }
 
@@ -347,14 +371,20 @@ export class MetronomeEngine {
   }
 
   public shouldMuteMeasure(measureIndex: number, seed?: number): boolean {
-    if (!this.dropoutConfig.enabled || this.dropoutConfig.probability <= 0) {
+    if (!this.dropoutConfig.enabled || measureIndex < 0) {
+      return false;
+    }
+    const { clickBars, silentBars } = this.dropoutConfig;
+    if (clickBars > 0 || silentBars > 0) {
+      const cycleLength = clickBars + silentBars;
+      const cyclePosition = ((measureIndex % cycleLength) + cycleLength) % cycleLength;
+      return cyclePosition >= clickBars;
+    }
+    if (this.dropoutConfig.probability <= 0) {
       return false;
     }
     if (this.dropoutConfig.probability >= 1) {
       return true;
-    }
-    if (measureIndex < 0) {
-      return false;
     }
     const effectiveSeed = seed !== undefined ? seed : this.dropoutConfig.seed;
     if (effectiveSeed !== undefined) {

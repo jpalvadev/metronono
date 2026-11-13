@@ -41,6 +41,16 @@ export interface TempoRampConfig {
   startBpm: number;
   targetBpm: number;
   durationBars: number;
+  oscillate: boolean;
+}
+
+export function haveRampParamsChanged(prev: TempoRampConfig, next: TempoRampConfig): boolean {
+  return (
+    next.startBpm !== prev.startBpm ||
+    next.targetBpm !== prev.targetBpm ||
+    next.durationBars !== prev.durationBars ||
+    next.oscillate !== prev.oscillate
+  );
 }
 
 export interface DropoutConfig {
@@ -84,6 +94,26 @@ function clampDropoutBars(value: number): number {
   );
 }
 
+function clampBpmValue(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MetronomeEngine.DEFAULT_BPM;
+  }
+  return Math.max(
+    MetronomeEngine.MIN_BPM,
+    Math.min(MetronomeEngine.MAX_BPM, Math.round(value))
+  );
+}
+
+function clampRampBars(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MetronomeEngine.MIN_RAMP_BARS;
+  }
+  return Math.max(
+    MetronomeEngine.MIN_RAMP_BARS,
+    Math.min(MetronomeEngine.MAX_RAMP_BARS, Math.round(value))
+  );
+}
+
 export class MetronomeEngine {
   public static readonly MIN_BPM = 30;
   public static readonly MAX_BPM = 300;
@@ -99,6 +129,8 @@ export class MetronomeEngine {
   public static readonly MAX_BEAT_DIVISIONS = 8;
   public static readonly MIN_DROPOUT_BARS = 0;
   public static readonly MAX_DROPOUT_BARS = 32;
+  public static readonly MIN_RAMP_BARS = 1;
+  public static readonly MAX_RAMP_BARS = 64;
 
   private tempo: number = MetronomeEngine.DEFAULT_BPM;
   private timeSignature: TimeSignature = { beats: 4, beatUnit: 4 };
@@ -117,7 +149,9 @@ export class MetronomeEngine {
     startBpm: 120,
     targetBpm: 160,
     durationBars: 4,
+    oscillate: false,
   };
+  private preRampTempo: number | null = null;
 
   private dropoutConfig: DropoutConfig = {
     enabled: false,
@@ -306,9 +340,70 @@ export class MetronomeEngine {
   }
 
   public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
+    const prev = this.rampConfig;
+    const wasEnabled = prev.enabled;
     this.rampConfig = {
-      ...this.rampConfig,
+      ...prev,
       ...config,
+      ...(config.startBpm !== undefined ? { startBpm: clampBpmValue(config.startBpm) } : {}),
+      ...(config.targetBpm !== undefined ? { targetBpm: clampBpmValue(config.targetBpm) } : {}),
+      ...(config.durationBars !== undefined ? { durationBars: clampRampBars(config.durationBars) } : {}),
+    };
+
+    const paramsChanged = haveRampParamsChanged(prev, this.rampConfig);
+
+    if (!wasEnabled && this.rampConfig.enabled) {
+      this.preRampTempo = this.tempo;
+      this.reset();
+      this.tempo = this.rampConfig.startBpm;
+    } else if (wasEnabled && !this.rampConfig.enabled && this.preRampTempo !== null) {
+      this.tempo = this.preRampTempo;
+      this.preRampTempo = null;
+    } else if (this.rampConfig.enabled && paramsChanged) {
+      this.reset();
+      this.tempo = this.rampConfig.startBpm;
+    }
+  }
+
+  private computeRampState(measureIndex: number, beatIndex: number = 0): {
+    position: number;
+    direction: 'forward' | 'return';
+    isComplete: boolean;
+    bpm: number;
+  } {
+    const beatsPerBar = this.getPulsesPerMeasure();
+    const totalBeats = Math.max(1, this.rampConfig.durationBars * beatsPerBar);
+    const currentBeat = Math.max(0, measureIndex * beatsPerBar + beatIndex);
+
+    let position: number;
+    let direction: 'forward' | 'return';
+    let isComplete: boolean;
+
+    if (this.rampConfig.oscillate) {
+      const period = 2 * totalBeats;
+      const phase = currentBeat % period;
+      if (phase <= totalBeats) {
+        position = phase / totalBeats;
+        direction = 'forward';
+      } else {
+        position = (period - phase) / totalBeats;
+        direction = 'return';
+      }
+      isComplete = false;
+    } else {
+      position = Math.min(1, currentBeat / totalBeats);
+      direction = 'forward';
+      isComplete = currentBeat >= totalBeats;
+    }
+
+    const interpolated =
+      this.rampConfig.startBpm +
+      (this.rampConfig.targetBpm - this.rampConfig.startBpm) * position;
+    return {
+      position,
+      direction,
+      isComplete,
+      bpm: clampBpmValue(interpolated),
     };
   }
 
@@ -316,34 +411,21 @@ export class MetronomeEngine {
     if (!this.rampConfig.enabled || measureIndex < 0) {
       return this.tempo;
     }
-    const beatsPerBar = this.getPulsesPerMeasure();
-    const totalBeats = this.rampConfig.durationBars * beatsPerBar;
-    if (totalBeats <= 0) {
-      return this.rampConfig.targetBpm;
-    }
-    const currentBeat = measureIndex * beatsPerBar + beatIndex;
-    if (currentBeat >= totalBeats) {
-      return this.rampConfig.targetBpm;
-    }
-    const progress = currentBeat / totalBeats;
-    const interpolated = this.rampConfig.startBpm + (this.rampConfig.targetBpm - this.rampConfig.startBpm) * progress;
-    return Math.round(Math.max(MetronomeEngine.MIN_BPM, Math.min(MetronomeEngine.MAX_BPM, interpolated)));
+    return this.computeRampState(measureIndex, beatIndex).bpm;
   }
 
   public getRampProgress(measureIndex: number, beatIndex: number = 0): {
     progress: number;
     currentBpm: number;
     isComplete: boolean;
+    direction: 'forward' | 'return';
   } {
-    const beatsPerBar = this.getPulsesPerMeasure();
-    const totalBeats = Math.max(1, this.rampConfig.durationBars * beatsPerBar);
-    const currentBeat = Math.max(0, measureIndex * beatsPerBar + beatIndex);
-    const progress = Math.min(1, currentBeat / totalBeats);
-    const currentBpm = this.calculateRampBpm(measureIndex, beatIndex);
+    const state = this.computeRampState(measureIndex, beatIndex);
     return {
-      progress,
-      currentBpm,
-      isComplete: currentBeat >= totalBeats,
+      progress: state.position,
+      currentBpm: this.rampConfig.enabled && measureIndex >= 0 ? state.bpm : this.tempo,
+      isComplete: state.isComplete,
+      direction: state.direction,
     };
   }
 

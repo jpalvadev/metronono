@@ -418,6 +418,212 @@ describe('MetronomeEngine', () => {
       expect(pDone.currentBpm).toBe(160);
       expect(pDone.isComplete).toBe(true);
     });
+
+    it('interpolates downward ramps (startBpm > targetBpm) and flat ramps (startBpm === targetBpm)', () => {
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 160,
+        targetBpm: 100,
+        durationBars: 2, // 8 beats in 4/4 -> -7.5 BPM/beat
+      });
+
+      expect(engine.calculateRampBpm(0, 0)).toBe(160);
+      expect(engine.calculateRampBpm(1, 0)).toBe(130);
+      expect(engine.calculateRampBpm(2, 0)).toBe(100);
+      expect(engine.calculateRampBpm(3, 0)).toBe(100);
+
+      engine.setTempoRampConfig({ startBpm: 115, targetBpm: 115, durationBars: 2 });
+      expect(engine.calculateRampBpm(0, 0)).toBe(115);
+      expect(engine.calculateRampBpm(1, 0)).toBe(115);
+      expect(engine.calculateRampBpm(2, 0)).toBe(115);
+    });
+
+    it('clamps startBpm, targetBpm to 30..300 and durationBars to 1..64', () => {
+      engine.setTempoRampConfig({
+        startBpm: 10,
+        targetBpm: 500,
+        durationBars: 0,
+      });
+
+      const lowClamped = engine.getTempoRampConfig();
+      expect(lowClamped.startBpm).toBe(30);
+      expect(lowClamped.targetBpm).toBe(300);
+      expect(lowClamped.durationBars).toBe(1);
+
+      engine.setTempoRampConfig({
+        startBpm: 350,
+        targetBpm: 5,
+        durationBars: 99.6,
+      });
+
+      const highClamped = engine.getTempoRampConfig();
+      expect(highClamped.startBpm).toBe(300);
+      expect(highClamped.targetBpm).toBe(30);
+      expect(highClamped.durationBars).toBe(64);
+    });
+
+    it('snapshots pre-ramp BPM on enable without overwriting startBpm and restores it on disable', () => {
+      engine.setTempo(132);
+      engine.setTempoRampConfig({ startBpm: 80, targetBpm: 140, durationBars: 2 });
+
+      // Enable ramp: should keep startBpm = 80 and remember 132
+      engine.setTempoRampConfig({ enabled: true });
+      expect(engine.getTempoRampConfig().startBpm).toBe(80);
+
+      // Advance mid-ramp
+      engine.nextBeat();
+      engine.nextBeat();
+
+      // Disable ramp: restores pre-ramp BPM 132
+      engine.setTempoRampConfig({ enabled: false });
+      expect(engine.getTempo()).toBe(132);
+    });
+
+    it('defaults oscillate to false and exposes forward direction when holding at target', () => {
+      expect(engine.getTempoRampConfig().oscillate).toBe(false);
+
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 1,
+      });
+
+      const start = engine.getRampProgress(0, 0);
+      expect(start.direction).toBe('forward');
+      expect(start.progress).toBe(0);
+      expect(start.isComplete).toBe(false);
+
+      const end = engine.getRampProgress(1, 0);
+      expect(end.direction).toBe('forward');
+      expect(end.progress).toBe(1);
+      expect(end.isComplete).toBe(true);
+    });
+
+    it('oscillates as a symmetric triangle wave without duplicate peak or valley beats', () => {
+      // 1 bar of 4/4 = 4 beats per leg. 100 <-> 140 BPM (+10 BPM/beat)
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 1,
+        oscillate: true,
+      });
+
+      const sequence = [
+        engine.getRampProgress(0, 0), // beat 0 -> 100, forward, 0%
+        engine.getRampProgress(0, 1), // beat 1 -> 110, forward, 25%
+        engine.getRampProgress(0, 2), // beat 2 -> 120, forward, 50%
+        engine.getRampProgress(0, 3), // beat 3 -> 130, forward, 75%
+        engine.getRampProgress(1, 0), // beat 4 -> 140 (peak), forward, 100%
+        engine.getRampProgress(1, 1), // beat 5 -> 130, return, 75%
+        engine.getRampProgress(1, 2), // beat 6 -> 120, return, 50%
+        engine.getRampProgress(1, 3), // beat 7 -> 110, return, 25%
+        engine.getRampProgress(2, 0), // beat 8 -> 100 (valley), forward, 0%
+        engine.getRampProgress(2, 1), // beat 9 -> 110, forward, 25%
+      ];
+
+      expect(sequence.map((s) => s.currentBpm)).toEqual([
+        100, 110, 120, 130, 140, 130, 120, 110, 100, 110,
+      ]);
+      expect(sequence.map((s) => s.direction)).toEqual([
+        'forward', 'forward', 'forward', 'forward', 'forward',
+        'return', 'return', 'return',
+        'forward', 'forward',
+      ]);
+      expect(sequence.every((s) => s.isComplete === false)).toBe(true);
+    });
+
+    it('oscillates cleanly across odd time signatures and triplet pulse feel', () => {
+      // 7/8 with straight feel -> 4 pulses per measure (3*1.0q + 0.5q = 4 pulses)
+      engine.setTimeSignature({ beats: 7, beatUnit: 8 });
+      engine.setPulseFeel('triplet'); // 7/8 = 3.5q -> ceil(3.5 / 1.5) = 3 pulses per measure
+      expect(engine.getPulsesPerMeasure()).toBe(3);
+
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 150,
+        targetBpm: 90,
+        durationBars: 1, // 3 pulses per leg -> -20 BPM/pulse
+        oscillate: true,
+      });
+
+      const bpms = [
+        engine.calculateRampBpm(0, 0),
+        engine.calculateRampBpm(0, 1),
+        engine.calculateRampBpm(0, 2),
+        engine.calculateRampBpm(1, 0), // valley 90
+        engine.calculateRampBpm(1, 1),
+        engine.calculateRampBpm(1, 2),
+        engine.calculateRampBpm(2, 0), // peak 150
+      ];
+      expect(bpms).toEqual([150, 130, 110, 90, 110, 130, 150]);
+    });
+
+    it('resets playback position to measure 0, beat 0 when enabling Tempo Ramp', () => {
+      // Advance several beats before enabling ramp
+      engine.nextBeat();
+      engine.nextBeat();
+      const midBeat = engine.nextBeat();
+      expect(midBeat.measureIndex).toBe(0);
+      expect(midBeat.beatIndex).toBe(2);
+
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 90,
+        targetBpm: 130,
+        durationBars: 2,
+      });
+
+      const firstAfterEnable = engine.nextBeat();
+      expect(firstAfterEnable.measureIndex).toBe(0);
+      expect(firstAfterEnable.beatIndex).toBe(0);
+      expect(firstAfterEnable.bpm).toBe(90);
+    });
+
+    it('resets playback position to measure 0, beat 0 and active tempo to startBpm when any ramp parameter changes while enabled', () => {
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 2,
+        oscillate: false,
+      });
+
+      const advanceTwoBeats = () => {
+        engine.nextBeat();
+        return engine.nextBeat();
+      };
+
+      expect(advanceTwoBeats().beatIndex).toBe(1);
+      engine.setTempoRampConfig({ startBpm: 110 });
+      expect(engine.getTempo()).toBe(110);
+      let next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+      expect(next.bpm).toBe(110);
+
+      expect(advanceTwoBeats().beatIndex).toBe(2);
+      engine.setTempoRampConfig({ targetBpm: 160 });
+      expect(engine.getTempo()).toBe(110);
+      next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+
+      expect(advanceTwoBeats().beatIndex).toBe(2);
+      engine.setTempoRampConfig({ durationBars: 4 });
+      expect(engine.getTempo()).toBe(110);
+      next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+
+      expect(advanceTwoBeats().beatIndex).toBe(2);
+      engine.setTempoRampConfig({ oscillate: true });
+      expect(engine.getTempo()).toBe(110);
+      next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+    });
   });
 
   describe('Stochastic Dropout Mode', () => {

@@ -7,6 +7,7 @@ import {
   SubdivisionVoiceConfig,
   MetronomeClickConfig,
   TempoRampConfig,
+  haveRampParamsChanged,
   DropoutConfig,
   createDefaultClickConfig,
 } from '../domain/metronome/MetronomeEngine';
@@ -432,7 +433,23 @@ export class ToneTransportScheduler {
   }
 
   public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
+    const prev = this.engine.getTempoRampConfig();
     this.engine.setTempoRampConfig(config);
+    const next = this.engine.getTempoRampConfig();
+
+    const paramsChanged = haveRampParamsChanged(prev, next);
+
+    if (prev.enabled && !next.enabled && this.transport) {
+      this.transport.bpm.value = this.engine.getTempo();
+    } else if (next.enabled && (!prev.enabled || paramsChanged)) {
+      if (this.transport) {
+        this.transport.bpm.value = this.engine.getTempo();
+      }
+      if (this.playing && this.lastDropoutState) {
+        this.lastDropoutState = false;
+        this.dropoutListeners.forEach((listener) => listener(false));
+      }
+    }
   }
 
   public getRampProgress(measureIndex: number, beatIndex: number = 0) {

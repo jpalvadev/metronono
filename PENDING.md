@@ -2,8 +2,6 @@
 
 - 2 [ x ] the partiture should have a dividing bar betweeen measures. (root cause: VexFlow's built-in stave barlines collapse to 1px rects on a one-line stave; ReadingScoreRenderer now suppresses them via leftBar/rightBar and draws full-height dividing + final barlines explicitly; 5-line DrumStaffRenderer barlines were already fine)
 
-- 3 [ ] ramp option should have 2 inputs, beginning and end tempo, and option if it should be up and down (or down and up) and if it should end the metronome or loop
-
 - 4 [ x ] apply the correct shadcn style https://ui.shadcn.com/create?preset=b5dMVCPy4&template=vite (root cause: preset b5dMVCPy4 specifies Lyra style with mauve base and teal theme; app previously lacked the dark mode root class, exact sampled mauve charcoal `#1a171e` and canvas `#0c070d` tokens, Lyra sharp `rounded-none` edges on cards, buttons, badges, and square slider thumbs, as well as the dense modular dashboard grid. Fixed by installing preset tokens, converting all component cards, buttons, and dialogs to sharp Lyra styling, tuning slider thumbs to square 12px white blocks on thin tracks, applying inverted dark score rendering, and structuring the layout into high-density modular side-by-side cards matching the user reference capture)
 
 - 5 [ x ] config github
@@ -24,7 +22,7 @@
 
 - 13 [ ] the browser-seam audio guard does not reach the custom Sample Bank path, so two legs of item 12 are still unverified where they were reported: the accurate-timing `stop(now)` contract is pinned only at the fake-Tone seam (the headless browser's IndexedDB bank is empty, so no sample voice ever retires there), and the guard only asserts that sources `start` per beat, never that they are heard (the sibling root cause in item 1 was channel gain nodes never being created, which starts nothing yet also passes a count-only check). Next step: seed a recorded sample into the browser session and assert the retirement time plus audibility (channel gains wired, mixer unmuted) from the WebAudio graph 
 
-- 14 [ ] the dropout mode should have a selector for how many measures with all tempo clicks (number), and another selector (number) with how many measures with silence in all tempos, this 2 selectors should be above the slider of chance of silence.
+- 14 [ x ] the dropout mode should have a selector for how many measures with all tempo clicks (number), and another selector (number) with how many measures with silence in all tempos, this 2 selectors should be above the slider of chance of silence.
 
 - 15 [ x ] there should be a time signature selector, not 4/4 and 3/4 only like today. I should be able to select time signatures like 7/8, 15/16, etc, 21/16, 6/4, 5/8, 10/16, 5/4, etc. The buttons of All, 2 & 4 (Jazz) 1 & 3 and 1 Only should be gone, and all mentions to it. 
 
@@ -32,7 +30,7 @@
 
 - 17 [ x ] on the main Alan Dawson Orchestration view there should not be an edit button, this is not the view for editing ostinatos or formulas. This function should be done only in the modal that opens with the button Manage Systems, Formulas & Ostinatos (removed the Ostinato, Short Formula, and Long Formula Edit buttons and FormulaEditorDialog wiring from DawsonOrchestrationSection; editing remains exclusively inside PresetManager opened via "Manage Systems, Formulas & Ostinatos")
 
-- 18 [ ] The tempo ramp up functionality should have a start bpm and a target bpm, and a checkbox if the tempo stays on the target BPM or if it goes up and down between both BPMS
+- 18 [ x ] The tempo ramp up functionality should have a start bpm and a target bpm, and a checkbox if the tempo stays on the target BPM or if it goes up and down between both BPMS (added explicit Start BPM input, bidirectional linear interpolation, Oscillate Start ↔ Target checkbox with symmetric triangle-wave oscillation and direction/progress readout, manual BPM control lock while active, pre-ramp BPM snapshot/restore on disable, and full metronome reset to measure 0 beat 0 on live ramp parameter edits)
 
 - 19 [ ] Delete from the main Alan Dawnson Orchestration the Button "Audition" from the Ostinato, and from the formulas, they are not needed here.
 

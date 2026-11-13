@@ -8,85 +8,56 @@ import type {
   TempoRampConfig,
 } from '../../domain/metronome/MetronomeEngine';
 
-// Mock ToneTransportScheduler
-vi.mock('../../audio/ToneTransportScheduler', () => {
+// Mock ToneTransportScheduler backed by a real MetronomeEngine so domain rules never drift
+vi.mock('../../audio/ToneTransportScheduler', async () => {
+  const { MetronomeEngine } = await import('../../domain/metronome/MetronomeEngine');
   return {
     ToneTransportScheduler: vi.fn().mockImplementation(() => {
+      const engine = new MetronomeEngine();
       let isPlaying = false;
-      let tempo = 120;
-      let timeSig = { beats: 4, beatUnit: 4 };
-      let pulseFeel: 'straight' | 'triplet' = 'straight';
       let volume = 0.8;
-      let beatMask = [true, true, true, true];
-      const resizeMask = () => {
-        const pulseQuarters = pulseFeel === 'triplet' ? 1.5 : 1.0;
-        const pulses = Math.max(1, Math.ceil((timeSig.beats * (4 / timeSig.beatUnit) - 1e-9) / pulseQuarters));
-        beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
-      };
-      let tempoRamp: TempoRampConfig = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
-      let dropout: DropoutConfig = { enabled: false, probability: 0.25, clickBars: 0, silentBars: 0 };
-      let clickConfig: MetronomeClickConfig = {
-        downbeat: { volume: 1.0, muted: false },
-        regular: { volume: 0.7, muted: false },
-        subdivision: { volume: 0.5, muted: false, divisions: 1 },
-      };
       const beatListeners: Array<(event: any) => void> = [];
       const dropoutListeners: Array<(isDropout: boolean) => void> = [];
 
       return {
         isPlaying: vi.fn(() => isPlaying),
-        getTempo: vi.fn(() => tempo),
-        setTempo: vi.fn((t: number) => {
-          tempo = t;
-        }),
-        getTimeSignature: vi.fn(() => timeSig),
-        setTimeSignature: vi.fn((ts: any) => {
-          if (typeof ts === 'string') {
-            const [b, u] = ts.split('/').map(Number);
-            timeSig = { beats: b, beatUnit: u };
-          } else {
-            timeSig = ts;
-          }
-          resizeMask();
-        }),
-        getPulseFeel: vi.fn(() => pulseFeel),
-        setPulseFeel: vi.fn((feel: 'straight' | 'triplet') => {
-          pulseFeel = feel;
-          resizeMask();
-        }),
+        getTempo: vi.fn(() => engine.getTempo()),
+        setTempo: vi.fn((t: number) => engine.setTempo(t)),
+        getTimeSignature: vi.fn(() => engine.getTimeSignature()),
+        setTimeSignature: vi.fn((ts: any) => engine.setTimeSignature(ts)),
+        getPulseFeel: vi.fn(() => engine.getPulseFeel()),
+        setPulseFeel: vi.fn((feel: 'straight' | 'triplet') => engine.setPulseFeel(feel)),
         getVolume: vi.fn(() => volume),
         setVolume: vi.fn((v: number) => {
           volume = v;
         }),
         tap: vi.fn(() => {
-          tempo = 140;
+          engine.setTempo(140);
           return 140;
         }),
-        resetTap: vi.fn(),
-        getBeatMask: vi.fn(() => [...beatMask]),
-        setBeatMask: vi.fn((mask: boolean[]) => {
-          beatMask = [...mask];
-        }),
-        toggleBeat: vi.fn((idx: number) => {
-          beatMask[idx] = !beatMask[idx];
-        }),
-        isBeatActive: vi.fn((idx: number) => beatMask[idx] ?? true),
-        getTempoRampConfig: vi.fn(() => ({ ...tempoRamp })),
-        setTempoRampConfig: vi.fn((config: Partial<TempoRampConfig>) => {
-          tempoRamp = { ...tempoRamp, ...config };
-        }),
-        getRampProgress: vi.fn(() => ({ progress: 0, currentBpm: tempo, isComplete: false })),
-        getDropoutConfig: vi.fn(() => ({ ...dropout })),
-        setDropoutConfig: vi.fn((config: Partial<DropoutConfig>) => {
-          dropout = { ...dropout, ...config };
-        }),
-        getClickConfig: vi.fn(() => ({ ...clickConfig })),
-        setClickConfig: vi.fn((config: Partial<MetronomeClickConfig>) => {
-          clickConfig = { ...clickConfig, ...config };
-        }),
-        updateVoiceConfig: vi.fn((type: string, config: any) => {
-          (clickConfig as any)[type] = { ...(clickConfig as any)[type], ...config };
-        }),
+        resetTap: vi.fn(() => engine.resetTap()),
+        getBeatMask: vi.fn(() => engine.getBeatMask()),
+        setBeatMask: vi.fn((mask: boolean[]) => engine.setBeatMask(mask)),
+        toggleBeat: vi.fn((idx: number) => engine.toggleBeat(idx)),
+        isBeatActive: vi.fn((idx: number) => engine.isBeatActive(idx)),
+        getTempoRampConfig: vi.fn(() => engine.getTempoRampConfig()),
+        setTempoRampConfig: vi.fn((config: Partial<TempoRampConfig>) =>
+          engine.setTempoRampConfig(config)
+        ),
+        getRampProgress: vi.fn((measureIndex: number, beatIndex: number = 0) =>
+          engine.getRampProgress(measureIndex, beatIndex)
+        ),
+        getDropoutConfig: vi.fn(() => engine.getDropoutConfig()),
+        setDropoutConfig: vi.fn((config: Partial<DropoutConfig>) =>
+          engine.setDropoutConfig(config)
+        ),
+        getClickConfig: vi.fn(() => engine.getClickConfig()),
+        setClickConfig: vi.fn((config: Partial<MetronomeClickConfig>) =>
+          engine.setClickConfig(config)
+        ),
+        updateVoiceConfig: vi.fn((type: 'downbeat' | 'regular' | 'subdivision', config: any) =>
+          engine.updateVoiceConfig(type, config)
+        ),
         start: vi.fn(async () => {
           isPlaying = true;
         }),
@@ -303,24 +274,125 @@ describe('Metronome Component', () => {
   });
 
   describe('Tempo Ramp Controls', () => {
-    it('toggles Tempo Ramp mode and configures target BPM and duration', () => {
+    it('toggles Tempo Ramp mode and configures start BPM, target BPM, and duration without overwriting startBpm', () => {
+      mockScheduler.setTempo(95);
       render(<Metronome scheduler={mockScheduler} />);
 
       const rampToggle = screen.getByRole('button', { name: /toggle tempo ramp/i });
       fireEvent.click(rampToggle);
 
+      // Should not overwrite startBpm (120) with current Metronome tempo (95)
       expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: true })
+        expect.objectContaining({ enabled: true, startBpm: 120 })
+      );
+
+      // Adjust start BPM
+      const startBpmInput = screen.getByLabelText(/start bpm/i);
+      fireEvent.change(startBpmInput, { target: { value: '85' } });
+      expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ startBpm: 85 })
       );
 
       // Adjust target BPM
       const targetBpmInput = screen.getByLabelText(/target bpm/i);
       fireEvent.change(targetBpmInput, { target: { value: '160' } });
-      fireEvent.blur(targetBpmInput);
 
       expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
         expect.objectContaining({ targetBpm: 160 })
       );
+    });
+
+    it('locks all manual BPM controls while Tempo Ramp is ON, shows instantaneous BPM, and restores pre-ramp BPM when OFF', () => {
+      mockScheduler.setTempo(108);
+      render(<Metronome scheduler={mockScheduler} />);
+
+      const rampToggle = screen.getByRole('button', { name: /toggle tempo ramp/i });
+      fireEvent.click(rampToggle);
+
+      expect(screen.getByRole('button', { name: '-5' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: '-1' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: '+1' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: '+5' })).toBeDisabled();
+      expect(screen.getByLabelText('BPM')).toBeDisabled();
+      expect(screen.getByLabelText('Direct BPM input')).toBeDisabled();
+      expect(screen.getByRole('button', { name: /tap tempo/i })).toBeDisabled();
+
+      // Simulate playback beat at instantaneous ramp BPM 142
+      act(() => {
+        (mockScheduler as any).__triggerBeat({
+          beatIndex: 0,
+          measureIndex: 1,
+          isDownbeat: true,
+          isMuted: false,
+          isDropout: false,
+          bpm: 142,
+        });
+      });
+
+      expect(screen.getByText('142')).toBeInTheDocument();
+
+      // Disable Tempo Ramp -> restores pre-ramp BPM 108 and re-enables controls
+      fireEvent.click(rampToggle);
+      expect(screen.getByText('108')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '-5' })).not.toBeDisabled();
+      expect(screen.getByLabelText('BPM')).not.toBeDisabled();
+      expect(screen.getByLabelText('Direct BPM input')).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /tap tempo/i })).not.toBeDisabled();
+    });
+
+    it('renders unchecked Oscillate checkbox, toggles oscillate mode, and displays direction arrow and percentage', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      const rampToggle = screen.getByRole('button', { name: /toggle tempo ramp/i });
+      fireEvent.click(rampToggle);
+
+      const oscillateCheckbox = screen.getByRole('checkbox', { name: /oscillate/i }) as HTMLInputElement;
+      expect(oscillateCheckbox).not.toBeChecked();
+      expect(screen.getByText(/120 → 160 BPM/)).toBeInTheDocument();
+
+      (mockScheduler.getRampProgress as ReturnType<typeof vi.fn>).mockReturnValue({
+        progress: 0.75,
+        currentBpm: 150,
+        isComplete: false,
+        direction: 'return',
+      });
+
+      fireEvent.click(oscillateCheckbox);
+      expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ oscillate: true })
+      );
+      expect(oscillateCheckbox).toBeChecked();
+      expect(screen.getByText(/120 ↔ 160 BPM/)).toBeInTheDocument();
+      expect(screen.getByText(/← 75%/)).toBeInTheDocument();
+    });
+
+    it('resets displayed measure, dropout state, and BPM to Start BPM when editing a ramp parameter mid-playback', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /toggle tempo ramp/i }));
+
+      // Simulate mid-ramp playback at measure 2, beat 1, BPM 145, dropout active
+      act(() => {
+        (mockScheduler as any).__triggerBeat({
+          beatIndex: 1,
+          measureIndex: 2,
+          isDownbeat: false,
+          isMuted: true,
+          isDropout: true,
+          bpm: 145,
+        });
+      });
+
+      expect(screen.getByText('145')).toBeInTheDocument();
+      expect(screen.getByText(/DROPOUT \/ SILENT BAR/i)).toBeInTheDocument();
+
+      // Edit Start BPM while ramp is active -> resets UI to measure 0, beat 0, clears dropout, shows 96 BPM
+      (mockScheduler.getRampProgress as ReturnType<typeof vi.fn>).mockClear();
+      fireEvent.change(screen.getByLabelText(/start bpm/i), { target: { value: '96' } });
+
+      expect(screen.getByText('96')).toBeInTheDocument();
+      expect(screen.queryByText(/DROPOUT \/ SILENT BAR/i)).not.toBeInTheDocument();
+      expect(mockScheduler.getRampProgress).toHaveBeenLastCalledWith(0, 0);
     });
   });
 

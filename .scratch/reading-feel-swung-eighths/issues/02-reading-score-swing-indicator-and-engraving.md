@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Swung Eighths Audio Timing and Measure Plan
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] `ReadingScoreRenderer.render` accepts `readingFeel?: ReadingFeel` in `ReadingScoreOptions`.
-- [ ] Visual notation remains standard 4/4 with normal eighth notes, rests, beams, and barlines (no conversion of note shapes into triplet notation).
-- [ ] When `readingFeel === 'swing'`, render the `Swing (♫ = ♩♪)` indicator on the score SVG (or container header).
-- [ ] When `readingFeel === 'straight'`, omit the swing indicator.
-- [ ] Guard tests verify that stave height, note coordinates, and beam structures are unchanged between straight and swing modes, and assert the presence/absence of the swing indicator text element.
+- [x] `ReadingScoreRenderer.render` accepts `readingFeel?: ReadingFeel` in `ReadingScoreOptions`.
+- [x] Visual notation remains standard 4/4 with normal eighth notes, rests, beams, and barlines (no conversion of note shapes into triplet notation).
+- [x] When `readingFeel === 'swing'`, render the `Swing (♫ = ♩♪)` indicator on the score SVG (or container header).
+- [x] When `readingFeel === 'straight'`, omit the swing indicator.
+- [x] Guard tests verify that stave height, note coordinates, and beam structures are unchanged between straight and swing modes, and assert the presence/absence of the swing indicator text element.

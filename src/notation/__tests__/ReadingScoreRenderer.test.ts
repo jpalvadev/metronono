@@ -792,4 +792,100 @@ describe('ReadingScoreRenderer', () => {
       .filter((_, i) => i % 2 === 1);
     expect(Math.max(...yValues) - Math.min(...yValues)).toBeGreaterThanOrEqual(20);
   });
+
+  describe('Reading Feel: Swing Indicator and Notation Preservation', () => {
+    it('renders Swing (♫ = ♩♪) indicator when readingFeel is swing', () => {
+      const readingLine: ReadingLine = {
+        id: 'test-swing-indicator',
+        title: 'Swing Indicator Test',
+        tier: 1,
+        measures: [createTestMeasure(0, [0.5, 0.5, 1, 1, 1])],
+      };
+
+      const renderer = new ReadingScoreRenderer();
+      renderer.render(container, readingLine, { width: 600, readingFeel: 'swing' });
+
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+
+      const swingGroup = svg?.querySelector('g.reading-swing-indicator');
+      expect(swingGroup).toBeTruthy();
+      expect(swingGroup?.textContent).toContain('Swing (♫ = ♩♪)');
+    });
+
+    it('omits Swing indicator when readingFeel is straight or omitted', () => {
+      const readingLine: ReadingLine = {
+        id: 'test-straight-indicator',
+        title: 'Straight Indicator Test',
+        tier: 1,
+        measures: [createTestMeasure(0, [0.5, 0.5, 1, 1, 1])],
+      };
+
+      const renderer = new ReadingScoreRenderer();
+
+      // 1. Explicit straight
+      renderer.render(container, readingLine, { width: 600, readingFeel: 'straight' });
+      expect(container.querySelector('.reading-swing-indicator')).toBeNull();
+      expect(container.querySelector('svg')?.textContent).not.toContain('Swing');
+
+      // 2. Default/omitted
+      container.innerHTML = '';
+      renderer.render(container, readingLine, { width: 600 });
+      expect(container.querySelector('.reading-swing-indicator')).toBeNull();
+      expect(container.querySelector('svg')?.textContent).not.toContain('Swing');
+    });
+
+    it('preserves stave height, note coordinates, and beam structures identically between straight and swing feel', () => {
+      // Measure with 8 eighth notes to form multiple beams
+      const readingLine: ReadingLine = {
+        id: 'test-preservation',
+        title: 'Preservation Test',
+        tier: 1,
+        measures: [createTestMeasure(0, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])],
+      };
+
+      const renderer = new ReadingScoreRenderer();
+
+      // Render straight
+      const containerStraight = document.createElement('div');
+      document.body.appendChild(containerStraight);
+      const layoutStraight = renderer.render(containerStraight, readingLine, {
+        width: 650,
+        readingFeel: 'straight',
+      });
+
+      // Render swing
+      const containerSwing = document.createElement('div');
+      document.body.appendChild(containerSwing);
+      const layoutSwing = renderer.render(containerSwing, readingLine, {
+        width: 650,
+        readingFeel: 'swing',
+      });
+
+      // Total height and system layout are identical
+      expect(layoutSwing.totalHeight).toBe(layoutStraight.totalHeight);
+      expect(layoutSwing.systemCount).toBe(layoutStraight.systemCount);
+      expect(layoutSwing.measures).toHaveLength(layoutStraight.measures.length);
+
+      // Note coordinates and beat offsets on the stave are identical (no triplet rewriting)
+      const coordsStraight = layoutStraight.measures[0].eventCoordinates;
+      const coordsSwing = layoutSwing.measures[0].eventCoordinates;
+      expect(coordsSwing).toHaveLength(coordsStraight.length);
+      for (let i = 0; i < coordsStraight.length; i++) {
+        expect(coordsSwing[i].x).toBeCloseTo(coordsStraight[i].x, 2);
+        expect(coordsSwing[i].y).toBeCloseTo(coordsStraight[i].y, 2);
+        expect(coordsSwing[i].beatOffset).toBe(coordsStraight[i].beatOffset);
+        expect(coordsSwing[i].durationBeats).toBe(coordsStraight[i].durationBeats);
+      }
+
+      // Visual beam structures are identical
+      const beamsStraight = containerStraight.querySelectorAll('g.vf-beam');
+      const beamsSwing = containerSwing.querySelectorAll('g.vf-beam');
+      expect(beamsSwing.length).toBe(beamsStraight.length);
+      expect(beamsSwing.length).toBeGreaterThan(0);
+
+      document.body.removeChild(containerStraight);
+      document.body.removeChild(containerSwing);
+    });
+  });
 });

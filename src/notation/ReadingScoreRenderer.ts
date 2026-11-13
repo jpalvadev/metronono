@@ -398,6 +398,21 @@ export class ReadingScoreRenderer {
       drawBarlineAt(lastSystem.rightX, finalSpan.topY, finalSpan.bottomY, FINAL_BARLINE_THICKNESS);
     }
 
+    // Pass 1.6: Draw Swing indicator if swing reading feel is active
+    if (options.readingFeel === 'swing' && totalMeasures > 0) {
+      const firstSystem = systemInfos[0];
+      const span = systemBarlineSpan(firstSystem);
+      const group = context.openGroup('reading-swing-indicator');
+      if (group && typeof (group as any).setAttribute === 'function') {
+        const currentClass = (group as any).getAttribute('class') || '';
+        (group as any).setAttribute('class', (currentClass + ' reading-swing-indicator').trim());
+      }
+      context.setFont('sans-serif', 11, 'bold');
+      const indicatorY = Math.max(12, span.topY - 4);
+      context.fillText('Swing (♫ = ♩♪)', paddingLeft, indicatorY);
+      context.closeGroup();
+    }
+
     // Pass 2: Connect Ties (intra-measure and cross-measure)
     for (let mIdx = 0; mIdx < measureDataList.length; mIdx++) {
       const { staveNotes, systemIndex } = measureDataList[mIdx];

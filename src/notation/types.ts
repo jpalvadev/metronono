@@ -1,3 +1,5 @@
+import { ReadingFeel } from '../domain/rhythm/types';
+
 export interface ScorePadding {
   top?: number;
   right?: number;
@@ -12,6 +14,7 @@ export interface ScoreRenderOptions {
   staveSpacing?: number;
   padding?: ScorePadding;
   showMeasureNumbers?: boolean;
+  readingFeel?: ReadingFeel;
 }
 
 export interface EventCoordinate {

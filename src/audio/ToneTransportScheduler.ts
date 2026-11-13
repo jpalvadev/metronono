@@ -339,9 +339,7 @@ export class ToneTransportScheduler {
     return this.engine.getTimeSignature();
   }
 
-  public setTimeSignature(ts: TimeSignature | string): void {
-    this.engine.setTimeSignature(ts);
-    const newTs = this.engine.getTimeSignature();
+  private syncTransportAndPlans(): void {
     this.buildMeasurePlans();
     if (this.transport) {
       this.transport.timeSignature = this.engine.getPulsesPerMeasure();
@@ -349,6 +347,12 @@ export class ToneTransportScheduler {
         this.reschedule();
       }
     }
+  }
+
+  public setTimeSignature(ts: TimeSignature | string): void {
+    this.engine.setTimeSignature(ts);
+    const newTs = this.engine.getTimeSignature();
+    this.syncTransportAndPlans();
     this.timeSignatureListeners.forEach((listener) => listener(newTs));
   }
 
@@ -359,13 +363,7 @@ export class ToneTransportScheduler {
   public setPulseFeel(feel: PulseFeel): void {
     this.engine.setPulseFeel(feel);
     const nextFeel = this.engine.getPulseFeel();
-    this.buildMeasurePlans();
-    if (this.transport) {
-      this.transport.timeSignature = this.engine.getPulsesPerMeasure();
-      if (this.playing) {
-        this.reschedule();
-      }
-    }
+    this.syncTransportAndPlans();
     this.pulseFeelListeners.forEach((listener) => listener(nextFeel));
   }
 

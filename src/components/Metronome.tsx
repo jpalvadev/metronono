@@ -152,26 +152,32 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   };
 
   // Tempo Ramp handlers
-  const handleToggleRamp = () => {
-    const updated = {
-      ...rampConfig,
-      enabled: !rampConfig.enabled,
-      startBpm: tempo,
-    };
+  const updateRampConfig = (patch: Partial<TempoRampConfig>) => {
+    const updated = { ...rampConfig, ...patch };
     scheduler.setTempoRampConfig(updated);
     setRampConfigState(scheduler.getTempoRampConfig());
+    return updated;
+  };
+
+  const handleToggleRamp = () => {
+    const updated = updateRampConfig({ enabled: !rampConfig.enabled });
+    if (!updated.enabled) {
+      const restored = scheduler.getTempo();
+      setTempoState(restored);
+      setTempInputValue(String(restored));
+    }
+  };
+
+  const handleRampStartChange = (startBpm: number) => {
+    updateRampConfig({ startBpm });
   };
 
   const handleRampTargetChange = (targetBpm: number) => {
-    const updated = { ...rampConfig, targetBpm };
-    scheduler.setTempoRampConfig(updated);
-    setRampConfigState(scheduler.getTempoRampConfig());
+    updateRampConfig({ targetBpm });
   };
 
   const handleRampBarsChange = (durationBars: number) => {
-    const updated = { ...rampConfig, durationBars };
-    scheduler.setTempoRampConfig(updated);
-    setRampConfigState(scheduler.getTempoRampConfig());
+    updateRampConfig({ durationBars });
   };
 
   // Dropout Mode handlers
@@ -291,6 +297,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             variant="outline"
             size="sm"
             onClick={() => handleStepTempo(-5)}
+            disabled={rampConfig.enabled}
             title="Decrease 5 BPM"
             className="text-xs font-mono font-semibold"
           >
@@ -300,6 +307,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             variant="outline"
             size="sm"
             onClick={() => handleStepTempo(-1)}
+            disabled={rampConfig.enabled}
             title="Decrease 1 BPM"
             className="text-xs font-mono font-semibold"
           >
@@ -324,6 +332,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             variant="outline"
             size="sm"
             onClick={() => handleStepTempo(1)}
+            disabled={rampConfig.enabled}
             title="Increase 1 BPM"
             className="text-xs font-mono font-semibold"
           >
@@ -333,6 +342,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             variant="outline"
             size="sm"
             onClick={() => handleStepTempo(5)}
+            disabled={rampConfig.enabled}
             title="Increase 5 BPM"
             className="text-xs font-mono font-semibold"
           >
@@ -346,6 +356,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
             min={30}
             max={300}
             value={tempo}
+            disabled={rampConfig.enabled}
             onChange={handleTempoChange}
             ariaLabel="BPM"
           />
@@ -355,10 +366,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               min={30}
               max={300}
               value={tempInputValue}
+              disabled={rampConfig.enabled}
               onChange={(e) => setTempInputValue(e.target.value)}
               onBlur={handleInputBlur}
               onKeyDown={handleInputKeyDown}
-              className="w-full text-center py-1 px-2 text-xs bg-secondary/60 border border-input rounded-none font-mono focus:outline-none focus:border-ring"
+              className="w-full text-center py-1 px-2 text-xs bg-secondary/60 border border-input rounded-none font-mono focus:outline-none focus:border-ring disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Direct BPM input"
             />
           </div>
@@ -371,6 +383,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           <Button
             variant="outline"
             onClick={handleTap}
+            disabled={rampConfig.enabled}
             className={cn(
               'h-9 border-border font-medium text-xs flex items-center justify-center gap-2 rounded-none',
               isTapActive && 'bg-primary/20 border-primary text-primary'
@@ -472,7 +485,22 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
 
         {rampConfig.enabled && (
           <div className="flex flex-col gap-3 pt-2 border-t border-border/40 text-xs">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label htmlFor="start-bpm-input" className="block text-muted-foreground mb-1 font-medium">
+                  Start BPM
+                </label>
+                <input
+                  id="start-bpm-input"
+                  type="number"
+                  min={30}
+                  max={300}
+                  value={rampConfig.startBpm}
+                  onChange={(e) => handleRampStartChange(Number(e.target.value))}
+                  aria-label="Start BPM"
+                  className="w-full bg-muted/60 border border-border rounded-none px-2 py-1 font-mono text-center"
+                />
+              </div>
               <div>
                 <label htmlFor="target-bpm-input" className="block text-muted-foreground mb-1 font-medium">
                   Target BPM

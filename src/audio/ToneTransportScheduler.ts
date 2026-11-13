@@ -432,7 +432,13 @@ export class ToneTransportScheduler {
   }
 
   public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
+    const wasEnabled = this.engine.getTempoRampConfig().enabled;
     this.engine.setTempoRampConfig(config);
+    const nextEnabled = this.engine.getTempoRampConfig().enabled;
+
+    if (wasEnabled && !nextEnabled && this.transport) {
+      this.transport.bpm.value = this.engine.getTempo();
+    }
   }
 
   public getRampProgress(measureIndex: number, beatIndex: number = 0) {

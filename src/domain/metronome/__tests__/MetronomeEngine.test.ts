@@ -418,6 +418,66 @@ describe('MetronomeEngine', () => {
       expect(pDone.currentBpm).toBe(160);
       expect(pDone.isComplete).toBe(true);
     });
+
+    it('interpolates downward ramps (startBpm > targetBpm) and flat ramps (startBpm === targetBpm)', () => {
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 160,
+        targetBpm: 100,
+        durationBars: 2, // 8 beats in 4/4 -> -7.5 BPM/beat
+      });
+
+      expect(engine.calculateRampBpm(0, 0)).toBe(160);
+      expect(engine.calculateRampBpm(1, 0)).toBe(130);
+      expect(engine.calculateRampBpm(2, 0)).toBe(100);
+      expect(engine.calculateRampBpm(3, 0)).toBe(100);
+
+      engine.setTempoRampConfig({ startBpm: 115, targetBpm: 115, durationBars: 2 });
+      expect(engine.calculateRampBpm(0, 0)).toBe(115);
+      expect(engine.calculateRampBpm(1, 0)).toBe(115);
+      expect(engine.calculateRampBpm(2, 0)).toBe(115);
+    });
+
+    it('clamps startBpm, targetBpm to 30..300 and durationBars to 1..64', () => {
+      engine.setTempoRampConfig({
+        startBpm: 10,
+        targetBpm: 500,
+        durationBars: 0,
+      });
+
+      const lowClamped = engine.getTempoRampConfig();
+      expect(lowClamped.startBpm).toBe(30);
+      expect(lowClamped.targetBpm).toBe(300);
+      expect(lowClamped.durationBars).toBe(1);
+
+      engine.setTempoRampConfig({
+        startBpm: 350,
+        targetBpm: 5,
+        durationBars: 99.6,
+      });
+
+      const highClamped = engine.getTempoRampConfig();
+      expect(highClamped.startBpm).toBe(300);
+      expect(highClamped.targetBpm).toBe(30);
+      expect(highClamped.durationBars).toBe(64);
+    });
+
+    it('snapshots pre-ramp BPM on enable without overwriting startBpm and restores it on disable', () => {
+      engine.setTempo(132);
+      engine.setTempoRampConfig({ startBpm: 80, targetBpm: 140, durationBars: 2 });
+
+      // Enable ramp: should keep startBpm = 80 and remember 132
+      engine.setTempoRampConfig({ enabled: true });
+      expect(engine.getTempoRampConfig().startBpm).toBe(80);
+
+      // Advance mid-ramp
+      engine.nextBeat();
+      engine.nextBeat();
+
+      // Disable ramp: restores pre-ramp BPM 132
+      engine.setTempoRampConfig({ enabled: false });
+      expect(engine.getTempo()).toBe(132);
+    });
   });
 
   describe('Stochastic Dropout Mode', () => {

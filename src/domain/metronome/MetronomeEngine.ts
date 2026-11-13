@@ -84,6 +84,26 @@ function clampDropoutBars(value: number): number {
   );
 }
 
+function clampBpmValue(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MetronomeEngine.DEFAULT_BPM;
+  }
+  return Math.max(
+    MetronomeEngine.MIN_BPM,
+    Math.min(MetronomeEngine.MAX_BPM, Math.round(value))
+  );
+}
+
+function clampRampBars(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MetronomeEngine.MIN_RAMP_BARS;
+  }
+  return Math.max(
+    MetronomeEngine.MIN_RAMP_BARS,
+    Math.min(MetronomeEngine.MAX_RAMP_BARS, Math.round(value))
+  );
+}
+
 export class MetronomeEngine {
   public static readonly MIN_BPM = 30;
   public static readonly MAX_BPM = 300;
@@ -99,6 +119,8 @@ export class MetronomeEngine {
   public static readonly MAX_BEAT_DIVISIONS = 8;
   public static readonly MIN_DROPOUT_BARS = 0;
   public static readonly MAX_DROPOUT_BARS = 32;
+  public static readonly MIN_RAMP_BARS = 1;
+  public static readonly MAX_RAMP_BARS = 64;
 
   private tempo: number = MetronomeEngine.DEFAULT_BPM;
   private timeSignature: TimeSignature = { beats: 4, beatUnit: 4 };
@@ -118,6 +140,7 @@ export class MetronomeEngine {
     targetBpm: 160,
     durationBars: 4,
   };
+  private preRampTempo: number | null = null;
 
   private dropoutConfig: DropoutConfig = {
     enabled: false,
@@ -306,10 +329,21 @@ export class MetronomeEngine {
   }
 
   public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
+    const wasEnabled = this.rampConfig.enabled;
     this.rampConfig = {
       ...this.rampConfig,
       ...config,
+      ...(config.startBpm !== undefined ? { startBpm: clampBpmValue(config.startBpm) } : {}),
+      ...(config.targetBpm !== undefined ? { targetBpm: clampBpmValue(config.targetBpm) } : {}),
+      ...(config.durationBars !== undefined ? { durationBars: clampRampBars(config.durationBars) } : {}),
     };
+
+    if (!wasEnabled && this.rampConfig.enabled) {
+      this.preRampTempo = this.tempo;
+    } else if (wasEnabled && !this.rampConfig.enabled && this.preRampTempo !== null) {
+      this.tempo = this.preRampTempo;
+      this.preRampTempo = null;
+    }
   }
 
   public calculateRampBpm(measureIndex: number, beatIndex: number = 0): number {

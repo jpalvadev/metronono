@@ -24,6 +24,7 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
       };
       let tempoRamp: TempoRampConfig = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
+      let preRampTempo: number | null = null;
       let dropout: DropoutConfig = { enabled: false, probability: 0.25, clickBars: 0, silentBars: 0 };
       let clickConfig: MetronomeClickConfig = {
         downbeat: { volume: 1.0, muted: false },
@@ -73,7 +74,14 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         isBeatActive: vi.fn((idx: number) => beatMask[idx] ?? true),
         getTempoRampConfig: vi.fn(() => ({ ...tempoRamp })),
         setTempoRampConfig: vi.fn((config: Partial<TempoRampConfig>) => {
+          const wasEnabled = tempoRamp.enabled;
           tempoRamp = { ...tempoRamp, ...config };
+          if (!wasEnabled && tempoRamp.enabled) {
+            preRampTempo = tempo;
+          } else if (wasEnabled && !tempoRamp.enabled && preRampTempo !== null) {
+            tempo = preRampTempo;
+            preRampTempo = null;
+          }
         }),
         getRampProgress: vi.fn(() => ({ progress: 0, currentBpm: tempo, isComplete: false })),
         getDropoutConfig: vi.fn(() => ({ ...dropout })),
@@ -303,24 +311,70 @@ describe('Metronome Component', () => {
   });
 
   describe('Tempo Ramp Controls', () => {
-    it('toggles Tempo Ramp mode and configures target BPM and duration', () => {
+    it('toggles Tempo Ramp mode and configures start BPM, target BPM, and duration without overwriting startBpm', () => {
+      mockScheduler.setTempo(95);
       render(<Metronome scheduler={mockScheduler} />);
 
       const rampToggle = screen.getByRole('button', { name: /toggle tempo ramp/i });
       fireEvent.click(rampToggle);
 
+      // Should not overwrite startBpm (120) with current Metronome tempo (95)
       expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: true })
+        expect.objectContaining({ enabled: true, startBpm: 120 })
+      );
+
+      // Adjust start BPM
+      const startBpmInput = screen.getByLabelText(/start bpm/i);
+      fireEvent.change(startBpmInput, { target: { value: '85' } });
+      expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ startBpm: 85 })
       );
 
       // Adjust target BPM
       const targetBpmInput = screen.getByLabelText(/target bpm/i);
       fireEvent.change(targetBpmInput, { target: { value: '160' } });
-      fireEvent.blur(targetBpmInput);
 
       expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
         expect.objectContaining({ targetBpm: 160 })
       );
+    });
+
+    it('locks all manual BPM controls while Tempo Ramp is ON, shows instantaneous BPM, and restores pre-ramp BPM when OFF', () => {
+      mockScheduler.setTempo(108);
+      render(<Metronome scheduler={mockScheduler} />);
+
+      const rampToggle = screen.getByRole('button', { name: /toggle tempo ramp/i });
+      fireEvent.click(rampToggle);
+
+      expect(screen.getByRole('button', { name: '-5' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: '-1' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: '+1' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: '+5' })).toBeDisabled();
+      expect(screen.getByLabelText('BPM')).toBeDisabled();
+      expect(screen.getByLabelText('Direct BPM input')).toBeDisabled();
+      expect(screen.getByRole('button', { name: /tap tempo/i })).toBeDisabled();
+
+      // Simulate playback beat at instantaneous ramp BPM 142
+      act(() => {
+        (mockScheduler as any).__triggerBeat({
+          beatIndex: 0,
+          measureIndex: 1,
+          isDownbeat: true,
+          isMuted: false,
+          isDropout: false,
+          bpm: 142,
+        });
+      });
+
+      expect(screen.getByText('142')).toBeInTheDocument();
+
+      // Disable Tempo Ramp -> restores pre-ramp BPM 108 and re-enables controls
+      fireEvent.click(rampToggle);
+      expect(screen.getByText('108')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '-5' })).not.toBeDisabled();
+      expect(screen.getByLabelText('BPM')).not.toBeDisabled();
+      expect(screen.getByLabelText('Direct BPM input')).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /tap tempo/i })).not.toBeDisabled();
     });
   });
 

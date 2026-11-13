@@ -260,6 +260,28 @@ describe('ToneTransportScheduler', () => {
       expect(mockTransport.bpm.value).toBe(110);
     });
 
+    it('restores the saved pre-ramp BPM on the active transport when ramp is disabled mid-playback', async () => {
+      scheduler.setTempo(92);
+      await scheduler.start();
+
+      scheduler.setTempoRampConfig({
+        enabled: true,
+        startBpm: 120,
+        targetBpm: 160,
+        durationBars: 2,
+      });
+
+      // Play a couple of beats into the ramp
+      scheduledCallback!(1.0);
+      scheduledCallback!(1.5);
+      expect(mockTransport.bpm.value).toBeGreaterThanOrEqual(120);
+
+      // Disable ramp -> transport BPM immediately restores to 92
+      scheduler.setTempoRampConfig({ enabled: false });
+      expect(scheduler.getTempo()).toBe(92);
+      expect(mockTransport.bpm.value).toBe(92);
+    });
+
     it('passes customized click volume to click player without pitch', async () => {
       scheduler.setClickConfig({
         downbeat: { volume: 0.95 },

@@ -478,6 +478,87 @@ describe('MetronomeEngine', () => {
       engine.setTempoRampConfig({ enabled: false });
       expect(engine.getTempo()).toBe(132);
     });
+
+    it('defaults oscillate to false and exposes forward direction when holding at target', () => {
+      expect(engine.getTempoRampConfig().oscillate).toBe(false);
+
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 1,
+      });
+
+      const start = engine.getRampProgress(0, 0);
+      expect(start.direction).toBe('forward');
+      expect(start.progress).toBe(0);
+      expect(start.isComplete).toBe(false);
+
+      const end = engine.getRampProgress(1, 0);
+      expect(end.direction).toBe('forward');
+      expect(end.progress).toBe(1);
+      expect(end.isComplete).toBe(true);
+    });
+
+    it('oscillates as a symmetric triangle wave without duplicate peak or valley beats', () => {
+      // 1 bar of 4/4 = 4 beats per leg. 100 <-> 140 BPM (+10 BPM/beat)
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 1,
+        oscillate: true,
+      });
+
+      const sequence = [
+        engine.getRampProgress(0, 0), // beat 0 -> 100, forward, 0%
+        engine.getRampProgress(0, 1), // beat 1 -> 110, forward, 25%
+        engine.getRampProgress(0, 2), // beat 2 -> 120, forward, 50%
+        engine.getRampProgress(0, 3), // beat 3 -> 130, forward, 75%
+        engine.getRampProgress(1, 0), // beat 4 -> 140 (peak), forward, 100%
+        engine.getRampProgress(1, 1), // beat 5 -> 130, return, 75%
+        engine.getRampProgress(1, 2), // beat 6 -> 120, return, 50%
+        engine.getRampProgress(1, 3), // beat 7 -> 110, return, 25%
+        engine.getRampProgress(2, 0), // beat 8 -> 100 (valley), forward, 0%
+        engine.getRampProgress(2, 1), // beat 9 -> 110, forward, 25%
+      ];
+
+      expect(sequence.map((s) => s.currentBpm)).toEqual([
+        100, 110, 120, 130, 140, 130, 120, 110, 100, 110,
+      ]);
+      expect(sequence.map((s) => s.direction)).toEqual([
+        'forward', 'forward', 'forward', 'forward', 'forward',
+        'return', 'return', 'return',
+        'forward', 'forward',
+      ]);
+      expect(sequence.every((s) => s.isComplete === false)).toBe(true);
+    });
+
+    it('oscillates cleanly across odd time signatures and triplet pulse feel', () => {
+      // 7/8 with straight feel -> 4 pulses per measure (3*1.0q + 0.5q = 4 pulses)
+      engine.setTimeSignature({ beats: 7, beatUnit: 8 });
+      engine.setPulseFeel('triplet'); // 7/8 = 3.5q -> ceil(3.5 / 1.5) = 3 pulses per measure
+      expect(engine.getPulsesPerMeasure()).toBe(3);
+
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 150,
+        targetBpm: 90,
+        durationBars: 1, // 3 pulses per leg -> -20 BPM/pulse
+        oscillate: true,
+      });
+
+      const bpms = [
+        engine.calculateRampBpm(0, 0),
+        engine.calculateRampBpm(0, 1),
+        engine.calculateRampBpm(0, 2),
+        engine.calculateRampBpm(1, 0), // valley 90
+        engine.calculateRampBpm(1, 1),
+        engine.calculateRampBpm(1, 2),
+        engine.calculateRampBpm(2, 0), // peak 150
+      ];
+      expect(bpms).toEqual([150, 130, 110, 90, 110, 130, 150]);
+    });
   });
 
   describe('Stochastic Dropout Mode', () => {

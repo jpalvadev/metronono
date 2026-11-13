@@ -41,6 +41,7 @@ export interface TempoRampConfig {
   startBpm: number;
   targetBpm: number;
   durationBars: number;
+  oscillate: boolean;
 }
 
 export interface DropoutConfig {
@@ -139,6 +140,7 @@ export class MetronomeEngine {
     startBpm: 120,
     targetBpm: 160,
     durationBars: 4,
+    oscillate: false,
   };
   private preRampTempo: number | null = null;
 
@@ -346,38 +348,67 @@ export class MetronomeEngine {
     }
   }
 
+  private computeRampState(measureIndex: number, beatIndex: number = 0): {
+    position: number;
+    direction: 'forward' | 'return';
+    isComplete: boolean;
+    bpm: number;
+  } {
+    const beatsPerBar = this.getPulsesPerMeasure();
+    const totalBeats = Math.max(1, this.rampConfig.durationBars * beatsPerBar);
+    const currentBeat = Math.max(0, measureIndex * beatsPerBar + beatIndex);
+
+    let position: number;
+    let direction: 'forward' | 'return';
+    let isComplete: boolean;
+
+    if (this.rampConfig.oscillate) {
+      const period = 2 * totalBeats;
+      const phase = currentBeat % period;
+      if (phase <= totalBeats) {
+        position = phase / totalBeats;
+        direction = 'forward';
+      } else {
+        position = (period - phase) / totalBeats;
+        direction = 'return';
+      }
+      isComplete = false;
+    } else {
+      position = Math.min(1, currentBeat / totalBeats);
+      direction = 'forward';
+      isComplete = currentBeat >= totalBeats;
+    }
+
+    const interpolated =
+      this.rampConfig.startBpm +
+      (this.rampConfig.targetBpm - this.rampConfig.startBpm) * position;
+    return {
+      position,
+      direction,
+      isComplete,
+      bpm: clampBpmValue(interpolated),
+    };
+  }
+
   public calculateRampBpm(measureIndex: number, beatIndex: number = 0): number {
     if (!this.rampConfig.enabled || measureIndex < 0) {
       return this.tempo;
     }
-    const beatsPerBar = this.getPulsesPerMeasure();
-    const totalBeats = this.rampConfig.durationBars * beatsPerBar;
-    if (totalBeats <= 0) {
-      return this.rampConfig.targetBpm;
-    }
-    const currentBeat = measureIndex * beatsPerBar + beatIndex;
-    if (currentBeat >= totalBeats) {
-      return this.rampConfig.targetBpm;
-    }
-    const progress = currentBeat / totalBeats;
-    const interpolated = this.rampConfig.startBpm + (this.rampConfig.targetBpm - this.rampConfig.startBpm) * progress;
-    return Math.round(Math.max(MetronomeEngine.MIN_BPM, Math.min(MetronomeEngine.MAX_BPM, interpolated)));
+    return this.computeRampState(measureIndex, beatIndex).bpm;
   }
 
   public getRampProgress(measureIndex: number, beatIndex: number = 0): {
     progress: number;
     currentBpm: number;
     isComplete: boolean;
+    direction: 'forward' | 'return';
   } {
-    const beatsPerBar = this.getPulsesPerMeasure();
-    const totalBeats = Math.max(1, this.rampConfig.durationBars * beatsPerBar);
-    const currentBeat = Math.max(0, measureIndex * beatsPerBar + beatIndex);
-    const progress = Math.min(1, currentBeat / totalBeats);
-    const currentBpm = this.calculateRampBpm(measureIndex, beatIndex);
+    const state = this.computeRampState(measureIndex, beatIndex);
     return {
-      progress,
-      currentBpm,
-      isComplete: currentBeat >= totalBeats,
+      progress: state.position,
+      currentBpm: this.rampConfig.enabled && measureIndex >= 0 ? state.bpm : this.tempo,
+      isComplete: state.isComplete,
+      direction: state.direction,
     };
   }
 

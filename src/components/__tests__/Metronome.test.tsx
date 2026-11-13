@@ -23,7 +23,7 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         const pulses = Math.max(1, Math.ceil((timeSig.beats * (4 / timeSig.beatUnit) - 1e-9) / pulseQuarters));
         beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
       };
-      let tempoRamp: TempoRampConfig = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
+      let tempoRamp: TempoRampConfig = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4, oscillate: false };
       let preRampTempo: number | null = null;
       let dropout: DropoutConfig = { enabled: false, probability: 0.25, clickBars: 0, silentBars: 0 };
       let clickConfig: MetronomeClickConfig = {
@@ -83,7 +83,7 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
             preRampTempo = null;
           }
         }),
-        getRampProgress: vi.fn(() => ({ progress: 0, currentBpm: tempo, isComplete: false })),
+        getRampProgress: vi.fn(() => ({ progress: 0, currentBpm: tempo, isComplete: false, direction: 'forward' as const })),
         getDropoutConfig: vi.fn(() => ({ ...dropout })),
         setDropoutConfig: vi.fn((config: Partial<DropoutConfig>) => {
           dropout = { ...dropout, ...config };
@@ -375,6 +375,32 @@ describe('Metronome Component', () => {
       expect(screen.getByLabelText('BPM')).not.toBeDisabled();
       expect(screen.getByLabelText('Direct BPM input')).not.toBeDisabled();
       expect(screen.getByRole('button', { name: /tap tempo/i })).not.toBeDisabled();
+    });
+
+    it('renders unchecked Oscillate checkbox, toggles oscillate mode, and displays direction arrow and percentage', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      const rampToggle = screen.getByRole('button', { name: /toggle tempo ramp/i });
+      fireEvent.click(rampToggle);
+
+      const oscillateCheckbox = screen.getByRole('checkbox', { name: /oscillate/i }) as HTMLInputElement;
+      expect(oscillateCheckbox).not.toBeChecked();
+      expect(screen.getByText(/120 → 160 BPM/)).toBeInTheDocument();
+
+      (mockScheduler.getRampProgress as ReturnType<typeof vi.fn>).mockReturnValue({
+        progress: 0.75,
+        currentBpm: 150,
+        isComplete: false,
+        direction: 'return',
+      });
+
+      fireEvent.click(oscillateCheckbox);
+      expect(mockScheduler.setTempoRampConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ oscillate: true })
+      );
+      expect(oscillateCheckbox).toBeChecked();
+      expect(screen.getByText(/120 ↔ 160 BPM/)).toBeInTheDocument();
+      expect(screen.getByText(/← 75%/)).toBeInTheDocument();
     });
   });
 

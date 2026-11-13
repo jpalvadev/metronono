@@ -180,6 +180,10 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     updateRampConfig({ durationBars });
   };
 
+  const handleRampOscillateChange = (oscillate: boolean) => {
+    updateRampConfig({ oscillate });
+  };
+
   // Dropout Mode handlers
   const handleToggleDropout = () => {
     const updated = {
@@ -533,12 +537,26 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
               </div>
             </div>
 
+            <label
+              htmlFor="oscillate-ramp-checkbox"
+              className="flex items-center gap-2 text-muted-foreground font-medium cursor-pointer select-none"
+            >
+              <input
+                id="oscillate-ramp-checkbox"
+                type="checkbox"
+                checked={rampConfig.oscillate}
+                onChange={(e) => handleRampOscillateChange(e.target.checked)}
+                className="accent-primary rounded-none"
+              />
+              <span>Oscillate (Start ↔ Target)</span>
+            </label>
+
             <div className="flex justify-between items-center text-muted-foreground text-[11px] pt-1">
               <span>
-                {rampConfig.startBpm} → {rampConfig.targetBpm} BPM ({rampConfig.durationBars} bars)
+                {rampConfig.startBpm} {rampConfig.oscillate ? '↔' : '→'} {rampConfig.targetBpm} BPM ({rampConfig.durationBars} bars)
               </span>
               <span className="font-mono text-primary font-semibold">
-                {Math.round(rampProgress.progress * 100)}% progress
+                {rampProgress.direction === 'return' ? '←' : '→'} {Math.round(rampProgress.progress * 100)}%
               </span>
             </div>
           </div>

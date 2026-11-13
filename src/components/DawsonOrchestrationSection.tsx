@@ -2,14 +2,12 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import {
   OstinatoType,
-  OstinatoPattern,
   SubdivisionFormula,
   DawsonSystem,
 } from '../domain/dawson/types';
 import {
   DawsonPresetManager,
   resolveStrokeOffsets,
-  FACTORY_OSTINATOS,
 } from '../domain/dawson/SubdivisionFormula';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -17,11 +15,9 @@ import {
   Disc,
   Sliders,
   Layers,
-  Edit3,
   Play,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { FormulaEditorDialog } from './dawson/FormulaEditorDialog';
 import { PresetManager } from './dawson/PresetManager';
 import { DrumStaffViewer } from './dawson/DrumStaffViewer';
 
@@ -82,11 +78,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
 
   // Modal dialog states
   const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
-  const [isFormulaDialogOpen, setIsFormulaDialogOpen] = useState(false);
-  const [isEditingOstinato, setIsEditingOstinato] = useState(false);
-  const [editingFormula, setEditingFormula] = useState<SubdivisionFormula | null>(null);
-  const [editingTargetBeats, setEditingTargetBeats] = useState<number | undefined>(undefined);
-  const [formulaDefaultTrigger, setFormulaDefaultTrigger] = useState<'short' | 'long'>('short');
 
   const activeOstinatoPattern = useMemo(() => {
     if (ostinato === 'none') return undefined;
@@ -203,62 +194,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
     });
   }, [player, ostinato, activeOstinatoPattern, engine]);
 
-  const handleOpenFormulaEditor = useCallback(
-    (formula: SubdivisionFormula, trigger: 'short' | 'long') => {
-      setEditingFormula(formula);
-      setFormulaDefaultTrigger(trigger);
-      setEditingTargetBeats(trigger === 'short' ? 0.5 : 1.0);
-      setIsEditingOstinato(false);
-      setIsFormulaDialogOpen(true);
-    },
-    []
-  );
-
-  const handleEditOstinato = useCallback(() => {
-    const pattern = activeOstinatoPattern || FACTORY_OSTINATOS.jazz_swing;
-    setEditingFormula({
-      id: pattern.id,
-      name: pattern.name,
-      trigger: 'long',
-      strokes: pattern.strokes,
-      isCustom: pattern.isCustom,
-      description: pattern.description,
-    });
-    setFormulaDefaultTrigger('long');
-    setEditingTargetBeats(4.0);
-    setIsEditingOstinato(true);
-    setIsFormulaDialogOpen(true);
-  }, [activeOstinatoPattern]);
-
-  const handleSaveFormulaFromDialog = useCallback(
-    (updated: SubdivisionFormula) => {
-      if (isEditingOstinato) {
-        const ostinatoToSave: OstinatoPattern = {
-          id: updated.id,
-          name: updated.name,
-          timeSignature: [4, 4],
-          strokes: updated.strokes,
-          description: updated.description,
-          isCustom: true,
-        };
-        presetManager.saveOstinato(ostinatoToSave);
-        engine.setOstinato(ostinatoToSave);
-        setOstinato(ostinatoToSave.id);
-      } else {
-        presetManager.saveFormula(updated);
-        if (updated.trigger === 'short') {
-          engine.setShortFormula(updated);
-          setShortFormula(updated);
-        } else {
-          engine.setLongFormula(updated);
-          setLongFormula(updated);
-        }
-      }
-      setIsFormulaDialogOpen(false);
-    },
-    [engine, isEditingOstinato, presetManager]
-  );
-
   return (
     <div
       className={cn(
@@ -361,17 +296,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               >
                 <Play className="w-3 h-3 fill-current" /> Audition
               </Button>
-              <Button
-                type="button"
-                data-testid="ostinato-edit-btn"
-                variant="outline"
-                size="sm"
-                disabled={!isFourFour}
-                onClick={handleEditOstinato}
-                className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
-              >
-                <Edit3 className="w-3 h-3" /> Edit
-              </Button>
             </div>
           </div>
         </div>
@@ -447,16 +371,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 >
                   <Play className="w-3 h-3 fill-current" /> Audition
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!isFourFour || activeSystemId === 'none'}
-                  onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
-                  className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
-                >
-                  <Edit3 className="w-3 h-3" /> Edit
-                </Button>
               </div>
             </div>
 
@@ -489,16 +403,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 >
                   <Play className="w-3 h-3 fill-current" /> Audition
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!isFourFour || activeSystemId === 'none'}
-                  onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
-                  className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
-                >
-                  <Edit3 className="w-3 h-3" /> Edit
-                </Button>
               </div>
             </div>
           </div>
@@ -513,19 +417,6 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           presetManager={presetManager}
           activeSystemId={activeSystemId}
           onSelectSystem={handleSelectSystem}
-          player={player}
-        />
-      )}
-
-      {/* Formula & Ostinato Editor Modal Dialog */}
-      {isFormulaDialogOpen && (
-        <FormulaEditorDialog
-          open={isFormulaDialogOpen}
-          onClose={() => setIsFormulaDialogOpen(false)}
-          formula={editingFormula}
-          defaultTrigger={formulaDefaultTrigger}
-          targetBeats={editingTargetBeats}
-          onSave={handleSaveFormulaFromDialog}
           player={player}
         />
       )}

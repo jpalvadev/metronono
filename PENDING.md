@@ -30,4 +30,4 @@
 
 - 16 [ ] I dont want horizontal or vertical scroll bars on the syncopation page, there should not be a vertical size limit, and horizontal scroll bar i think is a CSS bug or mistake. Also, as the width of the window shrink, the bars per row should dimishish, from 4 to 3, 2 and one, for cell phones.
 
-- 17 [ ] on the main Alan Dawson Orchestration view there should not be an edit button, this is not the view for editing ostinatos or formulas. This function should be done only in the modal that opens with the button Manage Systems, Formulas & Ostinatos
+- 17 [ x ] on the main Alan Dawson Orchestration view there should not be an edit button, this is not the view for editing ostinatos or formulas. This function should be done only in the modal that opens with the button Manage Systems, Formulas & Ostinatos (removed the Ostinato, Short Formula, and Long Formula Edit buttons and FormulaEditorDialog wiring from DawsonOrchestrationSection; editing remains exclusively inside PresetManager opened via "Manage Systems, Formulas & Ostinatos")

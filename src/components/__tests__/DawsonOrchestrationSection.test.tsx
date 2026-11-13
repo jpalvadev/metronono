@@ -158,14 +158,15 @@ describe('DawsonOrchestrationSection', () => {
       expect(mockTriggerVoice).toHaveBeenCalled();
     });
 
-    it('opens editor when clicking Edit under Ostinato or Formula staves', () => {
+    it('does not render Edit buttons on the main view (editing lives in Manage Systems, Formulas & Ostinatos)', () => {
       render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
-      const editOstinatoBtn = screen.getByTestId('ostinato-edit-btn');
-      fireEvent.click(editOstinatoBtn);
-
-      // Formula / Pattern editor dialog opened
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.queryByTestId('ostinato-edit-btn')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /\bEdit\b/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Manage Systems, Formulas & Ostinatos/i })
+      ).toBeInTheDocument();
     });
   });
 
@@ -215,19 +216,16 @@ describe('DawsonOrchestrationSection', () => {
     expect(screen.queryByText(/Dawson Systems & Formula Manager/i)).not.toBeInTheDocument();
   });
 
-  it('opens FormulaEditorDialog from formula Edit button and auditions formula', () => {
+  it('auditions short and long formulas from the main view without Edit buttons', () => {
     render(<DawsonOrchestrationSection scheduler={scheduler} />);
 
     // Formula audition
     const auditionBtns = screen.getAllByRole('button', { name: /Audition/i });
+    expect(auditionBtns).toHaveLength(3); // Ostinato, Short formula, Long formula
     fireEvent.click(auditionBtns[1]); // Short formula audition button
     expect(mockTriggerVoice).toHaveBeenCalled();
 
-    // Edit formula
-    const editBtns = screen.getAllByRole('button', { name: /Edit/i });
-    fireEvent.click(editBtns[1]); // Short formula edit button
-
-    expect(screen.getByText(/Subdivision Formula Editor/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /\bEdit\b/i })).not.toBeInTheDocument();
   });
 
   it('suspends controls with a "4/4 only" indicator in non-4/4 meters and preserves selections on return to 4/4', () => {

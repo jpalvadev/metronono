@@ -33,7 +33,6 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   onMeasureClick,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const renderer = useMemo(() => new ReadingScoreRenderer(), []);
 
   const [containerWidth, setContainerWidth] = useState<number>(750);
@@ -105,7 +104,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     const updateWidth = () => {
       if (containerRef.current) {
         const measured = containerRef.current.clientWidth;
-        if (measured > 100) {
+        if (measured > 0) {
           setContainerWidth(measured);
         }
       }
@@ -138,7 +137,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
     try {
       const newLayout = renderer.render(containerRef.current, readingLine, {
-        width: Math.max(300, containerWidth),
+        width: containerWidth,
         measuresPerSystem: systemCols,
         staveSpacing: 110,
         showMeasureNumbers: true,
@@ -210,16 +209,6 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
       const pos = layout.getPlayheadPosition(activeMeasure, smoothBeat);
       setPlayheadPos(pos);
-
-      // Auto-scroll to active system row
-      if (pos && scrollWrapperRef.current) {
-        const wrapper = scrollWrapperRef.current;
-        const currentScroll = wrapper.scrollTop;
-        const targetScroll = Math.max(0, pos.y - 40);
-        if (Math.abs(currentScroll - targetScroll) > 120) {
-          wrapper.scrollTo({ top: targetScroll, behavior: 'smooth' });
-        }
-      }
 
       animationFrameId = requestAnimationFrame(animate);
     };
@@ -325,16 +314,15 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
       {/* Notation Canvas with Playhead Overlay */}
       <div
-        ref={scrollWrapperRef}
         onClick={() => onMeasureClick?.(normalizedMeasure)}
-        className="relative w-full overflow-x-auto overflow-y-auto max-h-[460px] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent py-2"
+        className="relative w-full min-w-0 py-2"
       >
-        <div className="relative min-w-full inline-block">
+        <div className="relative w-full min-w-0">
           {/* VexFlow SVG rendered into this container */}
           <div
             ref={containerRef}
             data-testid="reading-score-container"
-            className="w-full select-none"
+            className="w-full min-w-0 select-none"
           />
 
           {/* Interactive Playhead Overlay */}

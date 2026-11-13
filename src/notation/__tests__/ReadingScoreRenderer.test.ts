@@ -888,4 +888,24 @@ describe('ReadingScoreRenderer', () => {
       document.body.removeChild(containerSwing);
     });
   });
+
+  it('respects narrow container widths (< 300px) without forcing a wider minimum', () => {
+    const measures = [createTestMeasure(0, [1, 1, 1, 1]), createTestMeasure(1, [1, 1, 1, 1])];
+    const readingLine: ReadingLine = {
+      id: 'test-narrow',
+      title: 'Narrow Mobile',
+      tier: 1,
+      measures,
+    };
+
+    const renderer = new ReadingScoreRenderer();
+    const layout = renderer.render(container, readingLine, { width: 200 });
+    const svg = container.querySelector('svg');
+
+    expect(svg).toBeTruthy();
+    expect(Number(svg?.getAttribute('width'))).toBeLessThanOrEqual(200);
+    for (const m of layout.measures) {
+      expect(m.x + m.width).toBeLessThanOrEqual(200);
+    }
+  });
 });

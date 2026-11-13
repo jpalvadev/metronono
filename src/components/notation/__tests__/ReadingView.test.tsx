@@ -177,4 +177,31 @@ describe('ReadingView', () => {
     expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('playhead-cursor')).toBeInTheDocument();
   });
+
+  it('has no vertical height cap or internal scrollbars on the score wrapper', () => {
+    const line = createDummyLine(16);
+    render(<ReadingView readingLine={line} />);
+
+    const root = screen.getByTestId('reading-view-root');
+    for (const el of root.querySelectorAll('*')) {
+      const cls = el.getAttribute('class') ?? '';
+      expect(cls).not.toMatch(/\bmax-h-\[/);
+      expect(cls).not.toMatch(/\boverflow-x-auto\b/);
+      expect(cls).not.toMatch(/\boverflow-y-auto\b/);
+    }
+  });
+
+  it('fits narrow mobile container widths (< 300px) without forcing a 300px SVG floor', () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(260);
+    try {
+      const line = createDummyLine(4);
+      render(<ReadingView readingLine={line} />);
+
+      const svg = screen.getByTestId('reading-score-container').querySelector('svg');
+      expect(svg).toBeTruthy();
+      expect(Number(svg?.getAttribute('width'))).toBeLessThanOrEqual(260);
+    } finally {
+      clientWidthSpy.mockRestore();
+    }
+  });
 });

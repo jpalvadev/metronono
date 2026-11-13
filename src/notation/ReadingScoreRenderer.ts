@@ -105,7 +105,7 @@ export class ReadingScoreRenderer {
     const staveHeight = options.staveHeight ?? 80;
     const staveSpacing = options.staveSpacing ?? 100;
 
-    const availableWidth = Math.max(200, width - (paddingLeft + paddingRight));
+    const availableWidth = Math.max(1, width - (paddingLeft + paddingRight));
     const totalMeasures = readingLine.measures.length;
 
     let measuresPerSystem = options.measuresPerSystem;

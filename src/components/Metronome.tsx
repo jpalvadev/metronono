@@ -131,8 +131,8 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     }
   };
 
-  const handleTimeSignatureChange = (tsStr: string) => {
-    scheduler.setTimeSignature(tsStr);
+  const handleTimeSignatureChange = (beats: number, beatUnit: number) => {
+    scheduler.setTimeSignature({ beats, beatUnit });
     setTimeSignatureState(scheduler.getTimeSignature());
     setBeatMaskState(scheduler.getBeatMask());
   };
@@ -193,11 +193,6 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
     setDropoutConfigState(scheduler.getDropoutConfig());
   };
 
-  const isCurrentTimeSig = (tsStr: string) => {
-    const [beats, unit] = tsStr.split('/').map(Number);
-    return timeSignature.beats === beats && timeSignature.beatUnit === unit;
-  };
-
   const rampProgress = scheduler.getRampProgress(currentMeasure, activeBeat ?? 0);
 
   return (
@@ -225,11 +220,17 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
 
       {/* Beat Selector Buttons & Visual Playhead */}
       <div className="flex flex-col gap-2 items-center">
-        <div className="flex justify-center items-center gap-2 py-1">
+        <div
+          className={cn(
+            'flex flex-wrap justify-center items-center py-1',
+            timeSignature.beats > 8 ? 'gap-1.5' : 'gap-2'
+          )}
+        >
           {Array.from({ length: timeSignature.beats }).map((_, idx) => {
             const isDownbeat = idx === 0;
             const isActiveBeat = activeBeat === idx;
             const isBeatAudible = beatMask[idx] ?? true;
+            const isCompact = timeSignature.beats > 8;
 
             return (
               <button
@@ -239,8 +240,12 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
                 aria-label={`Beat ${idx + 1}: ${isBeatAudible ? 'Active' : 'Muted'}`}
                 title={`Beat ${idx + 1} (${isBeatAudible ? 'Click to Mute' : 'Click to Activate'})`}
                 className={cn(
-                  'relative transition-all duration-100 rounded-none flex flex-col items-center justify-center font-bold text-xs border select-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring',
-                  isDownbeat ? 'w-11 h-11 text-sm' : 'w-10 h-10 text-xs',
+                  'relative transition-all duration-100 rounded-none flex flex-col items-center justify-center font-bold border select-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring',
+                  isCompact
+                    ? 'w-8 h-8 text-[11px]'
+                    : isDownbeat
+                      ? 'w-11 h-11 text-sm'
+                      : 'w-10 h-10 text-xs',
                   !isBeatAudible && 'opacity-30 border-dashed border-border',
                   isActiveBeat
                     ? 'bg-primary text-primary-foreground border-primary scale-105 shadow-sm'
@@ -396,31 +401,55 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
           <span>TAP TEMPO</span>
         </Button>
 
-        <div className="flex bg-secondary/40 p-0.5 rounded-none border border-border">
+        <div className="flex items-center bg-secondary/40 p-0.5 rounded-none border border-border h-9">
           <button
             type="button"
-            onClick={() => handleTimeSignatureChange('4/4')}
-            className={cn(
-              'flex-1 py-1.5 text-xs font-bold rounded-none transition-all select-none',
-              isCurrentTimeSig('4/4')
-                ? 'bg-primary text-primary-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
+            onClick={() =>
+              handleTimeSignatureChange(Math.max(1, timeSignature.beats - 1), timeSignature.beatUnit)
+            }
+            aria-label="Decrease numerator"
+            className="px-2 h-full text-xs font-mono font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-none select-none"
           >
-            4/4
+            -
           </button>
+          <input
+            type="number"
+            min={1}
+            max={32}
+            value={timeSignature.beats}
+            onChange={(e) => {
+              const parsed = parseInt(e.target.value, 10);
+              if (!isNaN(parsed)) {
+                handleTimeSignatureChange(parsed, timeSignature.beatUnit);
+              }
+            }}
+            aria-label="Time signature numerator"
+            className="w-10 text-center bg-transparent text-xs font-mono font-bold text-foreground focus:outline-none rounded-none"
+          />
           <button
             type="button"
-            onClick={() => handleTimeSignatureChange('3/4')}
-            className={cn(
-              'flex-1 py-1.5 text-xs font-bold rounded-none transition-all select-none',
-              isCurrentTimeSig('3/4')
-                ? 'bg-primary text-primary-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
+            onClick={() =>
+              handleTimeSignatureChange(Math.min(32, timeSignature.beats + 1), timeSignature.beatUnit)
+            }
+            aria-label="Increase numerator"
+            className="px-2 h-full text-xs font-mono font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-none select-none"
           >
-            3/4
+            +
           </button>
+          <span className="px-1 text-xs font-mono text-muted-foreground select-none">/</span>
+          <select
+            value={timeSignature.beatUnit}
+            onChange={(e) =>
+              handleTimeSignatureChange(timeSignature.beats, parseInt(e.target.value, 10))
+            }
+            aria-label="Time signature denominator"
+            className="flex-1 h-full bg-transparent text-xs font-mono font-bold text-foreground text-center focus:outline-none rounded-none cursor-pointer px-1"
+          >
+            <option value={2}>2</option>
+            <option value={4}>4</option>
+            <option value={8}>8</option>
+            <option value={16}>16</option>
+          </select>
         </div>
       </div>
 

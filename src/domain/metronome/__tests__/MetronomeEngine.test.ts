@@ -94,6 +94,53 @@ describe('MetronomeEngine', () => {
       expect(wrap.beatIndex).toBe(0);
       expect(wrap.isDownbeat).toBe(true);
     });
+
+    it('supports arbitrary N/D time signatures like 7/8, 15/16, 21/16, 6/4, 5/8, 10/16, and 5/4', () => {
+      for (const [sig, expected] of [
+        ['7/8', { beats: 7, beatUnit: 8 }],
+        ['15/16', { beats: 15, beatUnit: 16 }],
+        ['21/16', { beats: 21, beatUnit: 16 }],
+        ['6/4', { beats: 6, beatUnit: 4 }],
+        ['5/8', { beats: 5, beatUnit: 8 }],
+        ['10/16', { beats: 10, beatUnit: 16 }],
+        ['5/4', { beats: 5, beatUnit: 4 }],
+      ] as const) {
+        engine.setTimeSignature(sig);
+        expect(engine.getTimeSignature()).toEqual(expected);
+        expect(engine.getBeatMask()).toHaveLength(expected.beats);
+      }
+    });
+
+    it('clamps numerator beats to integer 1-32 and restricts beatUnit to 2, 4, 8, 16', () => {
+      engine.setTimeSignature({ beats: 0, beatUnit: 8 });
+      expect(engine.getTimeSignature()).toEqual({ beats: 1, beatUnit: 8 });
+
+      engine.setTimeSignature({ beats: 40, beatUnit: 16 });
+      expect(engine.getTimeSignature()).toEqual({ beats: 32, beatUnit: 16 });
+
+      engine.setTimeSignature({ beats: 7.6, beatUnit: 2 });
+      expect(engine.getTimeSignature()).toEqual({ beats: 8, beatUnit: 2 });
+
+      // Invalid beatUnit (e.g. 3 or 32) is ignored, keeping the previous valid beatUnit
+      engine.setTimeSignature({ beats: 5, beatUnit: 3 });
+      expect(engine.getTimeSignature()).toEqual({ beats: 5, beatUnit: 2 });
+
+      engine.setTimeSignature('7/32');
+      expect(engine.getTimeSignature()).toEqual({ beats: 7, beatUnit: 2 });
+    });
+
+    it('preserves existing beatMask entries when expanding or truncating beats', () => {
+      engine.setTimeSignature('4/4');
+      engine.setBeatMask([true, false, true, false]);
+
+      // Expand 4 -> 7: preserves first 4, pads new beats with true
+      engine.setTimeSignature('7/8');
+      expect(engine.getBeatMask()).toEqual([true, false, true, false, true, true, true]);
+
+      // Truncate 7 -> 3: preserves first 3
+      engine.setTimeSignature('3/4');
+      expect(engine.getBeatMask()).toEqual([true, false, true]);
+    });
   });
 
   describe('Tap Tempo Calculator', () => {

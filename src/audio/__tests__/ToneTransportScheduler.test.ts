@@ -98,9 +98,32 @@ describe('ToneTransportScheduler', () => {
 
   it('updates time signature and recalculates schedule interval if running', async () => {
     await scheduler.start();
-    scheduler.setTimeSignature('3/4');
-    expect(scheduler.getTimeSignature()).toEqual({ beats: 3, beatUnit: 4 });
-    expect(mockTransport.timeSignature).toBe(3);
+    expect(mockTransport.scheduleRepeat).toHaveBeenCalledWith(expect.any(Function), '4n');
+
+    scheduler.setTimeSignature('7/8');
+    expect(scheduler.getTimeSignature()).toEqual({ beats: 7, beatUnit: 8 });
+    expect(mockTransport.timeSignature).toBe(7);
+    expect(mockTransport.clear).toHaveBeenCalledWith(101);
+    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '8n');
+
+    scheduler.setTimeSignature('15/16');
+    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '16n');
+
+    scheduler.setTimeSignature('6/2');
+    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '2n');
+  });
+
+  it('scales Gap Clicks subdivision timing by beatUnit (quarter-note = BPM)', async () => {
+    // 120 BPM, 7/8 -> beatUnit = 8 -> beatDuration = (4/8) * (60/120) = 0.25s
+    scheduler.setTimeSignature('7/8');
+    scheduler.setClickConfig({ subdivision: { divisions: 2 } });
+    await scheduler.start();
+
+    mockClickPlayer.playSubdivision.mockClear();
+    scheduledCallback!(1.0);
+
+    expect(mockClickPlayer.playSubdivision).toHaveBeenCalledTimes(1);
+    expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.125, expect.any(Number));
   });
 
 

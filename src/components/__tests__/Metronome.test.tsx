@@ -131,8 +131,8 @@ describe('Metronome Component', () => {
     expect(screen.getByText('120')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /tap/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '4/4' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '3/4' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/time signature numerator/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/time signature denominator/i)).toBeInTheDocument();
   });
 
   it('toggles playback when Play/Stop button is clicked', async () => {
@@ -169,13 +169,31 @@ describe('Metronome Component', () => {
     expect(screen.getByText('140')).toBeInTheDocument();
   });
 
-  it('changes time signature when selecting 3/4', () => {
+  it('changes time signature via numerator and denominator selectors (e.g. 7/8, 15/16, 21/16)', () => {
     render(<Metronome scheduler={mockScheduler} />);
 
-    const threeFourBtn = screen.getByRole('button', { name: '3/4' });
-    fireEvent.click(threeFourBtn);
+    const numeratorInput = screen.getByLabelText(/time signature numerator/i) as HTMLInputElement;
+    const denominatorSelect = screen.getByLabelText(/time signature denominator/i) as HTMLSelectElement;
 
-    expect(mockScheduler.setTimeSignature).toHaveBeenCalledWith('3/4');
+    expect(numeratorInput.value).toBe('4');
+    expect(denominatorSelect.value).toBe('4');
+
+    fireEvent.change(numeratorInput, { target: { value: '7' } });
+    expect(mockScheduler.setTimeSignature).toHaveBeenCalledWith({ beats: 7, beatUnit: 4 });
+
+    fireEvent.change(denominatorSelect, { target: { value: '8' } });
+    expect(mockScheduler.setTimeSignature).toHaveBeenCalledWith({ beats: 7, beatUnit: 8 });
+
+    // Beat display should render 7 beat buttons
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(7);
+
+    // Test large numerator like 21/16
+    fireEvent.change(numeratorInput, { target: { value: '21' } });
+    fireEvent.change(denominatorSelect, { target: { value: '16' } });
+    expect(mockScheduler.setTimeSignature).toHaveBeenLastCalledWith({ beats: 21, beatUnit: 16 });
+    const beatButtons = screen.getAllByRole('button', { name: /beat \d+:/i });
+    expect(beatButtons).toHaveLength(21);
+    expect(beatButtons[0].parentElement?.className).toContain('flex-wrap');
   });
 
   it('holds no loudness control of its own: volume belongs to the Mixer Panel', () => {
@@ -274,7 +292,7 @@ describe('Metronome Component', () => {
       // Visual badge is displayed!
       expect(screen.getByText(/SILENT BAR/i)).toBeInTheDocument();
       // Beat 2 (beatIndex 1) is active in playhead
-      expect(screen.getByText('2')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /beat 2:/i })).toBeInTheDocument();
     });
   });
 

@@ -728,7 +728,8 @@ export class ToneTransportScheduler {
       this.buildMeasurePlans();
     }
 
-    const beatInterval = `${this.engine.getTimeSignature().beatUnit}n`;
+    const { beatUnit } = this.engine.getTimeSignature();
+    const beatInterval = `${beatUnit}n`;
     this.scheduledEventId = this.transport.scheduleRepeat((time: number) => {
       const beatEvent = this.engine.nextBeat();
 
@@ -739,7 +740,7 @@ export class ToneTransportScheduler {
 
       // A beat's length at the tempo this beat arrived at, shared by the gap clicks
       // and the drum events so both land on the same audio-clock instant.
-      const beatDuration = 60 / beatEvent.bpm;
+      const beatDuration = (4 / beatUnit) * (60 / beatEvent.bpm);
 
       // Audio click gating: silenced if beat is muted by mask or in dropout mode!
       if (this.clickPlayer && !beatEvent.isMuted) {

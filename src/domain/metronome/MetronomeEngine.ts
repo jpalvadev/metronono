@@ -72,6 +72,9 @@ export class MetronomeEngine {
   public static readonly MIN_BPM = 30;
   public static readonly MAX_BPM = 300;
   public static readonly DEFAULT_BPM = 120;
+  public static readonly MIN_BEATS = 1;
+  public static readonly MAX_BEATS = 32;
+  public static readonly VALID_BEAT_UNITS = [2, 4, 8, 16] as const;
   public static readonly TAP_TIMEOUT_MS = 2000;
   public static readonly MAX_TAP_SAMPLES = 8;
   // Gap Clicks: the division count of the subdivision voice. One part is the beat click
@@ -126,13 +129,32 @@ export class MetronomeEngine {
   }
 
   public setTimeSignature(ts: TimeSignature | string): void {
+    let nextBeats: number | null = null;
+    let nextUnit: number | null = null;
+
     if (typeof ts === 'string') {
       const parts = ts.split('/').map(Number);
-      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] > 0 && parts[1] > 0) {
-        this.timeSignature = { beats: parts[0], beatUnit: parts[1] };
+      if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+        nextBeats = parts[0];
+        nextUnit = parts[1];
       }
     } else if (ts && typeof ts.beats === 'number' && typeof ts.beatUnit === 'number') {
-      this.timeSignature = { ...ts };
+      nextBeats = ts.beats;
+      nextUnit = ts.beatUnit;
+    }
+
+    if (nextBeats !== null && Number.isFinite(nextBeats)) {
+      const clampedBeats = Math.max(
+        MetronomeEngine.MIN_BEATS,
+        Math.min(MetronomeEngine.MAX_BEATS, Math.round(nextBeats))
+      );
+      const validUnit =
+        nextUnit !== null &&
+        (MetronomeEngine.VALID_BEAT_UNITS as readonly number[]).includes(nextUnit)
+          ? nextUnit
+          : this.timeSignature.beatUnit;
+
+      this.timeSignature = { beats: clampedBeats, beatUnit: validUnit };
     }
 
     const newBeats = this.timeSignature.beats;

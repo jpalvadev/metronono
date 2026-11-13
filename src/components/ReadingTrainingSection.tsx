@@ -167,7 +167,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
+          <div className="flex flex-wrap items-center gap-1 bg-muted/20 p-1 rounded-none border border-border">
             <Button
               variant={mode === 'generator' ? 'default' : 'ghost'}
               size="sm"
@@ -202,9 +202,9 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
       {mode === 'generator' ? (
         <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-none p-3">
           {/* Difficulty Tier Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Difficulty:</span>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               <Button
                 variant={tier === 1 ? 'secondary' : 'ghost'}
                 size="sm"
@@ -245,7 +245,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
           </div>
 
           {/* Bar count & Regenerate Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>Bars:</span>
               <div className="flex flex-wrap items-center gap-1">

@@ -72,6 +72,9 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   // Measures per system (columns)
   const [systemCols, setSystemCols] = useState<number | undefined>(propMeasuresPerSystem);
+  const [autoScroll, setAutoScroll] = useState<boolean>(false);
+  const lastAutoScrolledSystemRef = useRef<number | null>(null);
+  const programmaticScrollUntilRef = useRef<number>(0);
 
   // Track beat timing for RAF interpolation
   const beatTimeRef = useRef<{ timestamp: number; beat: number; bpm: number }>({
@@ -229,6 +232,55 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     return layout.getMeasureCoordinate(activeMeasure);
   }, [layout, activeMeasure]);
 
+  // Smoothly scroll window on system-row change when Auto-scroll is ON
+  useEffect(() => {
+    if (!autoScroll || !effectiveIsPlaying || !isFourFour || !activeMeasureCoord || !containerRef.current) {
+      lastAutoScrolledSystemRef.current = null;
+      return;
+    }
+
+    if (lastAutoScrolledSystemRef.current === activeMeasureCoord.systemIndex) {
+      return;
+    }
+    lastAutoScrolledSystemRef.current = activeMeasureCoord.systemIndex;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const rowTop = containerRect.top + activeMeasureCoord.y;
+    const rowBottom = rowTop + activeMeasureCoord.height;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+    if (rowTop < 24 || rowBottom > viewportHeight - 24) {
+      programmaticScrollUntilRef.current = performance.now() + 700;
+      window.scrollTo({
+        top: Math.max(0, window.scrollY + rowTop - 80),
+        behavior: 'smooth',
+      });
+    }
+  }, [autoScroll, effectiveIsPlaying, isFourFour, activeMeasureCoord]);
+
+  // Disengage Auto-scroll immediately on manual user scrolling
+  useEffect(() => {
+    if (!autoScroll) return;
+
+    const disengage = () => setAutoScroll(false);
+    const handleWindowScroll = () => {
+      if (performance.now() < programmaticScrollUntilRef.current) {
+        return;
+      }
+      setAutoScroll(false);
+    };
+
+    window.addEventListener('wheel', disengage, { passive: true });
+    window.addEventListener('touchmove', disengage, { passive: true });
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('wheel', disengage);
+      window.removeEventListener('touchmove', disengage);
+      window.removeEventListener('scroll', handleWindowScroll);
+    };
+  }, [autoScroll]);
+
   const tierBadgeColor = useMemo(() => {
     switch (readingLine.tier) {
       case 1:
@@ -270,7 +322,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Active Measure & Beat Indicator */}
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="text-muted-foreground">Bar:</span>
@@ -282,6 +334,18 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
               {activeBeat + 1}
             </span>
           </div>
+
+          {/* Auto-scroll toggle (visible on mobile and desktop) */}
+          <Button
+            variant={autoScroll ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-6 px-2 text-[11px] rounded-none border border-border"
+            aria-pressed={autoScroll}
+            onClick={() => setAutoScroll((prev) => !prev)}
+            title="Smoothly scroll window to follow active system row during playback"
+          >
+            Auto-scroll
+          </Button>
 
           {/* Stave columns / measures per line selector */}
           <div className="hidden sm:flex items-center gap-1 border border-border rounded-none p-0.5 bg-muted/20">

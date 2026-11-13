@@ -256,4 +256,114 @@ describe('ReadingView', () => {
       clientWidthSpy.mockRestore();
     }
   });
+
+  it('renders Auto-scroll toggle OFF by default and toggles ON/OFF', () => {
+    const line = createDummyLine(4);
+    render(<ReadingView readingLine={line} />);
+
+    const autoScrollBtn = screen.getByRole('button', { name: /auto-scroll/i });
+    expect(autoScrollBtn).toBeVisible();
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(autoScrollBtn);
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(autoScrollBtn);
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('smoothly scrolls the window when Auto-scroll is ON and active system row moves off-screen', () => {
+    const scrollToSpy = vi.fn();
+    vi.stubGlobal('scrollTo', scrollToSpy);
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 900,
+      bottom: 1400,
+      left: 0,
+      right: 750,
+      width: 750,
+      height: 500,
+      x: 0,
+      y: 900,
+      toJSON: () => ({}),
+    });
+
+    try {
+      const line = createDummyLine(8);
+      const { rerender } = render(
+        <ReadingView
+          readingLine={line}
+          isPlaying={true}
+          measuresPerSystem={4}
+          currentMeasureIndex={0}
+          currentBeatIndex={0}
+        />
+      );
+
+      // OFF by default -> no window scroll
+      expect(scrollToSpy).not.toHaveBeenCalled();
+
+      // Turn Auto-scroll ON -> current row (system 0) is off-screen (top 900 > innerHeight) -> scrolls once
+      fireEvent.click(screen.getByRole('button', { name: /auto-scroll/i }));
+      expect(scrollToSpy).toHaveBeenCalledTimes(1);
+      expect(scrollToSpy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+
+      // Staying on same system row (measure 1, still system 0) must NOT re-trigger scroll
+      rerender(
+        <ReadingView
+          readingLine={line}
+          isPlaying={true}
+          measuresPerSystem={4}
+          currentMeasureIndex={1}
+          currentBeatIndex={0}
+        />
+      );
+      expect(scrollToSpy).toHaveBeenCalledTimes(1);
+
+      // Moving to next system row (measure 4, system 1) triggers scroll once
+      rerender(
+        <ReadingView
+          readingLine={line}
+          isPlaying={true}
+          measuresPerSystem={4}
+          currentMeasureIndex={4}
+          currentBeatIndex={0}
+        />
+      );
+      expect(scrollToSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      rectSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('disengages Auto-scroll to OFF on manual wheel, touchmove, or non-programmatic scroll', () => {
+    const line = createDummyLine(4);
+    render(<ReadingView readingLine={line} />);
+
+    const autoScrollBtn = screen.getByRole('button', { name: /auto-scroll/i });
+
+    // wheel disengages
+    fireEvent.click(autoScrollBtn);
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'true');
+    act(() => {
+      window.dispatchEvent(new Event('wheel'));
+    });
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'false');
+
+    // touchmove disengages
+    fireEvent.click(autoScrollBtn);
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'true');
+    act(() => {
+      window.dispatchEvent(new Event('touchmove'));
+    });
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'false');
+
+    // non-programmatic scroll disengages
+    fireEvent.click(autoScrollBtn);
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'true');
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    expect(autoScrollBtn).toHaveAttribute('aria-pressed', 'false');
+  });
 });

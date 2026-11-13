@@ -46,7 +46,7 @@ export function App() {
     <main className="min-h-screen bg-background text-foreground p-4 md:p-6 lg:p-8 selection:bg-accent selection:text-accent-foreground">
       <div className="w-full max-w-7xl mx-auto flex flex-col gap-6">
         {/* Navigation & Storage Quick Access */}
-        <header className="w-full flex items-center justify-between border-b border-border pb-3">
+        <header className="w-full flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
           <div className="flex items-center gap-2">
             <h1 className="text-base font-bold tracking-tight text-foreground uppercase flex items-center gap-2">
               <span className="text-primary">METRONONO</span>

@@ -2,6 +2,7 @@ import {
   MetronomeEngine,
   BeatEvent,
   TimeSignature,
+  PulseFeel,
   ClickVoiceConfig,
   SubdivisionVoiceConfig,
   MetronomeClickConfig,
@@ -143,6 +144,7 @@ export class ToneTransportScheduler {
   private dropoutListeners: Set<(isDropout: boolean) => void> = new Set();
   private playStateListeners: Set<(isPlaying: boolean) => void> = new Set();
   private timeSignatureListeners: Set<(ts: TimeSignature) => void> = new Set();
+  private pulseFeelListeners: Set<(feel: PulseFeel) => void> = new Set();
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
   private storageManager?: any;
@@ -235,7 +237,7 @@ export class ToneTransportScheduler {
    */
   private buildMeasurePlans(): void {
     const { beats, beatUnit } = this.engine.getTimeSignature();
-    if (!this.dawsonEngine || beats !== 4 || beatUnit !== 4) {
+    if (!this.dawsonEngine || beats !== 4 || beatUnit !== 4 || this.engine.getPulseFeel() !== 'straight') {
       this.measurePlan = null;
       return;
     }
@@ -348,6 +350,23 @@ export class ToneTransportScheduler {
       }
     }
     this.timeSignatureListeners.forEach((listener) => listener(newTs));
+  }
+
+  public getPulseFeel(): PulseFeel {
+    return this.engine.getPulseFeel();
+  }
+
+  public setPulseFeel(feel: PulseFeel): void {
+    this.engine.setPulseFeel(feel);
+    const nextFeel = this.engine.getPulseFeel();
+    this.buildMeasurePlans();
+    if (this.transport) {
+      this.transport.timeSignature = this.engine.getPulsesPerMeasure();
+      if (this.playing) {
+        this.reschedule();
+      }
+    }
+    this.pulseFeelListeners.forEach((listener) => listener(nextFeel));
   }
 
   public tap(timestampMs?: number): number | null {
@@ -632,6 +651,13 @@ export class ToneTransportScheduler {
     };
   }
 
+  public onPulseFeelChange(listener: (feel: PulseFeel) => void): () => void {
+    this.pulseFeelListeners.add(listener);
+    return () => {
+      this.pulseFeelListeners.delete(listener);
+    };
+  }
+
   public async loadDefaultSamples(): Promise<void> {
     const buffers = await this.defaultSampleLoader.loadAll();
     buffers.forEach((buffer, voiceId) => {
@@ -718,6 +744,7 @@ export class ToneTransportScheduler {
     this.dropoutListeners.clear();
     this.playStateListeners.clear();
     this.timeSignatureListeners.clear();
+    this.pulseFeelListeners.clear();
   }
 
   private reschedule(): void {

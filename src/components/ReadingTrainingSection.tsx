@@ -63,13 +63,23 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
   const [timeSignature, setTimeSignature] = useState(() =>
     scheduler?.getTimeSignature?.() ?? { beats: 4, beatUnit: 4 }
   );
-  const isFourFour = timeSignature.beats === 4 && timeSignature.beatUnit === 4;
+  const [pulseFeel, setPulseFeel] = useState<'straight' | 'triplet'>(() =>
+    scheduler?.getPulseFeel?.() ?? 'straight'
+  );
+  const isFourFour =
+    timeSignature.beats === 4 && timeSignature.beatUnit === 4 && pulseFeel === 'straight';
 
   useEffect(() => {
-    if (!scheduler?.onTimeSignatureChange) return;
-    return scheduler.onTimeSignatureChange((ts) => {
+    const unsubTimeSig = scheduler?.onTimeSignatureChange?.((ts) => {
       setTimeSignature(ts);
     });
+    const unsubPulseFeel = scheduler?.onPulseFeelChange?.((feel) => {
+      setPulseFeel(feel);
+    });
+    return () => {
+      unsubTimeSig?.();
+      unsubPulseFeel?.();
+    };
   }, [scheduler]);
 
   useEffect(() => {

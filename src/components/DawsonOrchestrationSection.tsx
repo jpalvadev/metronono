@@ -51,8 +51,12 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   const [timeSignature, setTimeSignature] = useState(() =>
     scheduler.getTimeSignature?.() ?? { beats: 4, beatUnit: 4 }
   );
+  const [pulseFeel, setPulseFeel] = useState<'straight' | 'triplet'>(() =>
+    scheduler.getPulseFeel?.() ?? 'straight'
+  );
 
-  const isFourFour = timeSignature.beats === 4 && timeSignature.beatUnit === 4;
+  const isFourFour =
+    timeSignature.beats === 4 && timeSignature.beatUnit === 4 && pulseFeel === 'straight';
 
   // Listen to engine and scheduler time signature changes
   useEffect(() => {
@@ -66,9 +70,13 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
     const unsubTimeSig = scheduler.onTimeSignatureChange?.((ts) => {
       setTimeSignature(ts);
     });
+    const unsubPulseFeel = scheduler.onPulseFeelChange?.((feel) => {
+      setPulseFeel(feel);
+    });
     return () => {
       unsubEngine();
       unsubTimeSig?.();
+      unsubPulseFeel?.();
     };
   }, [engine, scheduler]);
 

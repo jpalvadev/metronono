@@ -129,6 +129,39 @@ describe('MetronomeEngine', () => {
       expect([0, 1, 2].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1, 1, 1]);
     });
 
+    it('supports PulseFeel (straight = 1.0q vs triplet = 1.5q) and recalculates pulse counts, durations, and beatMask', () => {
+      expect(engine.getPulseFeel()).toBe('straight');
+      expect(engine.getPulseQuarterNotes()).toBe(1.0);
+
+      // 6/8 Straight -> 3 pulses of 1.0q; Triplet -> 2 pulses of 1.5q
+      engine.setTimeSignature('6/8');
+      expect(engine.getPulsesPerMeasure()).toBe(3);
+      engine.setPulseFeel('triplet');
+      expect(engine.getPulseFeel()).toBe('triplet');
+      expect(engine.getPulseQuarterNotes()).toBe(1.5);
+      expect(engine.getPulsesPerMeasure()).toBe(2);
+      expect([0, 1].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1.5, 1.5]);
+
+      // 12/8 Triplet -> 4 pulses of 1.5q
+      engine.setTimeSignature('12/8');
+      expect(engine.getPulsesPerMeasure()).toBe(4);
+      expect([0, 1, 2, 3].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1.5, 1.5, 1.5, 1.5]);
+
+      // 15/16 Triplet -> 3 pulses: 1.5, 1.5, 0.75
+      engine.setTimeSignature('15/16');
+      expect(engine.getPulsesPerMeasure()).toBe(3);
+      expect([0, 1, 2].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1.5, 1.5, 0.75]);
+
+      // beatMask preserved when switching pulseFeel
+      engine.setPulseFeel('straight');
+      engine.setTimeSignature('4/4');
+      engine.setBeatMask([true, false, true, false]);
+      engine.setPulseFeel('triplet'); // 4.0 / 1.5 = 2.67 -> 3 pulses
+      expect(engine.getBeatMask()).toEqual([true, false, true]);
+      engine.setPulseFeel('straight'); // back to 4 pulses
+      expect(engine.getBeatMask()).toEqual([true, false, true, true]);
+    });
+
     it('clamps numerator beats to integer 1-32 and restricts beatUnit to 2, 4, 8, 16', () => {
       engine.setTimeSignature({ beats: 0, beatUnit: 8 });
       expect(engine.getTimeSignature()).toEqual({ beats: 1, beatUnit: 8 });

@@ -10,8 +10,14 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
       let isPlaying = false;
       let tempo = 120;
       let timeSig = { beats: 4, beatUnit: 4 };
+      let pulseFeel: 'straight' | 'triplet' = 'straight';
       let volume = 0.8;
       let beatMask = [true, true, true, true];
+      const resizeMask = () => {
+        const pulseQuarters = pulseFeel === 'triplet' ? 1.5 : 1.0;
+        const pulses = Math.max(1, Math.ceil((timeSig.beats * (4 / timeSig.beatUnit) - 1e-9) / pulseQuarters));
+        beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
+      };
       let tempoRamp = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
       let dropout = { enabled: false, probability: 0.25 };
       let clickConfig = {
@@ -36,8 +42,12 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
           } else {
             timeSig = ts;
           }
-          const pulses = Math.max(1, Math.ceil((timeSig.beats * (4 / timeSig.beatUnit) - 1e-9) / 1.0));
-          beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
+          resizeMask();
+        }),
+        getPulseFeel: vi.fn(() => pulseFeel),
+        setPulseFeel: vi.fn((feel: 'straight' | 'triplet') => {
+          pulseFeel = feel;
+          resizeMask();
         }),
         getVolume: vi.fn(() => volume),
         setVolume: vi.fn((v: number) => {
@@ -210,6 +220,34 @@ describe('Metronome Component', () => {
     const beatButtons = screen.getAllByRole('button', { name: /beat \d+:/i });
     expect(beatButtons).toHaveLength(12);
     expect(beatButtons[0].parentElement?.className).toContain('flex-wrap');
+  });
+
+  it('displays Pulse Feel selector (Straight 2x8th / Triplet 3x8th) and updates beat buttons dynamically', () => {
+    render(<Metronome scheduler={mockScheduler} />);
+
+    const numeratorInput = screen.getByLabelText(/time signature numerator/i);
+    const denominatorSelect = screen.getByLabelText(/time signature denominator/i);
+    const pulseFeelSelect = screen.getByLabelText(/pulse feel/i) as HTMLSelectElement;
+
+    expect(pulseFeelSelect.value).toBe('straight');
+
+    // 6/8 Straight -> 3 buttons; 6/8 Triplet -> 2 buttons
+    fireEvent.change(numeratorInput, { target: { value: '6' } });
+    fireEvent.change(denominatorSelect, { target: { value: '8' } });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(3);
+
+    fireEvent.change(pulseFeelSelect, { target: { value: 'triplet' } });
+    expect(mockScheduler.setPulseFeel).toHaveBeenCalledWith('triplet');
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(2);
+
+    // 12/8 Triplet -> 4 buttons
+    fireEvent.change(numeratorInput, { target: { value: '12' } });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(4);
+
+    // 15/16 Triplet -> 3 buttons
+    fireEvent.change(numeratorInput, { target: { value: '15' } });
+    fireEvent.change(denominatorSelect, { target: { value: '16' } });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(3);
   });
 
   it('holds no loudness control of its own: volume belongs to the Mixer Panel', () => {

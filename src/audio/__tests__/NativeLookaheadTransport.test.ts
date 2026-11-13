@@ -163,4 +163,30 @@ describe('NativeLookaheadTransport', () => {
     expect(scheduledTimes.slice(0, 6)).toEqual([0, 0.5, 1, 1.5, 1.875, 2.375]);
     scheduler.stop();
   });
+
+  it('schedules 6/8 Triplet at 120 BPM every 0.75s via ToneTransportScheduler', async () => {
+    const engine = new MetronomeEngine(120, '6/8');
+    engine.setPulseFeel('triplet');
+    const scheduledTimes: number[] = [];
+    const mockClickPlayer = {
+      play: vi.fn((_isDownbeat: boolean, time: number) => {
+        scheduledTimes.push(Number(time.toFixed(4)));
+      }),
+      playSubdivision: vi.fn(),
+    };
+
+    const scheduler = new ToneTransportScheduler({
+      engine,
+      clickPlayer: mockClickPlayer,
+    });
+
+    await scheduler.start();
+    for (let t = 0; t < 24; t++) {
+      fakeCtx().advanceTime(0.1);
+      vi.advanceTimersByTime(LOOKAHEAD_INTERVAL_MS);
+    }
+
+    expect(scheduledTimes.slice(0, 4)).toEqual([0, 0.75, 1.5, 2.25]);
+    scheduler.stop();
+  });
 });

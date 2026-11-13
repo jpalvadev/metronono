@@ -458,6 +458,49 @@ describe('ToneTransportScheduler', () => {
       scheduler.setTimeSignature('4/4');
       scheduledCallback!(2.0);
       expect(mockDrumPlayer.play).toHaveBeenCalled();
+
+      // Switch to Triplet feel in 4/4: drum events are suspended, selections preserved
+      mockDrumPlayer.play.mockClear();
+      scheduler.setPulseFeel('triplet');
+      scheduledCallback!(2.5);
+      expect(mockDrumPlayer.play).not.toHaveBeenCalled();
+      expect(dawsonEngine.getOstinato()).toBe('jazz_swing');
+
+      // Return to Straight feel in 4/4: drum events resume automatically
+      mockDrumPlayer.play.mockClear();
+      scheduler.setPulseFeel('straight');
+      scheduledCallback!(3.0);
+      expect(mockDrumPlayer.play).toHaveBeenCalled();
+    });
+
+    it('reschedules immediately and notifies listeners when pulseFeel changes during playback', async () => {
+      const feelListener = vi.fn();
+      const unsub = scheduler.onPulseFeelChange(feelListener);
+
+      scheduler.setTimeSignature('6/8');
+      scheduler.setClickConfig({ subdivision: { divisions: 3 } });
+      await scheduler.start();
+
+      mockTransport.clear.mockClear();
+      mockTransport.scheduleRepeat.mockClear();
+
+      scheduler.setPulseFeel('triplet');
+      expect(scheduler.getPulseFeel()).toBe('triplet');
+      expect(feelListener).toHaveBeenCalledWith('triplet');
+      expect(mockTransport.timeSignature).toBe(2);
+      expect(mockTransport.clear).toHaveBeenCalledWith(101);
+      expect(mockTransport.scheduleRepeat).toHaveBeenCalled();
+
+      // 6/8 Triplet at 120 BPM -> 0.75s pulse, 3 divisions -> +0.25s, +0.5s
+      mockClickPlayer.playSubdivision.mockClear();
+      const nextInterval = scheduledCallback!(1.0);
+      expect(nextInterval).toBeCloseTo(0.75, 6);
+      expect(mockClickPlayer.playSubdivision.mock.calls.map((c) => Number(c[0].toFixed(4)))).toEqual([
+        1.25,
+        1.5,
+      ]);
+
+      unsub();
     });
   });
 });

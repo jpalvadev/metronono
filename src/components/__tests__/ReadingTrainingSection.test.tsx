@@ -113,5 +113,18 @@ describe('ReadingTrainingSection', () => {
     expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /procedural generator/i })).not.toBeDisabled();
     expect(screen.getByRole('heading', { name: /Page 38 \(Exercise Two\)/i })).toBeInTheDocument();
+
+    // Triplet pulse feel in 4/4 also suspends Reading Training
+    act(() => {
+      scheduler.setPulseFeel('triplet');
+    });
+    expect(screen.getAllByText(/4\/4 only/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: /procedural generator/i })).toBeDisabled();
+
+    act(() => {
+      scheduler.setPulseFeel('straight');
+    });
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /procedural generator/i })).not.toBeDisabled();
   });
 });

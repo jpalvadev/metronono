@@ -10,6 +10,7 @@ import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import {
   BeatEvent,
   TimeSignature,
+  PulseFeel,
   TempoRampConfig,
   DropoutConfig,
 } from '../domain/metronome/MetronomeEngine';
@@ -39,6 +40,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const [tempo, setTempoState] = useState<number>(() => scheduler.getTempo());
   const [tempInputValue, setTempInputValue] = useState<string>(() => String(scheduler.getTempo()));
   const [timeSignature, setTimeSignatureState] = useState<TimeSignature>(() => scheduler.getTimeSignature());
+  const [pulseFeel, setPulseFeelState] = useState<PulseFeel>(() => scheduler.getPulseFeel());
   const [activeBeat, setActiveBeat] = useState<number | null>(null);
   const [isTapActive, setIsTapActive] = useState<boolean>(false);
 
@@ -134,6 +136,12 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const handleTimeSignatureChange = (beats: number, beatUnit: number) => {
     scheduler.setTimeSignature({ beats, beatUnit });
     setTimeSignatureState(scheduler.getTimeSignature());
+    setBeatMaskState(scheduler.getBeatMask());
+  };
+
+  const handlePulseFeelChange = (feel: PulseFeel) => {
+    scheduler.setPulseFeel(feel);
+    setPulseFeelState(scheduler.getPulseFeel());
     setBeatMaskState(scheduler.getBeatMask());
   };
 
@@ -341,68 +349,89 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
         </div>
       </div>
 
-      {/* Tap Tempo & Time Signatures */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          onClick={handleTap}
-          className={cn(
-            'h-9 border-border font-medium text-xs flex items-center justify-center gap-2 rounded-none',
-            isTapActive && 'bg-primary/20 border-primary text-primary'
-          )}
-        >
-          <Activity className="w-3.5 h-3.5 text-primary" />
-          <span>TAP TEMPO</span>
-        </Button>
+      {/* Tap Tempo, Time Signatures & Pulse Feel */}
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            variant="outline"
+            onClick={handleTap}
+            className={cn(
+              'h-9 border-border font-medium text-xs flex items-center justify-center gap-2 rounded-none',
+              isTapActive && 'bg-primary/20 border-primary text-primary'
+            )}
+          >
+            <Activity className="w-3.5 h-3.5 text-primary" />
+            <span>TAP TEMPO</span>
+          </Button>
 
-        <div className="flex items-center bg-secondary/40 p-0.5 rounded-none border border-border h-9">
-          <button
-            type="button"
-            onClick={() =>
-              handleTimeSignatureChange(Math.max(1, timeSignature.beats - 1), timeSignature.beatUnit)
-            }
-            aria-label="Decrease numerator"
-            className="px-2 h-full text-xs font-mono font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-none select-none"
-          >
-            -
-          </button>
-          <input
-            type="number"
-            min={1}
-            max={32}
-            value={timeSignature.beats}
-            onChange={(e) => {
-              const parsed = parseInt(e.target.value, 10);
-              if (!isNaN(parsed)) {
-                handleTimeSignatureChange(parsed, timeSignature.beatUnit);
+          <div className="flex items-center bg-secondary/40 p-0.5 rounded-none border border-border h-9">
+            <button
+              type="button"
+              onClick={() =>
+                handleTimeSignatureChange(Math.max(1, timeSignature.beats - 1), timeSignature.beatUnit)
               }
-            }}
-            aria-label="Time signature numerator"
-            className="w-10 text-center bg-transparent text-xs font-mono font-bold text-foreground focus:outline-none rounded-none"
-          />
-          <button
-            type="button"
-            onClick={() =>
-              handleTimeSignatureChange(Math.min(32, timeSignature.beats + 1), timeSignature.beatUnit)
-            }
-            aria-label="Increase numerator"
-            className="px-2 h-full text-xs font-mono font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-none select-none"
+              aria-label="Decrease numerator"
+              className="px-2 h-full text-xs font-mono font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-none select-none"
+            >
+              -
+            </button>
+            <input
+              type="number"
+              min={1}
+              max={32}
+              value={timeSignature.beats}
+              onChange={(e) => {
+                const parsed = parseInt(e.target.value, 10);
+                if (!isNaN(parsed)) {
+                  handleTimeSignatureChange(parsed, timeSignature.beatUnit);
+                }
+              }}
+              aria-label="Time signature numerator"
+              className="w-10 text-center bg-transparent text-xs font-mono font-bold text-foreground focus:outline-none rounded-none"
+            />
+            <button
+              type="button"
+              onClick={() =>
+                handleTimeSignatureChange(Math.min(32, timeSignature.beats + 1), timeSignature.beatUnit)
+              }
+              aria-label="Increase numerator"
+              className="px-2 h-full text-xs font-mono font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-none select-none"
+            >
+              +
+            </button>
+            <span className="px-1 text-xs font-mono text-muted-foreground select-none">/</span>
+            <select
+              value={timeSignature.beatUnit}
+              onChange={(e) =>
+                handleTimeSignatureChange(timeSignature.beats, parseInt(e.target.value, 10))
+              }
+              aria-label="Time signature denominator"
+              className="flex-1 h-full bg-transparent text-xs font-mono font-bold text-foreground text-center focus:outline-none rounded-none cursor-pointer px-1"
+            >
+              <option value={2}>2</option>
+              <option value={4}>4</option>
+              <option value={8}>8</option>
+              <option value={16}>16</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between bg-secondary/40 px-2.5 rounded-none border border-border h-8">
+          <label
+            htmlFor="pulse-feel-select"
+            className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
           >
-            +
-          </button>
-          <span className="px-1 text-xs font-mono text-muted-foreground select-none">/</span>
+            Pulse Feel
+          </label>
           <select
-            value={timeSignature.beatUnit}
-            onChange={(e) =>
-              handleTimeSignatureChange(timeSignature.beats, parseInt(e.target.value, 10))
-            }
-            aria-label="Time signature denominator"
-            className="flex-1 h-full bg-transparent text-xs font-mono font-bold text-foreground text-center focus:outline-none rounded-none cursor-pointer px-1"
+            id="pulse-feel-select"
+            value={pulseFeel}
+            onChange={(e) => handlePulseFeelChange(e.target.value as PulseFeel)}
+            aria-label="Pulse feel"
+            className="bg-transparent text-xs font-mono font-bold text-foreground focus:outline-none rounded-none cursor-pointer px-1"
           >
-            <option value={2}>2</option>
-            <option value={4}>4</option>
-            <option value={8}>8</option>
-            <option value={16}>16</option>
+            <option value="straight">Straight (2×8th)</option>
+            <option value="triplet">Triplet (3×8th)</option>
           </select>
         </div>
       </div>

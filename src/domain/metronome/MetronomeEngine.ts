@@ -1,3 +1,5 @@
+export type PulseFeel = 'straight' | 'triplet';
+
 export interface TimeSignature {
   beats: number;
   beatUnit: number;
@@ -86,6 +88,7 @@ export class MetronomeEngine {
 
   private tempo: number = MetronomeEngine.DEFAULT_BPM;
   private timeSignature: TimeSignature = { beats: 4, beatUnit: 4 };
+  private pulseFeel: PulseFeel = 'straight';
   private currentBeatIndex: number = -1;
   private currentMeasureIndex: number = -1;
   private tapTimestamps: number[] = [];
@@ -173,12 +176,21 @@ export class MetronomeEngine {
     }
   }
 
+  public getPulseFeel(): PulseFeel {
+    return this.pulseFeel;
+  }
+
+  public setPulseFeel(feel: PulseFeel): void {
+    this.pulseFeel = feel === 'triplet' ? 'triplet' : 'straight';
+    this.resizeBeatMask();
+  }
+
   public getMeasureQuarterNotes(): number {
     return this.timeSignature.beats * (4 / this.timeSignature.beatUnit);
   }
 
   public getPulseQuarterNotes(): number {
-    return 1.0;
+    return this.pulseFeel === 'triplet' ? 1.5 : 1.0;
   }
 
   public getPulsesPerMeasure(): number {

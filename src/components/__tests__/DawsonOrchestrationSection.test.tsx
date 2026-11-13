@@ -257,5 +257,20 @@ describe('DawsonOrchestrationSection', () => {
     expect(ostinatoSelect).not.toBeDisabled();
     expect(systemSelect).not.toBeDisabled();
     expect(ostinatoSelect.value).toBe('jazz_swing');
+
+    // Triplet pulse feel in 4/4 also suspends Dawson orchestration
+    act(() => {
+      scheduler.setPulseFeel('triplet');
+    });
+    expect(screen.getByText(/4\/4 only/i)).toBeInTheDocument();
+    expect(ostinatoSelect).toBeDisabled();
+    expect(systemSelect).toBeDisabled();
+
+    act(() => {
+      scheduler.setPulseFeel('straight');
+    });
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+    expect(ostinatoSelect).not.toBeDisabled();
+    expect(systemSelect).not.toBeDisabled();
   });
 });

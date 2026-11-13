@@ -44,6 +44,15 @@ export interface TempoRampConfig {
   oscillate: boolean;
 }
 
+export function haveRampParamsChanged(prev: TempoRampConfig, next: TempoRampConfig): boolean {
+  return (
+    next.startBpm !== prev.startBpm ||
+    next.targetBpm !== prev.targetBpm ||
+    next.durationBars !== prev.durationBars ||
+    next.oscillate !== prev.oscillate
+  );
+}
+
 export interface DropoutConfig {
   enabled: boolean;
   probability: number;
@@ -341,11 +350,7 @@ export class MetronomeEngine {
       ...(config.durationBars !== undefined ? { durationBars: clampRampBars(config.durationBars) } : {}),
     };
 
-    const paramsChanged =
-      this.rampConfig.startBpm !== prev.startBpm ||
-      this.rampConfig.targetBpm !== prev.targetBpm ||
-      this.rampConfig.durationBars !== prev.durationBars ||
-      this.rampConfig.oscillate !== prev.oscillate;
+    const paramsChanged = haveRampParamsChanged(prev, this.rampConfig);
 
     if (!wasEnabled && this.rampConfig.enabled) {
       this.preRampTempo = this.tempo;

@@ -30,7 +30,7 @@
 
 - 17 [ x ] on the main Alan Dawson Orchestration view there should not be an edit button, this is not the view for editing ostinatos or formulas. This function should be done only in the modal that opens with the button Manage Systems, Formulas & Ostinatos (removed the Ostinato, Short Formula, and Long Formula Edit buttons and FormulaEditorDialog wiring from DawsonOrchestrationSection; editing remains exclusively inside PresetManager opened via "Manage Systems, Formulas & Ostinatos")
 
-- 18 [ ] The tempo ramp up functionality should have a start bpm and a target bpm, and a checkbox if the tempo stays on the target BPM or if it goes up and down between both BPMS
+- 18 [ x ] The tempo ramp up functionality should have a start bpm and a target bpm, and a checkbox if the tempo stays on the target BPM or if it goes up and down between both BPMS (added explicit Start BPM input, bidirectional linear interpolation, Oscillate Start ↔ Target checkbox with symmetric triangle-wave oscillation and direction/progress readout, manual BPM control lock while active, pre-ramp BPM snapshot/restore on disable, and full metronome reset to measure 0 beat 0 on live ramp parameter edits)
 
 - 19 [ ] Delete from the main Alan Dawnson Orchestration the Button "Audition" from the Ostinato, and from the formulas, they are not needed here.
 

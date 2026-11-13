@@ -5,7 +5,7 @@ A smart rhythm trainer and metronome app combining Alan Dawson drumming interpre
 ## Language
 
 **Reading Line**:
-A single-voice rhythmic melody of notes and rests (inspired by Ted Reed's Syncopation) that serves as an abstract trigger for drum orchestration.
+A single-voice rhythmic melody of notes and rests in 4/4 (inspired by Ted Reed's Syncopation) that serves as an abstract trigger for drum orchestration. Non-destructively suspended (silent, no Playhead) whenever the Metronome is not in 4/4.
 _Avoid_: Drum chart, drum tab, score sheet
 
 **Short Note**:
@@ -17,15 +17,15 @@ A note of longer duration (typically a quarter note or tied note) in the reading
 _Avoid_: Heavy note, quarter
 
 **Ostinato**:
-A persistent, repeating background rhythm layer (modeled as a 4/4 measure of orchestrated drum strokes) played simultaneously with the reading line orchestration, managed and selected independently from the interpretation system.
+A persistent, repeating background rhythm layer (modeled as a 4/4 measure of orchestrated drum strokes) played simultaneously with the reading line orchestration, managed and selected independently from the interpretation system. Non-destructively suspended whenever the Metronome is not in 4/4.
 _Avoid_: Groove, beat, loop
 
 **Dawson System**:
-A paired mapping of a Short Formula and a Long Formula that routes the short and long notes of a reading line onto drum kit voices, operating independently from the selected ostinato.
+A paired mapping of a Short Formula and a Long Formula that routes the short and long notes of a reading line onto drum kit voices, operating independently from the selected ostinato. Non-destructively suspended whenever the Metronome is not in 4/4.
 _Avoid_: Drum preset, rhythm mapping
 
 **Metronome**:
-The precision audio clock and beat generator supporting variable accents, gap clicks, tempo ramps, and stochastic muting.
+The precision audio clock and beat generator supporting arbitrary N/D time signatures with quarter-note = BPM, a selectable pulse feel (Straight = 2 eighth notes / quarter-note pulse, or Triplet = 3 eighth notes / dotted-quarter pulse) where fractional remainder beats wrap at the exact measure boundary, per-pulse muting, gap clicks, tempo ramps, and stochastic muting.
 _Avoid_: Click track, timer
 
 **Sample Bank**:
@@ -49,7 +49,7 @@ The sequence of sub-beat strokes and rests (monophonic hits or stacked unisons l
 _Avoid_: Fill lick, sticking pattern, limb sequence
 
 **Gap Clicks**:
-The subdivision voice's clicks sounding at the even fractions between one beat click and the next, splitting each beat into a chosen number of equal parts; one part means the beat click alone and no gap clicks. Counted in parts, not added clicks: two parts is one click in the gap.
+The subdivision voice's clicks sounding at the even fractions between one pulse click and the next, splitting each pulse into a chosen number of equal parts (suppressed if they fall on or past a truncated measure boundary); one part means the pulse click alone and no gap clicks. Counted in parts, not added clicks: two parts is one click in the gap.
 _Avoid_: Subdivision Formula (the drum-stroke formula this must not be confused with), upbeat, shuffle feel
 
 **Reading View**:
@@ -61,7 +61,7 @@ An individual sounding hit or rest within an orchestration formula defining a sp
 _Avoid_: Drum hit, note event, limb hit
 
 **Mixing Channel**:
-One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — each with its own volume and mute feeding the destination directly. A muted channel produces no sound, without stopping the Metronome or the notation.
+One of the three audibility lanes of the practice output — Click, Ostinato, or Orchestration — feeding the destination directly. Ostinato and Orchestration each have a single volume and mute; Click is shaped independently per voice (Downbeat, Regular, Subdivision) with no master click fader or mute. Silencing a lane or voice produces no sound, without stopping the Metronome or the notation.
 _Avoid_: Track, bus, stem, fader, channel strip
 
 **Audition**:

@@ -36,7 +36,8 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
           } else {
             timeSig = ts;
           }
-          beatMask = Array(timeSig.beats).fill(true);
+          const pulses = Math.max(1, Math.ceil((timeSig.beats * (4 / timeSig.beatUnit) - 1e-9) / 1.0));
+          beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
         }),
         getVolume: vi.fn(() => volume),
         setVolume: vi.fn((v: number) => {
@@ -180,19 +181,34 @@ describe('Metronome Component', () => {
 
     fireEvent.change(numeratorInput, { target: { value: '7' } });
     expect(mockScheduler.setTimeSignature).toHaveBeenCalledWith({ beats: 7, beatUnit: 4 });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(7);
 
     fireEvent.change(denominatorSelect, { target: { value: '8' } });
     expect(mockScheduler.setTimeSignature).toHaveBeenCalledWith({ beats: 7, beatUnit: 8 });
+    // 7/8 Straight -> 4 quarter-note pulse buttons
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(4);
 
-    // Beat display should render 7 beat buttons
-    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(7);
+    // 15/16 Straight -> 4 quarter-note pulse buttons
+    fireEvent.change(numeratorInput, { target: { value: '15' } });
+    fireEvent.change(denominatorSelect, { target: { value: '16' } });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(4);
 
-    // Test large numerator like 21/16
+    // 21/16 Straight -> 6 quarter-note pulse buttons
     fireEvent.change(numeratorInput, { target: { value: '21' } });
     fireEvent.change(denominatorSelect, { target: { value: '16' } });
     expect(mockScheduler.setTimeSignature).toHaveBeenLastCalledWith({ beats: 21, beatUnit: 16 });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(6);
+
+    // 6/8 Straight -> 3 quarter-note pulse buttons
+    fireEvent.change(numeratorInput, { target: { value: '6' } });
+    fireEvent.change(denominatorSelect, { target: { value: '8' } });
+    expect(screen.getAllByRole('button', { name: /beat \d+:/i })).toHaveLength(3);
+
+    // Large pulse count (e.g. 12/4 -> 12 buttons) uses flex-wrap
+    fireEvent.change(numeratorInput, { target: { value: '12' } });
+    fireEvent.change(denominatorSelect, { target: { value: '4' } });
     const beatButtons = screen.getAllByRole('button', { name: /beat \d+:/i });
-    expect(beatButtons).toHaveLength(21);
+    expect(beatButtons).toHaveLength(12);
     expect(beatButtons[0].parentElement?.className).toContain('flex-wrap');
   });
 
@@ -228,13 +244,13 @@ describe('Metronome Component', () => {
       expect(screen.queryByRole('button', { name: /1 only/i })).not.toBeInTheDocument();
     });
 
-    it('allows toggling individual beats in arbitrary time signatures like 7/8', () => {
+    it('allows toggling individual pulse buttons in arbitrary time signatures like 21/16', () => {
       render(<Metronome scheduler={mockScheduler} />);
 
       const numeratorInput = screen.getByLabelText(/time signature numerator/i);
       const denominatorSelect = screen.getByLabelText(/time signature denominator/i);
-      fireEvent.change(numeratorInput, { target: { value: '7' } });
-      fireEvent.change(denominatorSelect, { target: { value: '8' } });
+      fireEvent.change(numeratorInput, { target: { value: '21' } });
+      fireEvent.change(denominatorSelect, { target: { value: '16' } });
 
       const beat6Btn = screen.getByRole('button', { name: /beat 6:/i });
       fireEvent.click(beat6Btn);

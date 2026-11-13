@@ -101,29 +101,47 @@ describe('ToneTransportScheduler', () => {
     expect(mockTransport.scheduleRepeat).toHaveBeenCalledWith(expect.any(Function), '4n');
 
     scheduler.setTimeSignature('7/8');
-    expect(scheduler.getTimeSignature()).toEqual({ beats: 7, beatUnit: 8 });
-    expect(mockTransport.timeSignature).toBe(7);
+    expect(mockTransport.timeSignature).toBe(4);
     expect(mockTransport.clear).toHaveBeenCalledWith(101);
-    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '8n');
+    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '4n');
 
     scheduler.setTimeSignature('15/16');
-    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '16n');
+    expect(mockTransport.timeSignature).toBe(4);
+    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '4n');
 
-    scheduler.setTimeSignature('6/2');
-    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '2n');
+    scheduler.setTimeSignature('21/16');
+    expect(mockTransport.timeSignature).toBe(6);
+    expect(mockTransport.scheduleRepeat).toHaveBeenLastCalledWith(expect.any(Function), '4n');
   });
 
-  it('scales Gap Clicks subdivision timing by beatUnit (quarter-note = BPM)', async () => {
-    // 120 BPM, 7/8 -> beatUnit = 8 -> beatDuration = (4/8) * (60/120) = 0.25s
+  it('subdivides nominal quarter-note pulses for Gap Clicks and clips subdivisions at truncated measure boundaries', async () => {
+    // 120 BPM (quarter = 0.5s), 7/8 -> 4 pulses: 0.5s, 0.5s, 0.5s, 0.25s
+    // With divisions = 4, nominal offsets are +0.125s, +0.25s, +0.375s
     scheduler.setTimeSignature('7/8');
-    scheduler.setClickConfig({ subdivision: { divisions: 2 } });
+    scheduler.setClickConfig({ subdivision: { divisions: 4 } });
     await scheduler.start();
 
+    // Beat 0 (0.5s): all 3 gap clicks fire
     mockClickPlayer.playSubdivision.mockClear();
-    scheduledCallback!(1.0);
+    const next0 = scheduledCallback!(1.0);
+    expect(next0).toBeCloseTo(0.5, 6);
+    expect(mockClickPlayer.playSubdivision.mock.calls.map((c) => Number(c[0].toFixed(4)))).toEqual([
+      1.125,
+      1.25,
+      1.375,
+    ]);
 
-    expect(mockClickPlayer.playSubdivision).toHaveBeenCalledTimes(1);
-    expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.125, expect.any(Number));
+    // Beat 1 & 2
+    scheduledCallback!(1.5);
+    scheduledCallback!(2.0);
+
+    // Beat 3 (truncated to 0.25s): only +0.125s fires; +0.25s and +0.375s are clipped!
+    mockClickPlayer.playSubdivision.mockClear();
+    const next3 = scheduledCallback!(2.5);
+    expect(next3).toBeCloseTo(0.25, 6);
+    expect(mockClickPlayer.playSubdivision.mock.calls.map((c) => Number(c[0].toFixed(4)))).toEqual([
+      2.625,
+    ]);
   });
 
 

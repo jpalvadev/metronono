@@ -11,6 +11,8 @@ export interface BeatEvent {
   isMuted: boolean;
   isDropout: boolean;
   bpm: number;
+  pulseDurationQuarters?: number;
+  nominalPulseQuarters?: number;
 }
 
 export interface ClickVoiceConfig {
@@ -157,14 +159,39 @@ export class MetronomeEngine {
       this.timeSignature = { beats: clampedBeats, beatUnit: validUnit };
     }
 
-    const newBeats = this.timeSignature.beats;
-    if (this.beatMask.length !== newBeats) {
+    this.resizeBeatMask();
+  }
+
+  private resizeBeatMask(): void {
+    const targetCount = this.getPulsesPerMeasure();
+    if (this.beatMask.length !== targetCount) {
       const newMask: boolean[] = [];
-      for (let i = 0; i < newBeats; i++) {
+      for (let i = 0; i < targetCount; i++) {
         newMask.push(this.beatMask[i] ?? true);
       }
       this.beatMask = newMask;
     }
+  }
+
+  public getMeasureQuarterNotes(): number {
+    return this.timeSignature.beats * (4 / this.timeSignature.beatUnit);
+  }
+
+  public getPulseQuarterNotes(): number {
+    return 1.0;
+  }
+
+  public getPulsesPerMeasure(): number {
+    const measureQuarters = this.getMeasureQuarterNotes();
+    const pulseQuarters = this.getPulseQuarterNotes();
+    return Math.max(1, Math.ceil((measureQuarters - 1e-9) / pulseQuarters));
+  }
+
+  public getPulseDurationQuarters(pulseIndex: number): number {
+    const measureQuarters = this.getMeasureQuarterNotes();
+    const nominal = this.getPulseQuarterNotes();
+    const remaining = measureQuarters - pulseIndex * nominal;
+    return Math.max(0, Math.min(nominal, remaining));
   }
 
   // Beat Mask / Mute per beat
@@ -173,8 +200,9 @@ export class MetronomeEngine {
   }
 
   public setBeatMask(mask: boolean[]): void {
-    this.beatMask = mask.slice(0, this.timeSignature.beats);
-    while (this.beatMask.length < this.timeSignature.beats) {
+    const targetCount = this.getPulsesPerMeasure();
+    this.beatMask = mask.slice(0, targetCount);
+    while (this.beatMask.length < targetCount) {
       this.beatMask.push(true);
     }
   }
@@ -259,7 +287,7 @@ export class MetronomeEngine {
     if (!this.rampConfig.enabled || measureIndex < 0) {
       return this.tempo;
     }
-    const beatsPerBar = this.timeSignature.beats;
+    const beatsPerBar = this.getPulsesPerMeasure();
     const totalBeats = this.rampConfig.durationBars * beatsPerBar;
     if (totalBeats <= 0) {
       return this.rampConfig.targetBpm;
@@ -278,7 +306,7 @@ export class MetronomeEngine {
     currentBpm: number;
     isComplete: boolean;
   } {
-    const beatsPerBar = this.timeSignature.beats;
+    const beatsPerBar = this.getPulsesPerMeasure();
     const totalBeats = Math.max(1, this.rampConfig.durationBars * beatsPerBar);
     const currentBeat = Math.max(0, measureIndex * beatsPerBar + beatIndex);
     const progress = Math.min(1, currentBeat / totalBeats);
@@ -340,12 +368,13 @@ export class MetronomeEngine {
   }
 
   public nextBeat(): BeatEvent {
+    const pulsesPerMeasure = this.getPulsesPerMeasure();
     if (this.currentBeatIndex === -1) {
       this.currentMeasureIndex = 0;
       this.currentBeatIndex = 0;
     } else {
       this.currentBeatIndex++;
-      if (this.currentBeatIndex >= this.timeSignature.beats) {
+      if (this.currentBeatIndex >= pulsesPerMeasure) {
         this.currentBeatIndex = 0;
         this.currentMeasureIndex++;
       }
@@ -363,11 +392,13 @@ export class MetronomeEngine {
     return {
       beatIndex: this.currentBeatIndex,
       isDownbeat: this.currentBeatIndex === 0,
-      beatsPerMeasure: this.timeSignature.beats,
+      beatsPerMeasure: pulsesPerMeasure,
       measureIndex: this.currentMeasureIndex,
       isMuted,
       isDropout,
       bpm: this.tempo,
+      pulseDurationQuarters: this.getPulseDurationQuarters(this.currentBeatIndex),
+      nominalPulseQuarters: this.getPulseQuarterNotes(),
     };
   }
 

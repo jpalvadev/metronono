@@ -218,14 +218,13 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
         <div
           className={cn(
             'flex flex-wrap justify-center items-center py-1',
-            timeSignature.beats > 8 ? 'gap-1.5' : 'gap-2'
+            beatMask.length > 8 ? 'gap-1.5' : 'gap-2'
           )}
         >
-          {Array.from({ length: timeSignature.beats }).map((_, idx) => {
+          {beatMask.map((isBeatAudible, idx) => {
             const isDownbeat = idx === 0;
             const isActiveBeat = activeBeat === idx;
-            const isBeatAudible = beatMask[idx] ?? true;
-            const isCompact = timeSignature.beats > 8;
+            const isCompact = beatMask.length > 8;
 
             return (
               <button

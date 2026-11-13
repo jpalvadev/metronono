@@ -20,7 +20,7 @@ export interface IAudioClockTransport {
   state: 'started' | 'stopped' | 'paused';
   start(time?: number): this;
   stop(time?: number): this;
-  scheduleRepeat(callback: (time: number) => void, interval: string, startTime?: number): number;
+  scheduleRepeat(callback: (time: number) => number | void, interval: string, startTime?: number): number;
   clear(eventId: number): this;
 }
 

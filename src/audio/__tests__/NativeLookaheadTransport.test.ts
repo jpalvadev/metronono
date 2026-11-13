@@ -114,4 +114,53 @@ describe('NativeLookaheadTransport', () => {
     }
     expect(SCHEDULE_AHEAD_SEC).toBe(0.1);
   });
+
+  it('supports variable-interval scheduling when scheduleRepeat callback returns next interval in seconds', () => {
+    const transport = new NativeLookaheadTransport();
+    transport.bpm.value = 120;
+    const firedTimes: number[] = [];
+    const intervals = [0.5, 0.5, 0.5, 0.375];
+    let step = 0;
+
+    transport.scheduleRepeat((time) => {
+      firedTimes.push(Number(time.toFixed(4)));
+      return intervals[step++ % intervals.length];
+    }, '4n');
+
+    transport.start();
+    expect(firedTimes).toEqual([0]);
+
+    for (let t = 0; t < 24; t++) {
+      fakeCtx().advanceTime(0.1);
+      vi.advanceTimersByTime(LOOKAHEAD_INTERVAL_MS);
+    }
+
+    expect(firedTimes.slice(0, 6)).toEqual([0, 0.5, 1, 1.5, 1.875, 2.375]);
+    transport.stop();
+  });
+
+  it('schedules 15/16 Straight at 120 BPM at 0.0, 0.5, 1.0, 1.5, 1.875, 2.375 via ToneTransportScheduler', async () => {
+    const engine = new MetronomeEngine(120, '15/16');
+    const scheduledTimes: number[] = [];
+    const mockClickPlayer = {
+      play: vi.fn((_isDownbeat: boolean, time: number) => {
+        scheduledTimes.push(Number(time.toFixed(4)));
+      }),
+      playSubdivision: vi.fn(),
+    };
+
+    const scheduler = new ToneTransportScheduler({
+      engine,
+      clickPlayer: mockClickPlayer,
+    });
+
+    await scheduler.start();
+    for (let t = 0; t < 24; t++) {
+      fakeCtx().advanceTime(0.1);
+      vi.advanceTimersByTime(LOOKAHEAD_INTERVAL_MS);
+    }
+
+    expect(scheduledTimes.slice(0, 6)).toEqual([0, 0.5, 1, 1.5, 1.875, 2.375]);
+    scheduler.stop();
+  });
 });

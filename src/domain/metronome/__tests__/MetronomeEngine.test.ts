@@ -95,20 +95,38 @@ describe('MetronomeEngine', () => {
       expect(wrap.isDownbeat).toBe(true);
     });
 
-    it('supports arbitrary N/D time signatures like 7/8, 15/16, 21/16, 6/4, 5/8, 10/16, and 5/4', () => {
-      for (const [sig, expected] of [
-        ['7/8', { beats: 7, beatUnit: 8 }],
-        ['15/16', { beats: 15, beatUnit: 16 }],
-        ['21/16', { beats: 21, beatUnit: 16 }],
-        ['6/4', { beats: 6, beatUnit: 4 }],
-        ['5/8', { beats: 5, beatUnit: 8 }],
-        ['10/16', { beats: 10, beatUnit: 16 }],
-        ['5/4', { beats: 5, beatUnit: 4 }],
+    it('supports arbitrary N/D time signatures and computes quarter-note pulse counts', () => {
+      for (const [sig, expected, expectedPulses] of [
+        ['7/8', { beats: 7, beatUnit: 8 }, 4],
+        ['15/16', { beats: 15, beatUnit: 16 }, 4],
+        ['21/16', { beats: 21, beatUnit: 16 }, 6],
+        ['6/4', { beats: 6, beatUnit: 4 }, 6],
+        ['5/8', { beats: 5, beatUnit: 8 }, 3],
+        ['10/16', { beats: 10, beatUnit: 16 }, 3],
+        ['5/4', { beats: 5, beatUnit: 4 }, 5],
+        ['6/8', { beats: 6, beatUnit: 8 }, 3],
       ] as const) {
         engine.setTimeSignature(sig);
         expect(engine.getTimeSignature()).toEqual(expected);
-        expect(engine.getBeatMask()).toHaveLength(expected.beats);
+        expect(engine.getPulsesPerMeasure()).toBe(expectedPulses);
+        expect(engine.getBeatMask()).toHaveLength(expectedPulses);
       }
+    });
+
+    it('computes per-pulse durations with fractional remainders on the final pulse', () => {
+      engine.setTimeSignature('15/16');
+      expect([0, 1, 2, 3].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1, 1, 1, 0.75]);
+
+      engine.setTimeSignature('7/8');
+      expect([0, 1, 2, 3].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1, 1, 1, 0.5]);
+
+      engine.setTimeSignature('21/16');
+      expect([0, 1, 2, 3, 4, 5].map((i) => engine.getPulseDurationQuarters(i))).toEqual([
+        1, 1, 1, 1, 1, 0.25,
+      ]);
+
+      engine.setTimeSignature('6/8');
+      expect([0, 1, 2].map((i) => engine.getPulseDurationQuarters(i))).toEqual([1, 1, 1]);
     });
 
     it('clamps numerator beats to integer 1-32 and restricts beatUnit to 2, 4, 8, 16', () => {
@@ -129,16 +147,16 @@ describe('MetronomeEngine', () => {
       expect(engine.getTimeSignature()).toEqual({ beats: 7, beatUnit: 2 });
     });
 
-    it('preserves existing beatMask entries when expanding or truncating beats', () => {
+    it('preserves existing beatMask entries when expanding or truncating pulses', () => {
       engine.setTimeSignature('4/4');
       engine.setBeatMask([true, false, true, false]);
 
-      // Expand 4 -> 7: preserves first 4, pads new beats with true
-      engine.setTimeSignature('7/8');
-      expect(engine.getBeatMask()).toEqual([true, false, true, false, true, true, true]);
+      // Expand 4 -> 6 pulses (21/16): preserves first 4, pads new pulses with true
+      engine.setTimeSignature('21/16');
+      expect(engine.getBeatMask()).toEqual([true, false, true, false, true, true]);
 
-      // Truncate 7 -> 3: preserves first 3
-      engine.setTimeSignature('3/4');
+      // Truncate 6 -> 3 pulses (6/8): preserves first 3
+      engine.setTimeSignature('6/8');
       expect(engine.getBeatMask()).toEqual([true, false, true]);
     });
   });
@@ -464,6 +482,18 @@ describe('MetronomeEngine', () => {
         expect(beat.isMuted).toBe(true);
         expect(beat.beatIndex).toBe(i); // timing and playhead indices still advance accurately!
       }
+    });
+
+    it('wraps nextBeat on pulse count and emits pulseDurationQuarters for odd meters like 15/16', () => {
+      engine.setTimeSignature('15/16');
+      engine.reset();
+
+      const events = [engine.nextBeat(), engine.nextBeat(), engine.nextBeat(), engine.nextBeat(), engine.nextBeat()];
+      expect(events.map((e) => e.beatIndex)).toEqual([0, 1, 2, 3, 0]);
+      expect(events.map((e) => e.measureIndex)).toEqual([0, 0, 0, 0, 1]);
+      expect(events.map((e) => e.beatsPerMeasure)).toEqual([4, 4, 4, 4, 4]);
+      expect(events.map((e) => e.pulseDurationQuarters)).toEqual([1, 1, 1, 0.75, 1]);
+      expect(events.map((e) => e.nominalPulseQuarters)).toEqual([1, 1, 1, 1, 1]);
     });
 
     it('dynamically updates bpm in nextBeat when tempo ramp is active', () => {

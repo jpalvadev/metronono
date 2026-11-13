@@ -6,7 +6,7 @@ export const SCHEDULE_AHEAD_SEC = 0.1;
 
 interface ScheduledRepeat {
   id: number;
-  callback: (time: number) => void;
+  callback: (time: number) => number | void;
   beatUnit: number;
   nextNoteTime: number;
 }
@@ -59,7 +59,7 @@ export class NativeLookaheadTransport implements IAudioClockTransport {
   }
 
   public scheduleRepeat(
-    callback: (time: number) => void,
+    callback: (time: number) => number | void,
     interval: string,
     startTime?: number
   ): number {
@@ -95,11 +95,17 @@ export class NativeLookaheadTransport implements IAudioClockTransport {
 
       while (this.state === 'started' && repeat.nextNoteTime < horizon) {
         const scheduledTime = repeat.nextNoteTime;
-        repeat.callback(scheduledTime);
+        const customIntervalSec = repeat.callback(scheduledTime);
 
         const safeBpm = Math.max(1, this.bpm.value || 120);
-        const beatDurationSec = (4 / repeat.beatUnit) * (60 / safeBpm);
-        repeat.nextNoteTime += beatDurationSec;
+        const defaultBeatDurationSec = (4 / repeat.beatUnit) * (60 / safeBpm);
+        const stepSec =
+          typeof customIntervalSec === 'number' &&
+          Number.isFinite(customIntervalSec) &&
+          customIntervalSec > 0
+            ? customIntervalSec
+            : defaultBeatDurationSec;
+        repeat.nextNoteTime += stepSec;
       }
     });
   }

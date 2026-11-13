@@ -287,7 +287,7 @@ export class ToneTransportScheduler {
       await resumeAudioContext().catch(() => {});
       const nativeTransport = new NativeLookaheadTransport();
       nativeTransport.bpm.value = this.engine.getTempo();
-      nativeTransport.timeSignature = this.engine.getTimeSignature().beats;
+      nativeTransport.timeSignature = this.engine.getPulsesPerMeasure();
       this.transport = nativeTransport;
     }
 
@@ -342,7 +342,7 @@ export class ToneTransportScheduler {
     const newTs = this.engine.getTimeSignature();
     this.buildMeasurePlans();
     if (this.transport) {
-      this.transport.timeSignature = newTs.beats;
+      this.transport.timeSignature = this.engine.getPulsesPerMeasure();
       if (this.playing) {
         this.reschedule();
       }
@@ -739,8 +739,7 @@ export class ToneTransportScheduler {
       this.buildMeasurePlans();
     }
 
-    const { beatUnit } = this.engine.getTimeSignature();
-    const beatInterval = `${beatUnit}n`;
+    const beatInterval = '4n';
     this.scheduledEventId = this.transport.scheduleRepeat((time: number) => {
       const beatEvent = this.engine.nextBeat();
 
@@ -749,9 +748,11 @@ export class ToneTransportScheduler {
         this.transport.bpm.value = beatEvent.bpm;
       }
 
-      // A beat's length at the tempo this beat arrived at, shared by the gap clicks
-      // and the drum events so both land on the same audio-clock instant.
-      const beatDuration = (4 / beatUnit) * (60 / beatEvent.bpm);
+      // Nominal pulse length (for Gap Clicks and 4/4 drum events) and actual pulse
+      // length (truncated on fractional-remainder final pulses so bars wrap cleanly).
+      const secondsPerQuarter = 60 / beatEvent.bpm;
+      const nominalDuration = (beatEvent.nominalPulseQuarters ?? 1) * secondsPerQuarter;
+      const actualDuration = (beatEvent.pulseDurationQuarters ?? 1) * secondsPerQuarter;
 
       // Audio click gating: silenced if beat is muted by mask or in dropout mode!
       if (this.clickPlayer && !beatEvent.isMuted) {
@@ -763,8 +764,8 @@ export class ToneTransportScheduler {
           this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume);
         }
 
-        // Gap clicks: the subdivision voice heard at the even fractions of the beat,
-        // splitting it into parts. One part means the beat click alone.
+        // Gap clicks: the subdivision voice heard at the even fractions of the nominal
+        // pulse, clipped if an offset falls on or past a truncated measure boundary.
         const divisions = Math.max(1, Math.floor(clickConfig.subdivision.divisions ?? 1));
         if (
           this.clickPlayer.playSubdivision &&
@@ -773,10 +774,13 @@ export class ToneTransportScheduler {
           clickConfig.subdivision.volume > 0
         ) {
           for (let gap = 1; gap < divisions; gap++) {
-            this.clickPlayer.playSubdivision(
-              time + (gap / divisions) * beatDuration,
-              clickConfig.subdivision.volume
-            );
+            const gapOffset = (gap / divisions) * nominalDuration;
+            if (gapOffset < actualDuration - 1e-9) {
+              this.clickPlayer.playSubdivision(
+                time + gapOffset,
+                clickConfig.subdivision.volume
+              );
+            }
           }
         }
       }
@@ -792,7 +796,7 @@ export class ToneTransportScheduler {
 
           for (const drumEvent of beatEvents) {
             const subOffset = drumEvent.timeInMeasure - b;
-            const eventTime = time + subOffset * beatDuration;
+            const eventTime = time + subOffset * nominalDuration;
 
             this.drumKitPlayer.play(drumEvent, eventTime);
           }
@@ -809,6 +813,8 @@ export class ToneTransportScheduler {
           }
         }, time);
       }
+
+      return actualDuration;
     }, beatInterval);
   }
 }

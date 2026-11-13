@@ -8,6 +8,14 @@ A smart rhythm trainer and metronome app combining Alan Dawson drumming interpre
 A single-voice rhythmic melody of notes and rests in 4/4 (inspired by Ted Reed's Syncopation) that serves as an abstract trigger for drum orchestration. Non-destructively suspended (silent, no Playhead) whenever the Metronome is not in 4/4.
 _Avoid_: Drum chart, drum tab, score sheet
 
+**Reading Feel**:
+A rhythmic interpretation mode for the Reading Line in 4/4 (`straight` or `swing`) determining whether eighth-note upbeats trigger evenly at half-beats (+0.5) or swung on the third triplet (+2/3), independent of the Metronome's pulse feel.
+_Avoid_: Shuffle mode, groove feel, metronome feel
+
+**Swung Eighths**:
+The jazz triplet interpretation of written 4/4 eighth notes where downbeats sound at whole beats (0, 1, 2, 3) and upbeats sound at the third triplet (+2/3), aligning with the jazz ride cymbal ostinato while preserving standard 4/4 notation.
+_Avoid_: Triplet notation, compound meter, shuffle feel
+
 **Short Note**:
 A note of shorter duration (typically an eighth note) in the reading line interpreted by a rapid drum voice such as the snare drum.
 _Avoid_: Fast note, eighth

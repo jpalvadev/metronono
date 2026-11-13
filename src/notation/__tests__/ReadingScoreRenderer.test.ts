@@ -908,4 +908,23 @@ describe('ReadingScoreRenderer', () => {
       expect(m.x + m.width).toBeLessThanOrEqual(200);
     }
   });
+
+  it('selects 4, 3, 2, 1 measures per system across >=960, 720-959, 460-719, and <460 breakpoints', () => {
+    const measures = Array.from({ length: 8 }, (_, i) => createTestMeasure(i, [1, 1, 1, 1]));
+    const readingLine: ReadingLine = {
+      id: 'test-breakpoints',
+      title: 'Responsive Breakpoints',
+      tier: 1,
+      measures,
+    };
+
+    const renderer = new ReadingScoreRenderer();
+
+    expect(renderer.render(container, readingLine, { width: 960 }).systemCount).toBe(2); // 4 per row
+    expect(renderer.render(container, readingLine, { width: 959 }).systemCount).toBe(3); // 3 per row
+    expect(renderer.render(container, readingLine, { width: 720 }).systemCount).toBe(3); // 3 per row
+    expect(renderer.render(container, readingLine, { width: 719 }).systemCount).toBe(4); // 2 per row
+    expect(renderer.render(container, readingLine, { width: 460 }).systemCount).toBe(4); // 2 per row
+    expect(renderer.render(container, readingLine, { width: 459 }).systemCount).toBe(8); // 1 per row
+  });
 });

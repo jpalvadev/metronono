@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { ReadingView } from '../ReadingView';
 import { ReadingLine, createRhythmicEvent } from '../../../domain/rhythm/types';
 import { BeatEvent } from '../../../domain/metronome/MetronomeEngine';
@@ -200,6 +200,58 @@ describe('ReadingView', () => {
       const svg = screen.getByTestId('reading-score-container').querySelector('svg');
       expect(svg).toBeTruthy();
       expect(Number(svg?.getAttribute('width'))).toBeLessThanOrEqual(260);
+    } finally {
+      clientWidthSpy.mockRestore();
+    }
+  });
+
+  it('renders Auto | 1 | 2 | 3 | 4 column selector defaulting to Auto', () => {
+    const line = createDummyLine(4);
+    render(<ReadingView readingLine={line} />);
+
+    const autoBtn = screen.getByRole('button', { name: 'Auto' });
+    const btn1 = screen.getByRole('button', { name: '1' });
+    const btn2 = screen.getByRole('button', { name: '2' });
+    const btn3 = screen.getByRole('button', { name: '3' });
+    const btn4 = screen.getByRole('button', { name: '4' });
+
+    expect(autoBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(btn1).toHaveAttribute('aria-pressed', 'false');
+    expect(btn2).toHaveAttribute('aria-pressed', 'false');
+    expect(btn3).toHaveAttribute('aria-pressed', 'false');
+    expect(btn4).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(btn3);
+    expect(btn3).toHaveAttribute('aria-pressed', 'true');
+    expect(autoBtn).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(autoBtn);
+    expect(autoBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(btn3).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('clamps manual column selection to the maximum columns supported by the current width', () => {
+    const getDistinctSystemRowCount = () => {
+      const paths = document.querySelectorAll('g[class="vf-stave"] > path');
+      const ys = new Set<string>();
+      paths.forEach((p) => {
+        const match = (p.getAttribute('d') ?? '').match(/^M\s*-?\d+(?:\.\d+)?\s+(-?\d+(?:\.\d+)?)/);
+        if (match) ys.add(match[1]);
+      });
+      return ys.size;
+    };
+
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400);
+    try {
+      const line = createDummyLine(4);
+      render(<ReadingView readingLine={line} />);
+
+      // At 400px (< 460px), max columns is 1 -> 4 systems for 4 measures
+      expect(getDistinctSystemRowCount()).toBe(4);
+
+      // Selecting 4 columns must clamp to 1 at 400px width
+      fireEvent.click(screen.getByRole('button', { name: '4' }));
+      expect(getDistinctSystemRowCount()).toBe(4);
     } finally {
       clientWidthSpy.mockRestore();
     }

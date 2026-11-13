@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { ReadingLine, ReadingFeel } from '../../domain/rhythm/types';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
 import { BeatEvent } from '../../domain/metronome/MetronomeEngine';
-import { ReadingScoreRenderer } from '../../notation/ReadingScoreRenderer';
+import { ReadingScoreRenderer, getAutoMeasuresPerSystem } from '../../notation/ReadingScoreRenderer';
 import { ScoreLayout, PlayheadPosition, MeasureCoordinate } from '../../notation/types';
 import { PlayheadOverlay } from './PlayheadOverlay';
 import { Badge } from '../ui/badge';
@@ -131,14 +131,18 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     };
   }, []);
 
-  // Render score notation whenever readingLine, containerWidth, systemCols, or readingFeel change
+  const maxColsForWidth = getAutoMeasuresPerSystem(containerWidth);
+  const effectiveMeasuresPerSystem =
+    systemCols !== undefined ? Math.min(systemCols, maxColsForWidth) : undefined;
+
+  // Render score notation whenever readingLine, containerWidth, effectiveMeasuresPerSystem, or readingFeel change
   useEffect(() => {
     if (!containerRef.current) return;
 
     try {
       const newLayout = renderer.render(containerRef.current, readingLine, {
         width: containerWidth,
-        measuresPerSystem: systemCols,
+        measuresPerSystem: effectiveMeasuresPerSystem,
         staveSpacing: 110,
         showMeasureNumbers: true,
         readingFeel,
@@ -147,7 +151,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     } catch (err) {
       console.error('Error rendering reading score:', err);
     }
-  }, [renderer, readingLine, containerWidth, systemCols, readingFeel]);
+  }, [renderer, readingLine, containerWidth, effectiveMeasuresPerSystem, readingFeel]);
 
   // Subscribe to scheduler's beat events
   useEffect(() => {
@@ -282,32 +286,28 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           {/* Stave columns / measures per line selector */}
           <div className="hidden sm:flex items-center gap-1 border border-border rounded-none p-0.5 bg-muted/20">
             <Button
-              variant={systemCols === 1 ? 'secondary' : 'ghost'}
+              variant={systemCols === undefined ? 'secondary' : 'ghost'}
               size="sm"
               className="h-6 px-2 text-[11px] rounded-none"
-              onClick={() => setSystemCols(1)}
-              title="1 measure per line"
+              aria-pressed={systemCols === undefined}
+              onClick={() => setSystemCols(undefined)}
+              title="Automatic measures per line"
             >
-              1
+              Auto
             </Button>
-            <Button
-              variant={systemCols === 2 ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[11px] rounded-none"
-              onClick={() => setSystemCols(2)}
-              title="2 measures per line"
-            >
-              2
-            </Button>
-            <Button
-              variant={systemCols === 4 ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[11px] rounded-none"
-              onClick={() => setSystemCols(4)}
-              title="4 measures per line"
-            >
-              4
-            </Button>
+            {[1, 2, 3, 4].map((cols) => (
+              <Button
+                key={cols}
+                variant={systemCols === cols ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 px-2 text-[11px] rounded-none"
+                aria-pressed={systemCols === cols}
+                onClick={() => setSystemCols(cols)}
+                title={`${cols} ${cols === 1 ? 'measure' : 'measures'} per line`}
+              >
+                {cols}
+              </Button>
+            ))}
           </div>
         </div>
       </div>

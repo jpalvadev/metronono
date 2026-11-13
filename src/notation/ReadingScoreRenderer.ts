@@ -78,6 +78,13 @@ function getVexFlowDuration(event: RhythmicEvent): { durationKey: string; isDott
   }
 }
 
+export function getAutoMeasuresPerSystem(width: number): number {
+  if (width >= 960) return 4;
+  if (width >= 720) return 3;
+  if (width >= 460) return 2;
+  return 1;
+}
+
 export class ReadingScoreRenderer {
   constructor() {
     // Ensure Bravura font is default if supported
@@ -110,13 +117,7 @@ export class ReadingScoreRenderer {
 
     let measuresPerSystem = options.measuresPerSystem;
     if (!measuresPerSystem || measuresPerSystem <= 0) {
-      if (width < 460) {
-        measuresPerSystem = 1;
-      } else if (width < 720) {
-        measuresPerSystem = 2;
-      } else {
-        measuresPerSystem = 4;
-      }
+      measuresPerSystem = getAutoMeasuresPerSystem(width);
     }
 
     const cols = Math.max(1, Math.min(measuresPerSystem, totalMeasures || 1));

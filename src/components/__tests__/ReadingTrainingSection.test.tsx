@@ -85,4 +85,33 @@ describe('ReadingTrainingSection', () => {
 
     expect(screen.getByRole('heading', { name: /Page 38 \(Exercise Two\)/i })).toBeInTheDocument();
   });
+
+  it('disables Reading Training controls with "4/4 only" indicator in non-4/4 meters and restores preserved line on return to 4/4', async () => {
+    const { ToneTransportScheduler } = await import('../../audio/ToneTransportScheduler');
+    const { act } = await import('@testing-library/react');
+    const scheduler = new ToneTransportScheduler();
+
+    render(<ReadingTrainingSection scheduler={scheduler} />);
+
+    const libraryTabBtn = screen.getByRole('button', { name: /ted reed library/i });
+    fireEvent.click(libraryTabBtn);
+    fireEvent.click(screen.getByRole('button', { name: /page 38/i }));
+    expect(screen.getByRole('heading', { name: /Page 38 \(Exercise Two\)/i })).toBeInTheDocument();
+
+    act(() => {
+      scheduler.setTimeSignature('7/8');
+    });
+
+    expect(screen.getAllByText(/4\/4 only/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: /procedural generator/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /page 38/i })).toBeDisabled();
+
+    act(() => {
+      scheduler.setTimeSignature('4/4');
+    });
+
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /procedural generator/i })).not.toBeDisabled();
+    expect(screen.getByRole('heading', { name: /Page 38 \(Exercise Two\)/i })).toBeInTheDocument();
+  });
 });

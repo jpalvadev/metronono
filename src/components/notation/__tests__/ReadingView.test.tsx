@@ -131,4 +131,50 @@ describe('ReadingView', () => {
 
     expect(screen.getByTestId('reading-view-root')).toBeInTheDocument();
   });
+
+  it('suppresses Playhead and shows "4/4 only" indicator when time signature is not 4/4, restoring on return to 4/4', () => {
+    const line = createDummyLine(4);
+    let timeSigCallback: ((ts: { beats: number; beatUnit: number }) => void) | null = null;
+    let currentTs = { beats: 4, beatUnit: 4 };
+
+    const mockScheduler = {
+      isPlaying: () => true,
+      getTempo: () => 120,
+      getTimeSignature: () => currentTs,
+      onBeat: vi.fn(() => () => {}),
+      onTimeSignatureChange: vi.fn((cb) => {
+        timeSigCallback = cb;
+        return () => {
+          timeSigCallback = null;
+        };
+      }),
+    };
+
+    render(
+      <ReadingView
+        readingLine={line}
+        scheduler={mockScheduler as any}
+        isPlaying={true}
+      />
+    );
+
+    expect(screen.getByTestId('playhead-cursor')).toBeInTheDocument();
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+
+    act(() => {
+      currentTs = { beats: 7, beatUnit: 8 };
+      timeSigCallback?.(currentTs);
+    });
+
+    expect(screen.getByText(/4\/4 only/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('playhead-cursor')).not.toBeInTheDocument();
+
+    act(() => {
+      currentTs = { beats: 4, beatUnit: 4 };
+      timeSigCallback?.(currentTs);
+    });
+
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('playhead-cursor')).toBeInTheDocument();
+  });
 });

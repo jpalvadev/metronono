@@ -48,17 +48,29 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
   const [activeSystemId, setActiveSystemId] = useState<string>(() => engine.getSystem()?.id ?? 'snare_and_kick');
   const [shortFormula, setShortFormula] = useState<SubdivisionFormula>(() => engine.getShortFormula());
   const [longFormula, setLongFormula] = useState<SubdivisionFormula>(() => engine.getLongFormula());
+  const [timeSignature, setTimeSignature] = useState(() =>
+    scheduler.getTimeSignature?.() ?? { beats: 4, beatUnit: 4 }
+  );
 
-  // Listen to engine changes
+  const isFourFour = timeSignature.beats === 4 && timeSignature.beatUnit === 4;
+
+  // Listen to engine and scheduler time signature changes
   useEffect(() => {
-    return engine.onChange(() => {
+    const unsubEngine = engine.onChange(() => {
       setOstinato(engine.getOstinato());
       const sys = engine.getSystem();
       setActiveSystemId(sys ? sys.id : 'none');
       setShortFormula(engine.getShortFormula());
       setLongFormula(engine.getLongFormula());
     });
-  }, [engine]);
+    const unsubTimeSig = scheduler.onTimeSignatureChange?.((ts) => {
+      setTimeSignature(ts);
+    });
+    return () => {
+      unsubEngine();
+      unsubTimeSig?.();
+    };
+  }, [engine, scheduler]);
 
   // Modal dialog states
   const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
@@ -258,6 +270,11 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
               <Badge variant="outline" className="text-[10px] font-mono rounded-none">
                 Tone.js
               </Badge>
+              {!isFourFour && (
+                <Badge variant="outline" className="text-[10px] font-mono border-warning text-warning bg-warning/10 rounded-none">
+                  4/4 only · Suspended
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               Dynamic voice routing over continuous ostinatos
@@ -269,6 +286,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
           type="button"
           variant="outline"
           size="sm"
+          disabled={!isFourFour}
           onClick={() => setIsPresetManagerOpen(true)}
           className="h-7 text-xs border-border gap-1.5 rounded-none self-start sm:self-auto"
         >
@@ -278,7 +296,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
       </div>
 
       {/* Two-Column Responsive Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={cn('grid grid-cols-1 lg:grid-cols-2 gap-4', !isFourFour && 'opacity-60')}>
         {/* Left Column: Ostinato */}
         <div className="flex flex-col gap-3 p-3.5 rounded-none border border-border bg-card shadow-xs">
           <div className="flex flex-col gap-1.5">
@@ -288,9 +306,10 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             </label>
             <select
               data-testid="ostinato-select"
+              disabled={!isFourFour}
               value={ostinato}
               onChange={(e) => handleOstinatoChange(e.target.value as OstinatoType)}
-              className="w-full bg-background border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+              className="w-full bg-background border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium disabled:cursor-not-allowed"
             >
               <option value="none">Ninguno</option>
               <optgroup label="Presets de Fábrica">
@@ -328,7 +347,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 data-testid="ostinato-audition-btn"
                 variant="ghost"
                 size="sm"
-                disabled={ostinato === 'none'}
+                disabled={!isFourFour || ostinato === 'none'}
                 onClick={handleAuditionOstinato}
                 className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
               >
@@ -339,6 +358,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                 data-testid="ostinato-edit-btn"
                 variant="outline"
                 size="sm"
+                disabled={!isFourFour}
                 onClick={handleEditOstinato}
                 className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
               >
@@ -357,9 +377,10 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
             </label>
             <select
               data-testid="system-select"
+              disabled={!isFourFour}
               value={activeSystemId}
               onChange={(e) => handleSelectSystemId(e.target.value)}
-              className="w-full bg-background border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+              className="w-full bg-background border border-border rounded-none px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium disabled:cursor-not-allowed"
             >
               <option value="none">Ninguno</option>
               <optgroup label="Sistemas de Fábrica">
@@ -412,7 +433,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   type="button"
                   variant="ghost"
                   size="sm"
-                  disabled={activeSystemId === 'none'}
+                  disabled={!isFourFour || activeSystemId === 'none'}
                   onClick={() => handleAuditionFormula(shortFormula)}
                   className="h-6 px-2 text-[11px] text-primary gap-1 rounded-none"
                 >
@@ -422,7 +443,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={activeSystemId === 'none'}
+                  disabled={!isFourFour || activeSystemId === 'none'}
                   onClick={() => handleOpenFormulaEditor(shortFormula, 'short')}
                   className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
                 >
@@ -454,7 +475,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   type="button"
                   variant="ghost"
                   size="sm"
-                  disabled={activeSystemId === 'none'}
+                  disabled={!isFourFour || activeSystemId === 'none'}
                   onClick={() => handleAuditionFormula(longFormula)}
                   className="h-6 px-2 text-[11px] text-destructive gap-1 rounded-none"
                 >
@@ -464,7 +485,7 @@ export const DawsonOrchestrationSection: React.FC<DawsonOrchestrationSectionProp
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={activeSystemId === 'none'}
+                  disabled={!isFourFour || activeSystemId === 'none'}
                   onClick={() => handleOpenFormulaEditor(longFormula, 'long')}
                   className="h-6 px-2 text-[11px] border-border gap-1 rounded-none"
                 >

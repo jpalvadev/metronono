@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { DawsonOrchestrationSection } from '../DawsonOrchestrationSection';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
 import { AudioMixer } from '../../audio/AudioMixer';
@@ -228,5 +228,34 @@ describe('DawsonOrchestrationSection', () => {
     fireEvent.click(editBtns[1]); // Short formula edit button
 
     expect(screen.getByText(/Subdivision Formula Editor/i)).toBeInTheDocument();
+  });
+
+  it('suspends controls with a "4/4 only" indicator in non-4/4 meters and preserves selections on return to 4/4', () => {
+    const scheduler = new ToneTransportScheduler();
+    render(<DawsonOrchestrationSection scheduler={scheduler} />);
+
+    const ostinatoSelect = screen.getByTestId('ostinato-select') as HTMLSelectElement;
+    const systemSelect = screen.getByTestId('system-select') as HTMLSelectElement;
+    fireEvent.change(ostinatoSelect, { target: { value: 'jazz_swing' } });
+    expect(ostinatoSelect.value).toBe('jazz_swing');
+
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+
+    act(() => {
+      scheduler.setTimeSignature('7/8');
+    });
+
+    expect(screen.getByText(/4\/4 only/i)).toBeInTheDocument();
+    expect(ostinatoSelect).toBeDisabled();
+    expect(systemSelect).toBeDisabled();
+
+    act(() => {
+      scheduler.setTimeSignature('4/4');
+    });
+
+    expect(screen.queryByText(/4\/4 only/i)).not.toBeInTheDocument();
+    expect(ostinatoSelect).not.toBeDisabled();
+    expect(systemSelect).not.toBeDisabled();
+    expect(ostinatoSelect.value).toBe('jazz_swing');
   });
 });

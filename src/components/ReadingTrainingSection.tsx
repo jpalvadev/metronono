@@ -9,6 +9,7 @@ import {
 import { ReadingView } from './notation/ReadingView';
 import { ToneTransportScheduler } from '../audio/ToneTransportScheduler';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Wand2, BookOpen, RotateCw, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -59,6 +60,18 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
 
   const activeLine = mode === 'generator' ? proceduralLine : libraryLine;
 
+  const [timeSignature, setTimeSignature] = useState(() =>
+    scheduler?.getTimeSignature?.() ?? { beats: 4, beatUnit: 4 }
+  );
+  const isFourFour = timeSignature.beats === 4 && timeSignature.beatUnit === 4;
+
+  useEffect(() => {
+    if (!scheduler?.onTimeSignatureChange) return;
+    return scheduler.onTimeSignatureChange((ts) => {
+      setTimeSignature(ts);
+    });
+  }, [scheduler]);
+
   useEffect(() => {
     if (scheduler?.setReadingLine) {
       scheduler.setReadingLine(activeLine);
@@ -78,9 +91,19 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
             {mode === 'generator' ? <Wand2 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground tracking-tight">
-              Single-Line Reading Training
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground tracking-tight">
+                Single-Line Reading Training
+              </h3>
+              {!isFourFour && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono border-warning text-warning bg-warning/10 rounded-none"
+                >
+                  4/4 only · Suspended
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               Ted Reed style rhythmic melodies with real-time playhead
             </p>
@@ -94,6 +117,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
             <Button
               variant={mode === 'generator' ? 'default' : 'ghost'}
               size="sm"
+              disabled={!isFourFour}
               className={cn(
                 'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                 mode === 'generator' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
@@ -106,6 +130,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
             <Button
               variant={mode === 'library' ? 'default' : 'ghost'}
               size="sm"
+              disabled={!isFourFour}
               className={cn(
                 'h-7 px-2.5 text-xs gap-1.5 font-medium rounded-none transition-all',
                 mode === 'library' && 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
@@ -129,6 +154,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               <Button
                 variant={tier === 1 ? 'secondary' : 'ghost'}
                 size="sm"
+                disabled={!isFourFour}
                 className={cn(
                   'h-7 px-2.5 text-xs rounded-none',
                   tier === 1 && 'bg-success/40 text-success border border-success/40 font-semibold'
@@ -140,6 +166,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               <Button
                 variant={tier === 2 ? 'secondary' : 'ghost'}
                 size="sm"
+                disabled={!isFourFour}
                 className={cn(
                   'h-7 px-2.5 text-xs rounded-none',
                   tier === 2 && 'bg-warning/40 text-warning border border-warning/40 font-semibold'
@@ -151,6 +178,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
               <Button
                 variant={tier === 3 ? 'secondary' : 'ghost'}
                 size="sm"
+                disabled={!isFourFour}
                 className={cn(
                   'h-7 px-2.5 text-xs rounded-none',
                   tier === 3 && 'bg-destructive/40 text-destructive border border-destructive/40 font-semibold'
@@ -172,6 +200,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                     key={count}
                     variant={measureCount === count ? 'secondary' : 'ghost'}
                     size="sm"
+                    disabled={!isFourFour}
                     className="h-6 px-2 text-[11px] rounded-none"
                     onClick={() => setMeasureCount(count)}
                   >
@@ -184,6 +213,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
             <Button
               variant="outline"
               size="sm"
+              disabled={!isFourFour}
               className="h-7 px-3 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 rounded-none"
               onClick={handleRegenerate}
             >
@@ -203,6 +233,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                   key={page}
                   variant={selectedPage === page ? 'secondary' : 'ghost'}
                   size="sm"
+                  disabled={!isFourFour}
                   className={cn(
                     'h-7 px-2.5 text-xs font-medium rounded-none',
                     selectedPage === page && 'bg-primary/15 text-primary border border-primary/40 font-semibold'
@@ -233,6 +264,7 @@ export const ReadingTrainingSection: React.FC<ReadingTrainingSectionProps> = ({
                   key={num}
                   variant={selectedExerciseNum === num ? 'secondary' : 'ghost'}
                   size="sm"
+                  disabled={!isFourFour}
                   className={cn(
                     'h-6 w-7 p-0 text-[11px] rounded-none',
                     selectedExerciseNum === num && 'bg-primary/20 text-primary font-bold border border-primary/40'

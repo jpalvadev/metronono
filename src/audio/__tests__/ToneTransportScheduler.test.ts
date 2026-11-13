@@ -390,4 +390,56 @@ describe('ToneTransportScheduler', () => {
       expect(mockClickPlayer.playSubdivision).toHaveBeenCalledWith(1.5, 0.5);
     });
   });
+
+  describe('Non-Destructive 4/4 Exercise Gate', () => {
+    it('notifies onTimeSignatureChange listeners and supports unsubscribe', () => {
+      const listener = vi.fn();
+      const unsubscribe = scheduler.onTimeSignatureChange(listener);
+
+      scheduler.setTimeSignature('7/8');
+      expect(listener).toHaveBeenCalledWith({ beats: 7, beatUnit: 8 });
+
+      unsubscribe();
+      scheduler.setTimeSignature('4/4');
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('suspends Ostinato and Dawson orchestration in non-4/4 meters and restores them on return to 4/4', async () => {
+      const { DawsonEngine } = await import('../../domain/dawson/DawsonEngine');
+      const { REED_PAGE_37_EXERCISE_ONE } = await import('../../domain/rhythm/ReedLibrary');
+      const dawsonEngine = new DawsonEngine();
+      dawsonEngine.setOstinato('jazz_swing');
+
+      const mockDrumPlayer = {
+        play: vi.fn(),
+        triggerVoice: vi.fn(),
+        initSynths: vi.fn(),
+        dispose: vi.fn(),
+      };
+
+      scheduler.setDawsonEngine(dawsonEngine);
+      scheduler.setDrumKitPlayer(mockDrumPlayer as any);
+      scheduler.setReadingLine(REED_PAGE_37_EXERCISE_ONE);
+
+      // Start in 4/4: drum events play
+      await scheduler.start();
+      scheduledCallback!(1.0);
+      expect(mockDrumPlayer.play).toHaveBeenCalled();
+
+      // Switch to 7/8 while playing: drum events are suspended, selections preserved
+      mockDrumPlayer.play.mockClear();
+      scheduler.setTimeSignature('7/8');
+      scheduledCallback!(1.25);
+      expect(mockDrumPlayer.play).not.toHaveBeenCalled();
+      expect(dawsonEngine.getOstinato()).toBe('jazz_swing');
+      expect(dawsonEngine.getSystem()).not.toBeNull();
+      expect(scheduler.getReadingLine()).toBe(REED_PAGE_37_EXERCISE_ONE);
+
+      // Return to 4/4: drum events resume automatically
+      mockDrumPlayer.play.mockClear();
+      scheduler.setTimeSignature('4/4');
+      scheduledCallback!(2.0);
+      expect(mockDrumPlayer.play).toHaveBeenCalled();
+    });
+  });
 });

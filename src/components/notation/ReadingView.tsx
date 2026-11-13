@@ -44,8 +44,12 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     () => scheduler?.isPlaying() ?? isPlaying
   );
   const [playheadPos, setPlayheadPos] = useState<PlayheadPosition | null>(null);
+  const [timeSignature, setTimeSignature] = useState(() =>
+    scheduler?.getTimeSignature?.() ?? { beats: 4, beatUnit: 4 }
+  );
 
-  const effectiveIsPlaying = isPlaying || internalPlaying;
+  const isFourFour = timeSignature.beats === 4 && timeSignature.beatUnit === 4;
+  const effectiveIsPlaying = isFourFour && (isPlaying || internalPlaying);
 
   // Measures per system (columns)
   const [systemCols, setSystemCols] = useState<number | undefined>(propMeasuresPerSystem);
@@ -147,15 +151,20 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
       setInternalPlaying(playing);
     });
 
+    const unsubscribeTimeSig = scheduler.onTimeSignatureChange?.((ts) => {
+      setTimeSignature(ts);
+    });
+
     return () => {
       unsubscribeBeat();
       unsubscribePlay?.();
+      unsubscribeTimeSig?.();
     };
   }, [scheduler]);
 
   // Smooth RAF Playhead Animation
   useEffect(() => {
-    if (!layout) {
+    if (!layout || !isFourFour) {
       setPlayheadPos(null);
       return;
     }
@@ -199,7 +208,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [effectiveIsPlaying, layout, activeMeasure, activeBeat]);
+  }, [effectiveIsPlaying, layout, isFourFour, activeMeasure, activeBeat]);
 
   const activeMeasureCoord: MeasureCoordinate | undefined = useMemo(() => {
     if (!layout) return undefined;
@@ -237,6 +246,14 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           <h2 className="text-sm md:text-base font-semibold tracking-tight text-foreground truncate max-w-xs md:max-w-md">
             {readingLine.title}
           </h2>
+          {!isFourFour && (
+            <Badge
+              variant="outline"
+              className="text-[10px] font-mono border-warning text-warning bg-warning/10 rounded-none"
+            >
+              4/4 only
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -303,7 +320,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           <PlayheadOverlay
             position={playheadPos}
             activeMeasure={activeMeasureCoord}
-            isVisible={effectiveIsPlaying || playheadPos !== null}
+            isVisible={isFourFour && (effectiveIsPlaying || playheadPos !== null)}
             showMeasureHighlight={true}
           />
         </div>

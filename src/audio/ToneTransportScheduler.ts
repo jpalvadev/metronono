@@ -142,6 +142,7 @@ export class ToneTransportScheduler {
   private beatListeners: Set<(event: BeatEvent) => void> = new Set();
   private dropoutListeners: Set<(isDropout: boolean) => void> = new Set();
   private playStateListeners: Set<(isPlaying: boolean) => void> = new Set();
+  private timeSignatureListeners: Set<(ts: TimeSignature) => void> = new Set();
   private lastDropoutState: boolean = false;
   private playing: boolean = false;
   private storageManager?: any;
@@ -233,13 +234,13 @@ export class ToneTransportScheduler {
    * tick never does (docs/adr/0011).
    */
   private buildMeasurePlans(): void {
-    if (!this.dawsonEngine) {
+    const { beats, beatUnit } = this.engine.getTimeSignature();
+    if (!this.dawsonEngine || beats !== 4 || beatUnit !== 4) {
       this.measurePlan = null;
       return;
     }
     const engine = this.dawsonEngine;
 
-    const beats = Math.max(1, Math.floor(this.engine.getTimeSignature().beats));
     const defaultMeasure: Measure = {
       index: 0,
       timeSignature: [4, 4],
@@ -339,12 +340,14 @@ export class ToneTransportScheduler {
   public setTimeSignature(ts: TimeSignature | string): void {
     this.engine.setTimeSignature(ts);
     const newTs = this.engine.getTimeSignature();
+    this.buildMeasurePlans();
     if (this.transport) {
       this.transport.timeSignature = newTs.beats;
       if (this.playing) {
         this.reschedule();
       }
     }
+    this.timeSignatureListeners.forEach((listener) => listener(newTs));
   }
 
   public tap(timestampMs?: number): number | null {
@@ -622,6 +625,13 @@ export class ToneTransportScheduler {
     };
   }
 
+  public onTimeSignatureChange(listener: (ts: TimeSignature) => void): () => void {
+    this.timeSignatureListeners.add(listener);
+    return () => {
+      this.timeSignatureListeners.delete(listener);
+    };
+  }
+
   public async loadDefaultSamples(): Promise<void> {
     const buffers = await this.defaultSampleLoader.loadAll();
     buffers.forEach((buffer, voiceId) => {
@@ -707,6 +717,7 @@ export class ToneTransportScheduler {
     this.beatListeners.clear();
     this.dropoutListeners.clear();
     this.playStateListeners.clear();
+    this.timeSignatureListeners.clear();
   }
 
   private reschedule(): void {

@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { Metronome } from '../Metronome';
 import { ToneTransportScheduler } from '../../audio/ToneTransportScheduler';
+import type {
+  DropoutConfig,
+  MetronomeClickConfig,
+  TempoRampConfig,
+} from '../../domain/metronome/MetronomeEngine';
 
 // Mock ToneTransportScheduler
 vi.mock('../../audio/ToneTransportScheduler', () => {
@@ -18,9 +23,9 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         const pulses = Math.max(1, Math.ceil((timeSig.beats * (4 / timeSig.beatUnit) - 1e-9) / pulseQuarters));
         beatMask = Array.from({ length: pulses }, (_, i) => beatMask[i] ?? true);
       };
-      let tempoRamp = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
-      let dropout = { enabled: false, probability: 0.25, clickBars: 0, silentBars: 0 };
-      let clickConfig = {
+      let tempoRamp: TempoRampConfig = { enabled: false, startBpm: 120, targetBpm: 160, durationBars: 4 };
+      let dropout: DropoutConfig = { enabled: false, probability: 0.25, clickBars: 0, silentBars: 0 };
+      let clickConfig: MetronomeClickConfig = {
         downbeat: { volume: 1.0, muted: false },
         regular: { volume: 0.7, muted: false },
         subdivision: { volume: 0.5, muted: false, divisions: 1 },
@@ -67,16 +72,16 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         }),
         isBeatActive: vi.fn((idx: number) => beatMask[idx] ?? true),
         getTempoRampConfig: vi.fn(() => ({ ...tempoRamp })),
-        setTempoRampConfig: vi.fn((config: any) => {
+        setTempoRampConfig: vi.fn((config: Partial<TempoRampConfig>) => {
           tempoRamp = { ...tempoRamp, ...config };
         }),
         getRampProgress: vi.fn(() => ({ progress: 0, currentBpm: tempo, isComplete: false })),
         getDropoutConfig: vi.fn(() => ({ ...dropout })),
-        setDropoutConfig: vi.fn((config: any) => {
+        setDropoutConfig: vi.fn((config: Partial<DropoutConfig>) => {
           dropout = { ...dropout, ...config };
         }),
         getClickConfig: vi.fn(() => ({ ...clickConfig })),
-        setClickConfig: vi.fn((config: any) => {
+        setClickConfig: vi.fn((config: Partial<MetronomeClickConfig>) => {
           clickConfig = { ...clickConfig, ...config };
         }),
         updateVoiceConfig: vi.fn((type: string, config: any) => {

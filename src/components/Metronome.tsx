@@ -155,17 +155,21 @@ export const Metronome: React.FC<MetronomeProps> = ({ scheduler: customScheduler
   const updateRampConfig = (patch: Partial<TempoRampConfig>) => {
     const updated = { ...rampConfig, ...patch };
     scheduler.setTempoRampConfig(updated);
-    setRampConfigState(scheduler.getTempoRampConfig());
-    return updated;
+    const nextConfig = scheduler.getTempoRampConfig();
+    setRampConfigState(nextConfig);
+    if (nextConfig.enabled) {
+      setCurrentMeasure(0);
+      setActiveBeat(null);
+      setIsDropout(false);
+    }
+    const syncedTempo = scheduler.getTempo();
+    setTempoState(syncedTempo);
+    setTempInputValue(String(syncedTempo));
+    return nextConfig;
   };
 
   const handleToggleRamp = () => {
-    const updated = updateRampConfig({ enabled: !rampConfig.enabled });
-    if (!updated.enabled) {
-      const restored = scheduler.getTempo();
-      setTempoState(restored);
-      setTempInputValue(String(restored));
-    }
+    updateRampConfig({ enabled: !rampConfig.enabled });
   };
 
   const handleRampStartChange = (startBpm: number) => {

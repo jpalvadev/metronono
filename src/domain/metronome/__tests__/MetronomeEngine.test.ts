@@ -559,6 +559,71 @@ describe('MetronomeEngine', () => {
       ];
       expect(bpms).toEqual([150, 130, 110, 90, 110, 130, 150]);
     });
+
+    it('resets playback position to measure 0, beat 0 when enabling Tempo Ramp', () => {
+      // Advance several beats before enabling ramp
+      engine.nextBeat();
+      engine.nextBeat();
+      const midBeat = engine.nextBeat();
+      expect(midBeat.measureIndex).toBe(0);
+      expect(midBeat.beatIndex).toBe(2);
+
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 90,
+        targetBpm: 130,
+        durationBars: 2,
+      });
+
+      const firstAfterEnable = engine.nextBeat();
+      expect(firstAfterEnable.measureIndex).toBe(0);
+      expect(firstAfterEnable.beatIndex).toBe(0);
+      expect(firstAfterEnable.bpm).toBe(90);
+    });
+
+    it('resets playback position to measure 0, beat 0 and active tempo to startBpm when any ramp parameter changes while enabled', () => {
+      engine.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 2,
+        oscillate: false,
+      });
+
+      const advanceTwoBeats = () => {
+        engine.nextBeat();
+        return engine.nextBeat();
+      };
+
+      expect(advanceTwoBeats().beatIndex).toBe(1);
+      engine.setTempoRampConfig({ startBpm: 110 });
+      expect(engine.getTempo()).toBe(110);
+      let next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+      expect(next.bpm).toBe(110);
+
+      expect(advanceTwoBeats().beatIndex).toBe(2);
+      engine.setTempoRampConfig({ targetBpm: 160 });
+      expect(engine.getTempo()).toBe(110);
+      next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+
+      expect(advanceTwoBeats().beatIndex).toBe(2);
+      engine.setTempoRampConfig({ durationBars: 4 });
+      expect(engine.getTempo()).toBe(110);
+      next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+
+      expect(advanceTwoBeats().beatIndex).toBe(2);
+      engine.setTempoRampConfig({ oscillate: true });
+      expect(engine.getTempo()).toBe(110);
+      next = engine.nextBeat();
+      expect(next.measureIndex).toBe(0);
+      expect(next.beatIndex).toBe(0);
+    });
   });
 
   describe('Stochastic Dropout Mode', () => {

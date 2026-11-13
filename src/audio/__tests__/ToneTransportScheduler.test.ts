@@ -282,6 +282,43 @@ describe('ToneTransportScheduler', () => {
       expect(mockTransport.bpm.value).toBe(92);
     });
 
+    it('resets beat progression to measure 0 beat 0, updates transport BPM to startBpm, and clears stale dropout state on live ramp parameter edit', async () => {
+      const dropoutListener = vi.fn();
+      const beatListener = vi.fn();
+      scheduler.onDropoutChange(dropoutListener);
+      scheduler.onBeat(beatListener);
+      scheduler.setDropoutConfig({ enabled: true, probability: 1.0 });
+
+      scheduler.setTempoRampConfig({
+        enabled: true,
+        startBpm: 100,
+        targetBpm: 140,
+        durationBars: 2,
+      });
+
+      await scheduler.start();
+      // Advance 3 beats (measure 0, beat 2, dropout = true)
+      scheduledCallback!(1.0);
+      scheduledCallback!(1.5);
+      scheduledCallback!(2.0);
+      expect(dropoutListener).toHaveBeenLastCalledWith(true);
+
+      // Live edit: change targetBpm / startBpm while playing
+      scheduler.setTempoRampConfig({ startBpm: 88, targetBpm: 132 });
+      expect(mockTransport.bpm.value).toBe(88);
+      expect(dropoutListener).toHaveBeenLastCalledWith(false);
+
+      beatListener.mockClear();
+      scheduledCallback!(2.5);
+      expect(beatListener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          measureIndex: 0,
+          beatIndex: 0,
+          bpm: 88,
+        })
+      );
+    });
+
     it('passes customized click volume to click player without pitch', async () => {
       scheduler.setClickConfig({
         downbeat: { volume: 0.95 },

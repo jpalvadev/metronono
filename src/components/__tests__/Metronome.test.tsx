@@ -74,13 +74,22 @@ vi.mock('../../audio/ToneTransportScheduler', () => {
         isBeatActive: vi.fn((idx: number) => beatMask[idx] ?? true),
         getTempoRampConfig: vi.fn(() => ({ ...tempoRamp })),
         setTempoRampConfig: vi.fn((config: Partial<TempoRampConfig>) => {
-          const wasEnabled = tempoRamp.enabled;
-          tempoRamp = { ...tempoRamp, ...config };
+          const prev = tempoRamp;
+          const wasEnabled = prev.enabled;
+          tempoRamp = { ...prev, ...config };
+          const paramsChanged =
+            tempoRamp.startBpm !== prev.startBpm ||
+            tempoRamp.targetBpm !== prev.targetBpm ||
+            tempoRamp.durationBars !== prev.durationBars ||
+            tempoRamp.oscillate !== prev.oscillate;
           if (!wasEnabled && tempoRamp.enabled) {
             preRampTempo = tempo;
+            tempo = tempoRamp.startBpm;
           } else if (wasEnabled && !tempoRamp.enabled && preRampTempo !== null) {
             tempo = preRampTempo;
             preRampTempo = null;
+          } else if (tempoRamp.enabled && paramsChanged) {
+            tempo = tempoRamp.startBpm;
           }
         }),
         getRampProgress: vi.fn(() => ({ progress: 0, currentBpm: tempo, isComplete: false, direction: 'forward' as const })),
@@ -401,6 +410,35 @@ describe('Metronome Component', () => {
       expect(oscillateCheckbox).toBeChecked();
       expect(screen.getByText(/120 ↔ 160 BPM/)).toBeInTheDocument();
       expect(screen.getByText(/← 75%/)).toBeInTheDocument();
+    });
+
+    it('resets displayed measure, dropout state, and BPM to Start BPM when editing a ramp parameter mid-playback', () => {
+      render(<Metronome scheduler={mockScheduler} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /toggle tempo ramp/i }));
+
+      // Simulate mid-ramp playback at measure 2, beat 1, BPM 145, dropout active
+      act(() => {
+        (mockScheduler as any).__triggerBeat({
+          beatIndex: 1,
+          measureIndex: 2,
+          isDownbeat: false,
+          isMuted: true,
+          isDropout: true,
+          bpm: 145,
+        });
+      });
+
+      expect(screen.getByText('145')).toBeInTheDocument();
+      expect(screen.getByText(/DROPOUT \/ SILENT BAR/i)).toBeInTheDocument();
+
+      // Edit Start BPM while ramp is active -> resets UI to measure 0, beat 0, clears dropout, shows 96 BPM
+      (mockScheduler.getRampProgress as ReturnType<typeof vi.fn>).mockClear();
+      fireEvent.change(screen.getByLabelText(/start bpm/i), { target: { value: '96' } });
+
+      expect(screen.getByText('96')).toBeInTheDocument();
+      expect(screen.queryByText(/DROPOUT \/ SILENT BAR/i)).not.toBeInTheDocument();
+      expect(mockScheduler.getRampProgress).toHaveBeenLastCalledWith(0, 0);
     });
   });
 

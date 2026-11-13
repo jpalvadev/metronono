@@ -432,12 +432,26 @@ export class ToneTransportScheduler {
   }
 
   public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
-    const wasEnabled = this.engine.getTempoRampConfig().enabled;
+    const prev = this.engine.getTempoRampConfig();
     this.engine.setTempoRampConfig(config);
-    const nextEnabled = this.engine.getTempoRampConfig().enabled;
+    const next = this.engine.getTempoRampConfig();
 
-    if (wasEnabled && !nextEnabled && this.transport) {
+    const paramsChanged =
+      next.startBpm !== prev.startBpm ||
+      next.targetBpm !== prev.targetBpm ||
+      next.durationBars !== prev.durationBars ||
+      next.oscillate !== prev.oscillate;
+
+    if (prev.enabled && !next.enabled && this.transport) {
       this.transport.bpm.value = this.engine.getTempo();
+    } else if (next.enabled && (!prev.enabled || paramsChanged)) {
+      if (this.transport) {
+        this.transport.bpm.value = this.engine.getTempo();
+      }
+      if (this.playing && this.lastDropoutState) {
+        this.lastDropoutState = false;
+        this.dropoutListeners.forEach((listener) => listener(false));
+      }
     }
   }
 

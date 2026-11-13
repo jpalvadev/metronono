@@ -331,20 +331,32 @@ export class MetronomeEngine {
   }
 
   public setTempoRampConfig(config: Partial<TempoRampConfig>): void {
-    const wasEnabled = this.rampConfig.enabled;
+    const prev = this.rampConfig;
+    const wasEnabled = prev.enabled;
     this.rampConfig = {
-      ...this.rampConfig,
+      ...prev,
       ...config,
       ...(config.startBpm !== undefined ? { startBpm: clampBpmValue(config.startBpm) } : {}),
       ...(config.targetBpm !== undefined ? { targetBpm: clampBpmValue(config.targetBpm) } : {}),
       ...(config.durationBars !== undefined ? { durationBars: clampRampBars(config.durationBars) } : {}),
     };
 
+    const paramsChanged =
+      this.rampConfig.startBpm !== prev.startBpm ||
+      this.rampConfig.targetBpm !== prev.targetBpm ||
+      this.rampConfig.durationBars !== prev.durationBars ||
+      this.rampConfig.oscillate !== prev.oscillate;
+
     if (!wasEnabled && this.rampConfig.enabled) {
       this.preRampTempo = this.tempo;
+      this.reset();
+      this.tempo = this.rampConfig.startBpm;
     } else if (wasEnabled && !this.rampConfig.enabled && this.preRampTempo !== null) {
       this.tempo = this.preRampTempo;
       this.preRampTempo = null;
+    } else if (this.rampConfig.enabled && paramsChanged) {
+      this.reset();
+      this.tempo = this.rampConfig.startBpm;
     }
   }
 

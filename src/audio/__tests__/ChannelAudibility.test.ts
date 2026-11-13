@@ -371,4 +371,41 @@ describe('Auditioning a silent Mixing Channel (Pure Web Audio)', () => {
     );
     expect(sampleSourcesFor('sample:ostinato:mix')).toHaveLength(0);
   });
+
+  it('suppresses scheduled audio only for muted click voices while keeping others audible', async () => {
+    const scheduler = await startScheduler();
+    scheduler.updateVoiceConfig('subdivision', { divisions: 2, volume: 0.4 });
+    scheduler.updateVoiceConfig('downbeat', { muted: true });
+
+    advanceBeats(4); // 1 full bar in 4/4: beat 0 (downbeat) + beats 1,2,3 (regular) + 4 subdivisions
+
+    expect(sampleSourcesFor('click:mix:downbeat')).toHaveLength(0);
+    expect(sampleSourcesFor('click:mix:regular')).toHaveLength(3);
+    expect(sampleSourcesFor('click:mix:subdivision')).toHaveLength(4);
+    scheduler.dispose();
+  });
+
+  it('suppresses regular or subdivision click voices independently when muted', async () => {
+    const scheduler = await startScheduler();
+    scheduler.updateVoiceConfig('subdivision', { divisions: 2, muted: true });
+    scheduler.updateVoiceConfig('regular', { muted: true });
+
+    advanceBeats(4);
+
+    expect(sampleSourcesFor('click:mix:downbeat')).toHaveLength(1);
+    expect(sampleSourcesFor('click:mix:regular')).toHaveLength(0);
+    expect(sampleSourcesFor('click:mix:subdivision')).toHaveLength(0);
+    scheduler.dispose();
+  });
+
+  it('auditions a click voice through audition:click even when that voice is muted', async () => {
+    const scheduler = await startScheduler();
+    scheduler.updateVoiceConfig('downbeat', { muted: true, volume: 0.9 });
+
+    scheduler.auditionVoice('click_downbeat');
+
+    expect(soundsThrough('audition:click')).toBe(true);
+    expect(sampleSourcesFor('click:mix:downbeat')).toHaveLength(0);
+    scheduler.dispose();
+  });
 });

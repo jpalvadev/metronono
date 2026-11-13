@@ -16,6 +16,7 @@ export interface BeatEvent {
 export interface ClickVoiceConfig {
   pitch: string;
   volume: number;
+  muted: boolean;
 }
 
 // The subdivision voice also carries the Gap Clicks count: how many equal parts each
@@ -23,6 +24,7 @@ export interface ClickVoiceConfig {
 export interface SubdivisionVoiceConfig {
   pitch: string;
   volume: number;
+  muted: boolean;
   divisions: number;
 }
 
@@ -50,9 +52,9 @@ export interface DropoutConfig {
 // asks for gap clicks. Shared so a click player built without a config agrees.
 export function createDefaultClickConfig(): MetronomeClickConfig {
   return {
-    downbeat: { pitch: 'A6', volume: 1.0 },
-    regular: { pitch: 'E5', volume: 0.7 },
-    subdivision: { pitch: 'C5', volume: 0.5, divisions: 1 },
+    downbeat: { pitch: 'A6', volume: 1.0, muted: false },
+    regular: { pitch: 'E5', volume: 0.7, muted: false },
+    subdivision: { pitch: 'C5', volume: 0.5, muted: false, divisions: 1 },
   };
 }
 
@@ -88,6 +90,7 @@ export class MetronomeEngine {
   private beatMask: boolean[] = [true, true, true, true];
 
   private clickConfig: MetronomeClickConfig = createDefaultClickConfig();
+  private clickConfigListeners: Set<(config: MetronomeClickConfig) => void> = new Set();
 
   private rampConfig: TempoRampConfig = {
     enabled: false,
@@ -167,6 +170,18 @@ export class MetronomeEngine {
   }
 
   // Click Sound & Accent Configuration
+  public onClickConfigChange(listener: (config: MetronomeClickConfig) => void): () => void {
+    this.clickConfigListeners.add(listener);
+    return () => {
+      this.clickConfigListeners.delete(listener);
+    };
+  }
+
+  private notifyClickConfigChange(): void {
+    const snapshot = this.getClickConfig();
+    this.clickConfigListeners.forEach((listener) => listener(snapshot));
+  }
+
   public getClickConfig(): MetronomeClickConfig {
     return {
       downbeat: { ...this.clickConfig.downbeat },
@@ -191,6 +206,7 @@ export class MetronomeEngine {
       subdivision.divisions = clampBeatDivisions(subdivision.divisions);
       this.clickConfig.subdivision = subdivision;
     }
+    this.notifyClickConfigChange();
   }
 
   public updateVoiceConfig(
@@ -204,6 +220,7 @@ export class MetronomeEngine {
     } else {
       this.clickConfig[type] = { ...this.clickConfig[type], ...config };
     }
+    this.notifyClickConfigChange();
   }
 
   // Tempo Ramp

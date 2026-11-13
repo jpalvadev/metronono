@@ -84,9 +84,11 @@ export class ToneClickPlayer implements IClickPlayer {
   }
 
   private playVoice(key: ClickVoiceKey, time: number, velocity?: number): void {
+    if (this.clickConfig[key].muted) return;
     const buffer = this.customBuffers.get(key) ?? this.defaultBuffers.get(key);
     if (!buffer || !this.outputNode) return;
     const v = velocity ?? this.clickConfig[key].volume;
+    if (v <= 0) return;
     this.strokePlayer.playBuffer(buffer, time, v, this.outputNode, `click:mix:${key}`);
   }
 
@@ -375,6 +377,10 @@ export class ToneTransportScheduler {
   }
 
   // Click Sound & Accent Configuration
+  public onClickConfigChange(listener: (config: MetronomeClickConfig) => void): () => void {
+    return this.engine.onClickConfigChange(listener);
+  }
+
   public getClickConfig(): MetronomeClickConfig {
     return this.engine.getClickConfig();
   }
@@ -741,12 +747,19 @@ export class ToneTransportScheduler {
         const voiceConfig = beatEvent.isDownbeat
           ? clickConfig.downbeat
           : clickConfig.regular;
-        this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume, voiceConfig.pitch);
+        if (!voiceConfig.muted && voiceConfig.volume > 0) {
+          this.clickPlayer.play(beatEvent.isDownbeat, time, voiceConfig.volume, voiceConfig.pitch);
+        }
 
         // Gap clicks: the subdivision voice heard at the even fractions of the beat,
         // splitting it into parts. One part means the beat click alone.
         const divisions = Math.max(1, Math.floor(clickConfig.subdivision.divisions ?? 1));
-        if (this.clickPlayer.playSubdivision && divisions > 1) {
+        if (
+          this.clickPlayer.playSubdivision &&
+          divisions > 1 &&
+          !clickConfig.subdivision.muted &&
+          clickConfig.subdivision.volume > 0
+        ) {
           for (let gap = 1; gap < divisions; gap++) {
             this.clickPlayer.playSubdivision(
               time + (gap / divisions) * beatDuration,

@@ -173,9 +173,9 @@ describe('MetronomeEngine', () => {
   describe('Click Sound & Accent Customization', () => {
     it('provides sensible default click pitches and volumes', () => {
       const config = engine.getClickConfig();
-      expect(config.downbeat).toEqual({ pitch: 'A6', volume: 1.0 });
-      expect(config.regular).toEqual({ pitch: 'E5', volume: 0.7 });
-      expect(config.subdivision).toEqual({ pitch: 'C5', volume: 0.5, divisions: 1 });
+      expect(config.downbeat).toEqual({ pitch: 'A6', volume: 1.0, muted: false });
+      expect(config.regular).toEqual({ pitch: 'E5', volume: 0.7, muted: false });
+      expect(config.subdivision).toEqual({ pitch: 'C5', volume: 0.5, muted: false, divisions: 1 });
     });
 
     it('allows updating voice pitch and volume', () => {
@@ -184,16 +184,16 @@ describe('MetronomeEngine', () => {
       engine.updateVoiceConfig('subdivision', { pitch: 'D5', volume: 0.4 });
 
       const config = engine.getClickConfig();
-      expect(config.downbeat).toEqual({ pitch: 'C7', volume: 0.9 });
-      expect(config.regular).toEqual({ pitch: 'G5', volume: 0.6 });
-      expect(config.subdivision).toEqual({ pitch: 'D5', volume: 0.4, divisions: 1 });
+      expect(config.downbeat).toEqual({ pitch: 'C7', volume: 0.9, muted: false });
+      expect(config.regular).toEqual({ pitch: 'G5', volume: 0.6, muted: false });
+      expect(config.subdivision).toEqual({ pitch: 'D5', volume: 0.4, muted: false, divisions: 1 });
     });
 
     it('allows replacing full click config', () => {
       engine.setClickConfig({
         downbeat: { pitch: 'B6', volume: 0.8 },
       });
-      expect(engine.getClickConfig().downbeat).toEqual({ pitch: 'B6', volume: 0.8 });
+      expect(engine.getClickConfig().downbeat).toEqual({ pitch: 'B6', volume: 0.8, muted: false });
       // Preserves untouched regular
       expect(engine.getClickConfig().regular.pitch).toBe('E5');
     });
@@ -202,7 +202,7 @@ describe('MetronomeEngine', () => {
   describe('Gap Clicks (Subdivision Divisions)', () => {
     it('splits each beat into a configured number of equal parts', () => {
       engine.updateVoiceConfig('subdivision', { divisions: 3 });
-      expect(engine.getClickConfig().subdivision).toEqual({ pitch: 'C5', volume: 0.5, divisions: 3 });
+      expect(engine.getClickConfig().subdivision).toEqual({ pitch: 'C5', volume: 0.5, muted: false, divisions: 3 });
     });
 
     it('defaults to one part, which means no gap clicks', () => {
@@ -212,7 +212,7 @@ describe('MetronomeEngine', () => {
     it('preserves the division count when only pitch or volume is changed', () => {
       engine.updateVoiceConfig('subdivision', { divisions: 4 });
       engine.updateVoiceConfig('subdivision', { pitch: 'D5' });
-      expect(engine.getClickConfig().subdivision).toEqual({ pitch: 'D5', volume: 0.5, divisions: 4 });
+      expect(engine.getClickConfig().subdivision).toEqual({ pitch: 'D5', volume: 0.5, muted: false, divisions: 4 });
     });
 
     it('clamps the division count to whole parts between 1 and 8', () => {
@@ -220,6 +220,43 @@ describe('MetronomeEngine', () => {
       expect(engine.getClickConfig().subdivision.divisions).toBe(1);
       engine.updateVoiceConfig('subdivision', { divisions: 20.6 });
       expect(engine.getClickConfig().subdivision.divisions).toBe(8);
+    });
+  });
+
+  describe('Per-Voice Click Mute & Config Subscription', () => {
+    it('initializes downbeat, regular, and subdivision voices with muted: false', () => {
+      const config = engine.getClickConfig();
+      expect(config.downbeat.muted).toBe(false);
+      expect(config.regular.muted).toBe(false);
+      expect(config.subdivision.muted).toBe(false);
+    });
+
+    it('preserves stored volume and divisions when setting muted on any click voice', () => {
+      engine.updateVoiceConfig('downbeat', { volume: 0.85 });
+      engine.updateVoiceConfig('downbeat', { muted: true });
+      expect(engine.getClickConfig().downbeat.muted).toBe(true);
+      expect(engine.getClickConfig().downbeat.volume).toBe(0.85);
+
+      engine.updateVoiceConfig('subdivision', { volume: 0.4, divisions: 6 });
+      engine.updateVoiceConfig('subdivision', { muted: true });
+      expect(engine.getClickConfig().subdivision.muted).toBe(true);
+      expect(engine.getClickConfig().subdivision.volume).toBe(0.4);
+      expect(engine.getClickConfig().subdivision.divisions).toBe(6);
+    });
+
+    it('notifies registered listeners on click config changes and supports unsubscribe', () => {
+      const received: Array<ReturnType<MetronomeEngine['getClickConfig']>> = [];
+      const unsubscribe = engine.onClickConfigChange((cfg) => received.push(cfg));
+
+      engine.updateVoiceConfig('downbeat', { muted: true });
+      engine.setClickConfig({ regular: { volume: 0.3 } });
+      expect(received).toHaveLength(2);
+      expect(received[0].downbeat.muted).toBe(true);
+      expect(received[1].regular.volume).toBe(0.3);
+
+      unsubscribe();
+      engine.updateVoiceConfig('subdivision', { divisions: 5 });
+      expect(received).toHaveLength(2);
     });
   });
 
